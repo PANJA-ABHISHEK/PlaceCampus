@@ -1,0 +1,23 @@
+{
+  "name": "skills_search_index",
+  "mappings": {
+    "dynamic": false,
+    "fields": {
+      "name": {
+        "type": "autocomplete",
+        "tokenization": "nGram",
+        "minGrams": 2,
+        "maxGrams": 15,
+        "foldDiacritics": true
+      },
+      "synonyms": {
+        "type": "string",
+        "analyzer": "lucene.standard"
+      },
+      "description": {
+        "type": "string",
+        "analyzer": "lucene.english"
+      }
+    }
+  }
+}
