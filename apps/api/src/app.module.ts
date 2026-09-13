@@ -5,6 +5,7 @@ import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
 import { AuthModule } from './auth/auth.module.js';
 import { UsersModule } from './users/users.module.js';
+import { SkillsModule } from './skills/skills.module.js';
 import configuration from './config/configuration.js';
 
 @Module({
@@ -28,6 +29,7 @@ import configuration from './config/configuration.js';
     // Feature modules
     AuthModule,
     UsersModule,
+    SkillsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
