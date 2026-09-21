@@ -1,4 +1,4 @@
-# SkillBridge
+# PlaceCampus
 
 **Evidence-Based Placement Skill Matching and Readiness Analysis System**
 
@@ -9,7 +9,7 @@ A production-quality full-stack platform that creates verified, evidence-based s
 ## 🏗️ Architecture
 
 ```
-skillbridge/
+placecampus/
 ├── apps/
 │   ├── web/          → Next.js 16 frontend (TypeScript, Tailwind CSS)
 │   └── api/          → NestJS 12 backend (TypeScript, REST API)
@@ -62,7 +62,7 @@ A student can be eligible but not ready, ready but not eligible, both, or neithe
 
 ```bash
 git clone <repository-url>
-cd skillbridge
+cd placecampus
 npm install
 ```
 
