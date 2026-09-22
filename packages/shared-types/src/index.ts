@@ -1,5 +1,5 @@
 // ============================================
-// SkillBridge Shared Types
+// PlaceCampus Shared Types
 // Central type definitions for API contracts
 // ============================================
 

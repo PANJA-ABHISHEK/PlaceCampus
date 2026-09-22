@@ -1,6 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { type HydratedDocument, Types } from 'mongoose';
-import { SkillCategory } from '@skillbridge/shared-types';
+import { SkillCategory } from '@placecampus/shared-types';
 
 export type SkillDocument = HydratedDocument<Skill>;
 

@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "SkillBridge – Placement Skill Matching & Readiness Analysis",
+  title: "PlaceCampus – Intelligent University Placement Readiness Platform",
   description:
     "Evidence-based placement skill matching and readiness analysis system for academic institutions. Build verified skill profiles, match against placement drives, and track readiness.",
   keywords: [

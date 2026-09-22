@@ -22,7 +22,7 @@ describe('AppController (e2e)', () => {
       .expect(200)
       .expect((res: request.Response) => {
         const body = res.body as Record<string, unknown>;
-        expect(body).toHaveProperty('service', 'SkillBridge API');
+        expect(body).toHaveProperty('service', 'PlaceCampus API');
         expect(body).toHaveProperty('status', 'healthy');
       });
   });

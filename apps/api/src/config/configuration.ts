@@ -40,7 +40,7 @@ export default (): AppConfig => ({
     port: parseInt(process.env['PORT'] ?? '4000', 10),
   },
   database: {
-    uri: process.env['MONGODB_URI'] ?? 'mongodb://localhost:27017/skillbridge',
+    uri: process.env['MONGODB_URI'] ?? 'mongodb://localhost:27017/placecampus',
   },
   redis: {
     host: process.env['REDIS_HOST'] ?? 'localhost',

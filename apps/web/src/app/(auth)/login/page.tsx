@@ -1,97 +1,128 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
-import Link from 'next/link';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
-import { ApiClientError } from '@/lib/api';
+import { LogIn, AlertCircle } from 'lucide-react';
+
+const roleHomePaths: Record<string, string> = {
+  STUDENT: '/student/dashboard',
+  FACULTY: '/faculty/dashboard',
+  PLACEMENT_OFFICER: '/placement/dashboard',
+  PLACEMENT_HEAD: '/placement/dashboard',
+  RECRUITER: '/recruiter/dashboard',
+  ADMIN: '/admin/dashboard',
+};
 
 export default function LoginPage() {
-  const router = useRouter();
-  const { login } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const { login } = useAuth();
+  const router = useRouter();
 
-  async function handleSubmit(e: FormEvent) {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setIsLoading(true);
 
     try {
       await login(email, password);
-      router.push('/');
-    } catch (err) {
-      if (err instanceof ApiClientError) {
-        setError(err.message);
+      // Get user from localStorage after login sets it
+      const storedUser = localStorage.getItem('user');
+      if (storedUser) {
+        const user = JSON.parse(storedUser) as { role: string };
+        const redirectPath = roleHomePaths[user.role] ?? '/student/dashboard';
+        router.push(redirectPath);
       } else {
-        setError('An unexpected error occurred. Please try again.');
+        router.push('/student/dashboard');
       }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Invalid email or password');
     } finally {
       setIsLoading(false);
     }
-  }
+  };
 
   return (
-    <div className="rounded-xl border border-border bg-secondary/20 p-8 shadow-lg backdrop-blur-sm">
-      <h2 className="text-2xl font-semibold text-center mb-6">Sign In</h2>
+    <div className="card p-8">
+      <h2 className="text-xl font-semibold mb-6">Sign in to your account</h2>
 
       {error && (
-        <div className="mb-4 rounded-lg bg-destructive/10 border border-destructive/20 px-4 py-3 text-sm text-destructive">
+        <div className="flex items-center gap-2 p-3 mb-4 rounded-lg bg-[var(--color-danger-bg)] text-[var(--color-danger)] text-sm">
+          <AlertCircle size={16} />
           {error}
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-5">
+      <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label htmlFor="login-email" className="block text-sm font-medium mb-1.5">
-            Email Address
-          </label>
+          <label className="label">Email</label>
           <input
-            id="login-email"
             type="email"
+            className="input"
+            placeholder="you@university.edu"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
             autoComplete="email"
-            className="w-full rounded-lg border border-border bg-background px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring transition-colors"
-            placeholder="you@example.com"
           />
         </div>
 
         <div>
-          <label htmlFor="login-password" className="block text-sm font-medium mb-1.5">
-            Password
-          </label>
+          <label className="label">Password</label>
           <input
-            id="login-password"
             type="password"
+            className="input"
+            placeholder="••••••••"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
             autoComplete="current-password"
-            className="w-full rounded-lg border border-border bg-background px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring transition-colors"
-            placeholder="••••••••"
           />
+        </div>
+
+        <div className="flex items-center justify-between text-sm">
+          <label className="flex items-center gap-2">
+            <input type="checkbox" className="rounded border-[var(--color-border)]" />
+            <span className="text-[var(--color-muted)]">Remember me</span>
+          </label>
+          <Link
+            href="/forgot-password"
+            className="text-[var(--color-primary)] hover:underline font-medium"
+          >
+            Forgot password?
+          </Link>
         </div>
 
         <button
           type="submit"
+          className="btn btn-primary w-full btn-lg"
           disabled={isLoading}
-          className="w-full rounded-lg bg-primary py-2.5 text-sm font-semibold text-primary-foreground hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {isLoading ? 'Signing in...' : 'Sign In'}
+          {isLoading ? (
+            <span className="flex items-center gap-2">
+              <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              Signing in...
+            </span>
+          ) : (
+            <span className="flex items-center gap-2">
+              <LogIn size={16} />
+              Sign In
+            </span>
+          )}
         </button>
       </form>
 
-      <p className="mt-6 text-center text-sm text-muted-foreground">
+      <p className="mt-6 text-center text-sm text-[var(--color-muted)]">
         Don&apos;t have an account?{' '}
         <Link
           href="/register"
-          className="font-medium text-primary hover:underline"
+          className="text-[var(--color-primary)] hover:underline font-medium"
         >
-          Create one
+          Sign up
         </Link>
       </p>
     </div>

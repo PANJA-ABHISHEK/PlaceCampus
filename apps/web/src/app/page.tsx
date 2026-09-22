@@ -15,7 +15,7 @@ export default function Home() {
         {/* Title */}
         <h1 className="text-5xl sm:text-6xl font-bold tracking-tight">
           <span className="bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-            SkillBridge
+            PlaceCampus
           </span>
         </h1>
 
@@ -63,7 +63,7 @@ export default function Home() {
 
       {/* Footer */}
       <footer className="mt-24 text-sm text-muted-foreground">
-        SkillBridge v0.1.0 · Academic Project
+        PlaceCampus v0.1.0 · Academic Project
       </footer>
     </main>
   );

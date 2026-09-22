@@ -1,5 +1,5 @@
 import { IsString, IsEnum, IsOptional, IsArray, IsBoolean, IsMongoId, MinLength } from 'class-validator';
-import { SkillCategory } from '@skillbridge/shared-types';
+import { SkillCategory } from '@placecampus/shared-types';
 
 export class CreateSkillDto {
   @IsString()

@@ -11,7 +11,7 @@ interface HealthCheckResponse {
 export class AppService {
   getHealth(): HealthCheckResponse {
     return {
-      service: 'SkillBridge API',
+      service: 'PlaceCampus API',
       version: '0.1.0',
       status: 'healthy',
       timestamp: new Date().toISOString(),

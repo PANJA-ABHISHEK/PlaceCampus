@@ -1,5 +1,5 @@
 {
-  "name": "@skillbridge/web",
+  "name": "@placecampus/web",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -11,10 +11,19 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@skillbridge/shared-types": "*",
+    "@hookform/resolvers": "^5.9.1",
+    "@placecampus/shared-types": "*",
+    "@tanstack/react-query": "^5.103.2",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "lucide-react": "^1.47.0",
     "next": "16.3.4",
     "react": "19.2.8",
-    "react-dom": "19.2.8"
+    "react-dom": "19.2.8",
+    "react-hook-form": "^7.88.0",
+    "recharts": "^3.10.1",
+    "tailwind-merge": "^3.7.0",
+    "zod": "^4.5.4"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

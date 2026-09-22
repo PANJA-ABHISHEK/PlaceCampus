@@ -1,8 +1,8 @@
 {
-  "name": "skillbridge",
+  "name": "placecampus",
   "version": "0.1.0",
   "private": true,
-  "description": "SkillBridge – Evidence-Based Placement Skill Matching and Readiness Analysis System",
+  "description": "PlaceCampus – Intelligent University Placement Readiness Platform",
   "workspaces": [
     "packages/*",
     "apps/*"

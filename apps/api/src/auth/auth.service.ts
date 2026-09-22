@@ -144,6 +144,20 @@ export class AuthService {
     return { message: 'Logged out successfully' };
   }
 
+  async forgotPassword(email: string): Promise<{ message: string }> {
+    const user = await this.usersService.findByEmail(email);
+    // Always return success to prevent email enumeration
+    if (!user) {
+      this.logger.warn(`Forgot password attempt for non-existent email: ${email}`);
+      return { message: 'If an account exists with this email, a password reset link has been sent.' };
+    }
+
+    // TODO: Generate reset token, save to user, send email
+    // For now, log the intent
+    this.logger.log(`Password reset requested for: ${email}`);
+    return { message: 'If an account exists with this email, a password reset link has been sent.' };
+  }
+
   async validateRefreshToken(refreshToken: string): Promise<TokenPayload> {
     try {
       const payload = await this.jwtService.verifyAsync<TokenPayload>(refreshToken, {

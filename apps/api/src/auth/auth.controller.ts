@@ -1,6 +1,6 @@
 import { Controller, Post, Body, UseGuards, HttpCode, HttpStatus } from '@nestjs/common';
 import { AuthService } from './auth.service.js';
-import { RegisterDto, LoginDto, RefreshTokenDto } from './dto/index.js';
+import { RegisterDto, LoginDto, RefreshTokenDto, ForgotPasswordDto } from './dto/index.js';
 import { JwtAuthGuard } from './guards/jwt-auth.guard.js';
 import { CurrentUser } from '../common/decorators/current-user.decorator.js';
 import { type UserDocument } from '../users/schemas/user.schema.js';
@@ -35,4 +35,11 @@ export class AuthController {
   logout(@CurrentUser() user: UserDocument) {
     return this.authService.logout(String(user._id));
   }
+
+  @Post('forgot-password')
+  @HttpCode(HttpStatus.OK)
+  forgotPassword(@Body() dto: ForgotPasswordDto) {
+    return this.authService.forgotPassword(dto.email);
+  }
 }
+

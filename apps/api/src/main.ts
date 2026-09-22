@@ -40,7 +40,7 @@ async function bootstrap(): Promise<void> {
   app.useGlobalInterceptors(new ResponseInterceptor());
 
   await app.listen(port);
-  Logger.log(`🚀 SkillBridge API running on http://localhost:${String(port)}/api`, 'Bootstrap');
+  Logger.log(`🚀 PlaceCampus API running on http://localhost:${String(port)}/api`, 'Bootstrap');
 }
 
 await bootstrap();
