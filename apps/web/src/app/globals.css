@@ -2,59 +2,67 @@
 
 /* ── PlaceCampus Design Tokens ── */
 :root {
-  /* Primary - Deep Blue */
-  --color-primary: #1e40af;
-  --color-primary-light: #3b82f6;
-  --color-primary-dark: #1e3a8a;
+  /* Primary Accent - LPU Orange */
+  --color-primary: #f58220;
+  --color-primary-light: #fff1df;
+  --color-primary-dark: #d96b0b;
   --color-primary-foreground: #ffffff;
 
-  /* Accent */
-  --color-accent: #2563eb;
+  /* Accent (Reuse primary for simplicity, or slightly lighter orange) */
+  --color-accent: #f58220;
   --color-accent-foreground: #ffffff;
+  
+  --color-accent-light: #fff1df;
+  --color-accent-dark: #d96b0b;
 
   /* Backgrounds */
   --color-background: #ffffff;
-  --color-surface: #f8fafc;
-  --color-surface-hover: #f1f5f9;
+  --color-surface: #f8f8f3;       /* Warm Cream */
+  --color-surface-hover: #f0f0ea;
 
-  /* Text */
-  --color-foreground: #0f172a;
-  --color-muted: #64748b;
-  --color-muted-foreground: #94a3b8;
+  /* Text & Dark Colors */
+  --color-foreground: #111111;    /* Black */
+  --color-muted: #6b6b6b;         /* Gray */
+  --color-muted-foreground: #6b6b6b;
+  --color-charcoal: #252525;      /* Dark section bg */
 
   /* Borders */
-  --color-border: #e2e8f0;
-  --color-border-strong: #cbd5e1;
+  --color-border: #d9d9d9;
+  --color-border-strong: #bfbfbf;
 
   /* Status Colors */
   --color-success: #16a34a;
   --color-success-bg: #f0fdf4;
-  --color-warning: #d97706;
-  --color-warning-bg: #fffbeb;
+  --color-warning: #f58220;       /* Orange */
+  --color-warning-bg: #fff1df;
   --color-danger: #dc2626;
   --color-danger-bg: #fef2f2;
-  --color-info: #2563eb;
-  --color-info-bg: #eff6ff;
+  --color-info: #252525;
+  --color-info-bg: #f8f8f3;
 
   /* Sidebar */
   --sidebar-width: 260px;
   --sidebar-collapsed-width: 72px;
 
-  /* Radius */
-  --radius-sm: 0.375rem;
-  --radius-md: 0.5rem;
-  --radius-lg: 0.75rem;
-  --radius-xl: 1rem;
+  /* Radius (Slightly rounded, no pills) */
+  --radius-sm: 0.125rem;
+  --radius-md: 0.25rem;   /* 4px */
+  --radius-lg: 0.25rem;   /* 4px */
+  --radius-xl: 0.25rem;   /* 4px */
 
-  /* Shadows */
-  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.07), 0 2px 4px -2px rgb(0 0 0 / 0.05);
-  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.07), 0 4px 6px -4px rgb(0 0 0 / 0.05);
+  /* Shadows (Minimal, editorial) */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.02);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -4px rgba(0, 0, 0, 0.02);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.02);
 }
 
 /* ── Base Styles ── */
 * {
   box-sizing: border-box;
+  .font-serif {
+    font-family: var(--font-playfair), serif;
+  }
 }
 
 body {
