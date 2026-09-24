@@ -37,6 +37,18 @@ export default function ForgotPasswordPage() {
 
   if (submitted) {
     return (
+    <div className="min-h-screen flex items-center justify-center bg-background px-4 py-12">
+      <div className="w-full max-w-md space-y-8">
+        <div className="text-center">
+          <h1 className="text-3xl font-bold">
+            <span className="text-[#5B2A86]">
+              PlaceCampus
+            </span>
+          </h1>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Intelligent University Placement Readiness
+          </p>
+        </div>
       <div className="card p-8 text-center space-y-4">
         <div className="w-16 h-16 rounded-full bg-[var(--color-success-bg)] flex items-center justify-center mx-auto">
           <CheckCircle2 size={28} className="text-[var(--color-success)]" />
@@ -51,10 +63,24 @@ export default function ForgotPasswordPage() {
           Back to Sign In
         </Link>
       </div>
+      </div>
+    </div>
     );
   }
 
   return (
+    <div className="min-h-screen flex items-center justify-center bg-background px-4 py-12">
+      <div className="w-full max-w-md space-y-8">
+        <div className="text-center">
+          <h1 className="text-3xl font-bold">
+            <span className="text-[#5B2A86]">
+              PlaceCampus
+            </span>
+          </h1>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Intelligent University Placement Readiness
+          </p>
+        </div>
     <div className="card p-8">
       <h2 className="text-xl font-semibold mb-2">Reset your password</h2>
       <p className="text-sm text-[var(--color-muted)] mb-6">
@@ -109,6 +135,8 @@ export default function ForgotPasswordPage() {
           Back to Sign In
         </Link>
       </p>
+    </div>
+    </div>
     </div>
   );
 }

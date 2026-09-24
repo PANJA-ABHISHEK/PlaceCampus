@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, ConflictException } from '@nestjs/common
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import * as bcrypt from 'bcrypt';
+import * as crypto from 'crypto';
 import { User, type UserDocument, UserRole } from './schemas/user.schema.js';
 
 @Injectable()
@@ -115,5 +116,35 @@ export class UsersService {
 
   async validatePassword(plainPassword: string, hashedPassword: string): Promise<boolean> {
     return bcrypt.compare(plainPassword, hashedPassword);
+  }
+
+  async savePasswordResetToken(userId: string, token: string): Promise<void> {
+    const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+    // Token expires in 1 hour
+    const expires = new Date(Date.now() + 3600000);
+    await this.userModel
+      .findByIdAndUpdate(userId, {
+        passwordResetToken: hashedToken,
+        passwordResetExpires: expires,
+      })
+      .exec();
+  }
+
+  async findByPasswordResetToken(token: string): Promise<User | null> {
+    const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+    return this.userModel.findOne({
+      passwordResetToken: hashedToken,
+      passwordResetExpires: { $gt: new Date() },
+    }).exec();
+  }
+
+  async updatePassword(userId: string, newPassword: string): Promise<void> {
+    const saltRounds = 12;
+    const hashedPassword = await bcrypt.hash(newPassword, saltRounds);
+    await this.userModel.findByIdAndUpdate(userId, {
+      password: hashedPassword,
+      passwordResetToken: undefined,
+      passwordResetExpires: undefined,
+    }).exec();
   }
 }

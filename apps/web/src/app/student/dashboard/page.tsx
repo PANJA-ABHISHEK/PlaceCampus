@@ -11,9 +11,27 @@ import {
   Clock,
 } from 'lucide-react';
 import Link from 'next/link';
+import { useQuery } from '@tanstack/react-query';
+import { studentsApi, evidenceApi } from '@/lib/api';
 
 export default function StudentDashboard() {
   const { user } = useAuth();
+
+  const { data: completionData } = useQuery({
+    queryKey: ['student', 'completion'],
+    queryFn: studentsApi.getCompletion,
+  });
+
+  const { data: evidenceStats } = useQuery({
+    queryKey: ['evidence', 'stats'],
+    queryFn: evidenceApi.getStats,
+  });
+
+  const completionPercentage = completionData?.percentage ?? 0;
+  const verifiedSkills = evidenceStats?.verified ?? 0;
+  const evidenceSubmitted = evidenceStats?.total ?? 0;
+  // TODO: Fetch eligible drives when placement module is ready
+  const eligibleDrives = 0;
 
   return (
     <div className="space-y-8">
@@ -31,25 +49,25 @@ export default function StudentDashboard() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           title="Profile Completion"
-          value="--"
-          subtitle="Complete your profile"
+          value={`${completionPercentage}%`}
+          subtitle={completionPercentage === 100 ? "Ready for placement" : "Complete your profile"}
           icon={<User size={20} />}
         />
         <StatCard
           title="Verified Skills"
-          value="0"
+          value={String(verifiedSkills)}
           subtitle="Upload evidence to verify"
           icon={<Award size={20} />}
         />
         <StatCard
           title="Evidence Submitted"
-          value="0"
+          value={String(evidenceSubmitted)}
           subtitle="Certificates & projects"
           icon={<FileCheck size={20} />}
         />
         <StatCard
           title="Eligible Drives"
-          value="0"
+          value={String(eligibleDrives)}
           subtitle="Placement drives"
           icon={<Building2 size={20} />}
         />

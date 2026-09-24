@@ -25,7 +25,7 @@ export function DrivePreview() {
                   <h3 className="text-2xl font-bold text-foreground uppercase tracking-wider mb-2">Software Engineer</h3>
                   <p className="text-muted-foreground font-medium">Google</p>
                 </div>
-                <div className="text-xs font-bold bg-accent/10 text-accent px-3 py-1 uppercase tracking-widest border border-accent/20">
+                <div className="text-xs font-bold bg-[#F58220]/10 text-[#F58220] px-3 py-1 uppercase tracking-widest border border-[#F58220]/20 rounded-sm">
                   12 Days Remaining
                 </div>
               </div>
@@ -49,12 +49,12 @@ export function DrivePreview() {
               <div className="bg-[#f8f8f3] border border-border p-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6">
                 <div>
                   <p className="text-xs font-bold tracking-[0.2em] text-foreground uppercase mb-1">Your Readiness</p>
-                  <p className="text-3xl font-serif text-accent">82%</p>
+                  <p className="text-3xl font-serif text-[#5B2A86]">82%</p>
                 </div>
                 <div className="h-px sm:h-12 w-full sm:w-px bg-border hidden sm:block" />
                 <div>
                   <p className="text-xs font-bold tracking-[0.2em] text-foreground uppercase mb-1">Skill Gap</p>
-                  <p className="text-sm font-bold text-accent">Advanced Graph Algorithms</p>
+                  <p className="text-sm font-bold text-[#5B2A86]">Advanced Graph Algorithms</p>
                 </div>
               </div>
             </div>
@@ -69,13 +69,13 @@ export function DrivePreview() {
           >
             <h2 className="text-4xl md:text-5xl font-serif text-foreground leading-[1.2] mb-8">
               Prepare for the <br />
-              <span className="text-accent italic">opportunity</span> <br />
+              <span className="text-[#5B2A86] italic">opportunity</span> <br />
               before it arrives.
             </h2>
             <p className="text-lg text-muted-foreground leading-relaxed mb-8">
               PlaceCampus connects your actual readiness score with real recruitment requirements, telling you exactly what to prepare weeks before the drive happens.
             </p>
-            <Link href="/student/drives" className="inline-block text-sm font-bold tracking-widest uppercase text-foreground border-b-2 border-accent pb-1 hover:text-accent transition-colors">
+            <Link href="/student/drives" className="inline-block text-sm font-bold tracking-widest uppercase text-foreground border-b-2 border-[#5B2A86] pb-1 hover:text-[#5B2A86] transition-colors">
               Explore Active Drives
             </Link>
           </motion.div>

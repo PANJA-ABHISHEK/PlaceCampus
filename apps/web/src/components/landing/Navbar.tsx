@@ -26,12 +26,12 @@ export function Navbar() {
   return (
     <>
       {/* Top Announcement Bar */}
-      <div className="h-10 md:h-12 w-full bg-gradient-to-r from-[#f58220] via-[#fcd34d] to-[#86efac] flex items-center justify-between px-4 text-black text-xs md:text-sm font-bold tracking-widest uppercase">
-        <button className="p-1 hover:bg-black/10 rounded"><ChevronLeft className="h-4 w-4" /></button>
+      <div className="h-10 md:h-12 w-full bg-[#5B2A86] flex items-center justify-between px-4 text-white text-xs md:text-sm font-bold tracking-widest uppercase">
+        <button className="p-1 hover:bg-white/10 rounded"><ChevronLeft className="h-4 w-4" /></button>
         <div className="text-center w-full truncate px-4">
           PLACECAMPUS 2026 • SMARTER PLACEMENT READINESS FOR EVERY STUDENT
         </div>
-        <button className="p-1 hover:bg-black/10 rounded"><ChevronRight className="h-4 w-4" /></button>
+        <button className="p-1 hover:bg-white/10 rounded"><ChevronRight className="h-4 w-4" /></button>
       </div>
 
       {/* Main Navbar */}
@@ -40,10 +40,10 @@ export function Navbar() {
           
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2 group">
-            <div className="p-1.5 bg-foreground rounded border border-border group-hover:bg-accent transition-colors">
-              <GraduationCap className="h-6 w-6 text-white" />
+            <div className="p-1.5 flex items-center justify-center rounded border border-[#5B2A86]/20 bg-white group-hover:bg-[#f0e6f6] transition-colors">
+              <GraduationCap className="h-6 w-6 text-[#5B2A86]" />
             </div>
-            <span className="text-xl font-bold tracking-tight text-foreground font-serif">
+            <span className="text-xl font-bold tracking-tight text-[#5B2A86] font-serif">
               PlaceCampus
             </span>
           </Link>
@@ -56,8 +56,8 @@ export function Navbar() {
                 <Link
                   key={link.href}
                   href={link.href}
-                  className={`text-sm font-bold tracking-widest transition-colors uppercase ${
-                    isActive ? "text-accent" : "text-muted-foreground hover:text-accent"
+                  className={`text-sm font-bold tracking-widest transition-all duration-200 uppercase relative border-b-2 ${
+                    isActive ? "text-[#5B2A86] border-[#5B2A86]" : "text-muted-foreground border-transparent hover:text-[#5B2A86] hover:border-[#5B2A86]"
                   }`}
                 >
                   {link.label}
@@ -68,10 +68,10 @@ export function Navbar() {
 
           {/* CTA Buttons */}
           <div className="hidden lg:flex items-center gap-4">
-            <Link href="/login" className="text-sm font-bold text-foreground hover:text-accent transition-colors uppercase tracking-widest">
+            <Link href="/login" className="text-sm font-bold border border-[#5B2A86] text-[#5B2A86] hover:bg-[#5B2A86] hover:text-white transition-colors uppercase tracking-widest px-4 py-2 rounded">
               Login
             </Link>
-            <Button className="bg-accent hover:bg-accent-dark text-white rounded font-bold uppercase tracking-widest h-11 px-6 shadow-none" asChild>
+            <Button className="bg-[#5B2A86] hover:bg-[#F58220] text-white rounded font-bold uppercase tracking-widest h-10 px-6 shadow-none transition-colors" asChild>
               <Link href="/register">Get Started ↗</Link>
             </Button>
           </div>
@@ -93,16 +93,16 @@ export function Navbar() {
                 <Link
                   key={link.href}
                   href={link.href}
-                  className="text-sm font-bold tracking-widest text-foreground hover:text-accent uppercase p-2"
+                  className="text-sm font-bold tracking-widest text-foreground hover:text-[#5B2A86] uppercase p-2"
                 >
                   {link.label}
                 </Link>
               ))}
               <div className="h-px bg-border w-full my-2" />
-              <Link href="/login" className="text-sm font-bold tracking-widest text-foreground hover:text-accent uppercase p-2">
+              <Link href="/login" className="text-sm font-bold tracking-widest border border-[#5B2A86] text-[#5B2A86] hover:bg-[#5B2A86] hover:text-white text-center rounded transition-colors uppercase p-2">
                 Login
               </Link>
-              <Button className="bg-accent text-white w-full rounded font-bold uppercase tracking-widest h-11" asChild>
+              <Button className="bg-[#5B2A86] hover:bg-[#F58220] text-white w-full rounded font-bold uppercase tracking-widest h-11 transition-colors" asChild>
                 <Link href="/register">Get Started ↗</Link>
               </Button>
             </div>

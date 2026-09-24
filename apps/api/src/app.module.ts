@@ -2,6 +2,8 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
 import { BullModule } from '@nestjs/bullmq';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { APP_GUARD } from '@nestjs/core';
 import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
 import { AuthModule } from './auth/auth.module.js';
@@ -12,6 +14,8 @@ import { EvidenceModule } from './evidence/evidence.module.js';
 import { AIModule } from './ai/ai.module.js';
 import { VerificationModule } from './verification/verification.module.js';
 import { FacultyModule } from './faculty/faculty.module.js';
+import { DrivesModule } from './drives/drives.module.js';
+import { ApplicationsModule } from './applications/applications.module.js';
 import configuration from './config/configuration.js';
 
 @Module({
@@ -22,6 +26,12 @@ import configuration from './config/configuration.js';
       load: [configuration],
       envFilePath: ['.env', '../../.env'],
     }),
+
+    // Rate Limiting
+    ThrottlerModule.forRoot([{
+      ttl: 60000,
+      limit: 100,
+    }]),
 
     // MongoDB connection
     MongooseModule.forRootAsync({
@@ -54,9 +64,17 @@ import configuration from './config/configuration.js';
     AIModule,
     VerificationModule,
     FacultyModule,
+    DrivesModule,
+    ApplicationsModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    AppService,
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
+  ],
 })
 export class AppModule {}
 
