@@ -268,6 +268,19 @@ export const studentApplicationsApi = {
   }),
 };
 
+export const readinessApi = {
+  getScore: () => request<any>('/readiness/me/score'),
+  getPreparationPlan: () => request<any>('/readiness/me/plan'),
+  updateTaskStatus: (taskId: string, isCompleted: boolean) => request<any>(`/readiness/me/plan/tasks/${taskId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ isCompleted }),
+  }),
+};
+
+export const analyticsApi = {
+  getPlatformStats: () => request<any>('/analytics/platform'),
+};
+
 export const officerApi = {
   // Drives
   createDrive: (data: any) => request<any>('/drives', {

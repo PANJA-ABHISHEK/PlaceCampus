@@ -16,6 +16,8 @@ import { VerificationModule } from './verification/verification.module.js';
 import { FacultyModule } from './faculty/faculty.module.js';
 import { DrivesModule } from './drives/drives.module.js';
 import { ApplicationsModule } from './applications/applications.module.js';
+import { ReadinessModule } from './readiness/readiness.module.js';
+import { AnalyticsModule } from './analytics/analytics.module.js';
 import configuration from './config/configuration.js';
 
 @Module({
@@ -66,6 +68,8 @@ import configuration from './config/configuration.js';
     FacultyModule,
     DrivesModule,
     ApplicationsModule,
+    ReadinessModule,
+    AnalyticsModule,
   ],
   controllers: [AppController],
   providers: [
