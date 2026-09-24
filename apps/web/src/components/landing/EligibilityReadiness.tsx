@@ -28,7 +28,7 @@ export function EligibilityReadiness() {
         <div className="mb-20">
           <h2 className="text-4xl md:text-5xl font-serif text-foreground leading-[1.2] max-w-2xl">
             Eligibility gets you <br className="hidden md:block" /> through the door. <br />
-            <span className="text-accent italic pr-2">Readiness</span> prepares you <br className="hidden md:block" /> for what comes next.
+            <span className="text-[#5B2A86] italic pr-2">Readiness</span> prepares you <br className="hidden md:block" /> for what comes next.
           </h2>
         </div>
 
@@ -48,8 +48,8 @@ export function EligibilityReadiness() {
             <h3 className="text-xs font-bold tracking-[0.2em] text-muted-foreground uppercase mb-12">Eligibility</h3>
             <ul className="space-y-6">
               {eligibilityList.map((item, i) => (
-                <li key={i} className="flex items-center text-lg text-foreground font-medium border-b border-border/50 pb-4">
-                  <span className="text-muted-foreground mr-6 font-serif italic text-xl">0{i + 1}</span>
+                <li key={i} className="group flex items-center text-lg text-[#111111] font-medium border-b border-[#D9D9D9]/50 py-3 px-4 -mx-4 rounded hover:bg-[#F8F7F3] transition-colors duration-200">
+                  <span className="text-[#777777] group-hover:text-[#5B2A86] mr-6 font-serif italic text-xl transition-colors duration-200">0{i + 1}</span>
                   {item}
                 </li>
               ))}
@@ -64,11 +64,11 @@ export function EligibilityReadiness() {
             transition={{ duration: 0.5, delay: 0.2 }}
             className="md:pl-16"
           >
-            <h3 className="text-xs font-bold tracking-[0.2em] text-accent uppercase mb-12">Readiness</h3>
+            <h3 className="text-xs font-bold tracking-[0.2em] text-[#5B2A86] uppercase mb-12">Readiness</h3>
             <ul className="space-y-6">
               {readinessList.map((item, i) => (
-                <li key={i} className="flex items-center text-lg text-foreground font-bold border-b border-accent/20 pb-4">
-                  <span className="text-accent mr-6 font-serif italic text-xl">0{i + 1}</span>
+                <li key={i} className="group flex items-center text-lg text-[#111111] font-bold border-b border-[#D9D9D9]/50 py-3 px-4 -mx-4 rounded hover:bg-[#F8F7F3] transition-colors duration-200">
+                  <span className="text-[#5B2A86] mr-6 font-serif italic text-xl">0{i + 1}</span>
                   {item}
                 </li>
               ))}

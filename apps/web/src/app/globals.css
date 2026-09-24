@@ -2,56 +2,65 @@
 
 /* ── PlaceCampus Design Tokens ── */
 :root {
-  /* Primary Accent - LPU Orange */
-  --color-primary: #f58220;
-  --color-primary-light: #fff1df;
-  --color-primary-dark: #d96b0b;
-  --color-primary-foreground: #ffffff;
+  /* LPU Custom Tokens */
+  --pc-purple: #5B2A86;
+  --pc-orange: #F58220;
+  --pc-black: #111111;
+  --pc-white: #FFFFFF;
+  --pc-off-white: #F8F7F3;
+  --pc-border: #D9D9D9;
+  --pc-muted: #777777;
 
-  /* Accent (Reuse primary for simplicity, or slightly lighter orange) */
-  --color-accent: #f58220;
-  --color-accent-foreground: #ffffff;
+  /* Primary Accent - LPU Purple */
+  --color-primary: var(--pc-purple);
+  --color-primary-light: #f0e6f6;
+  --color-primary-dark: #3f1a5f;
+  --color-primary-foreground: var(--pc-white);
+
+  /* Secondary Accent - Warm Orange */
+  --color-accent: var(--pc-orange);
+  --color-accent-foreground: var(--pc-white);
   
   --color-accent-light: #fff1df;
   --color-accent-dark: #d96b0b;
 
   /* Backgrounds */
-  --color-background: #ffffff;
-  --color-surface: #f8f8f3;       /* Warm Cream */
+  --color-background: var(--pc-white);
+  --color-surface: var(--pc-off-white);       /* Off-white */
   --color-surface-hover: #f0f0ea;
 
   /* Text & Dark Colors */
-  --color-foreground: #111111;    /* Black */
-  --color-muted: #6b6b6b;         /* Gray */
-  --color-muted-foreground: #6b6b6b;
+  --color-foreground: var(--pc-black);    /* Black */
+  --color-muted: var(--pc-muted);         /* Muted */
+  --color-muted-foreground: var(--pc-muted);
   --color-charcoal: #252525;      /* Dark section bg */
 
   /* Borders */
-  --color-border: #d9d9d9;
+  --color-border: var(--pc-border);
   --color-border-strong: #bfbfbf;
 
   /* Status Colors */
   --color-success: #16a34a;
   --color-success-bg: #f0fdf4;
-  --color-warning: #f58220;       /* Orange */
+  --color-warning: var(--pc-orange);       /* Orange */
   --color-warning-bg: #fff1df;
   --color-danger: #dc2626;
   --color-danger-bg: #fef2f2;
   --color-info: #252525;
-  --color-info-bg: #f8f8f3;
+  --color-info-bg: var(--pc-off-white);
 
   /* Sidebar */
   --sidebar-width: 260px;
   --sidebar-collapsed-width: 72px;
 
-  /* Radius (Slightly rounded, no pills) */
+  /* Radius (Minimal, editorial) */
   --radius-sm: 0.125rem;
   --radius-md: 0.25rem;   /* 4px */
   --radius-lg: 0.25rem;   /* 4px */
   --radius-xl: 0.25rem;   /* 4px */
 
   /* Shadows (Minimal, editorial) */
-  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-sm: none;
   --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.02);
   --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -4px rgba(0, 0, 0, 0.02);
   --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.02);
@@ -77,7 +86,7 @@ body {
   background: var(--color-background);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
+  box-shadow: none; /* Removed shadow for editorial look */
 }
 
 .card-hover:hover {
@@ -113,17 +122,17 @@ body {
 }
 
 .btn-primary:hover {
-  background-color: var(--color-primary-dark);
+  background-color: var(--color-accent);
 }
 
 .btn-secondary {
-  background-color: var(--color-surface);
-  color: var(--color-foreground);
-  border: 1px solid var(--color-border);
+  background-color: var(--color-background);
+  color: var(--color-primary);
+  border: 1px solid var(--color-primary);
 }
 
 .btn-secondary:hover {
-  background-color: var(--color-surface-hover);
+  background-color: var(--color-surface);
 }
 
 .btn-danger {

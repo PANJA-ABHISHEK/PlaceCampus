@@ -7,26 +7,46 @@ import {
   ClipboardList,
   CheckCircle2,
   XCircle,
-  RotateCcw,
   Eye,
   FileText,
+  Loader2
 } from 'lucide-react';
-
-interface ReviewItem {
-  _id: string;
-  studentName: string;
-  evidenceTitle: string;
-  evidenceType: string;
-  status: string;
-  aiReasons: string[];
-  createdAt: string;
-}
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { facultyApi, ReviewItem } from '@/lib/api';
+import { toast } from 'sonner';
 
 export default function FacultyReviewsPage() {
-  const [reviews] = useState<ReviewItem[]>([]);
+  const queryClient = useQueryClient();
   const [selectedReview, setSelectedReview] = useState<ReviewItem | null>(null);
-  const [rejectionReason, setRejectionReason] = useState('');
-  const [resubmissionComment, setResubmissionComment] = useState('');
+  const [comments, setComments] = useState('');
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['faculty', 'reviews', 'pending'],
+    queryFn: () => facultyApi.getPendingReviews(),
+  });
+
+  const reviews = data?.reviews ?? [];
+
+  const decisionMutation = useMutation({
+    mutationFn: facultyApi.submitReviewDecision,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['faculty'] });
+      toast.success('Review decision submitted successfully');
+      setSelectedReview(null);
+      setComments('');
+    },
+    onError: (error: any) => {
+      toast.error(error.message || 'Failed to submit decision');
+    },
+  });
+
+  const handleDecision = (reviewId: string, decision: 'APPROVED' | 'REJECTED') => {
+    if (decision === 'REJECTED' && !comments.trim()) {
+      toast.error('Comments are required for rejection');
+      return;
+    }
+    decisionMutation.mutate({ reviewId, decision, comments });
+  };
 
   return (
     <div className="space-y-6">
@@ -37,17 +57,11 @@ export default function FacultyReviewsPage() {
         </p>
       </div>
 
-      {/* Filters */}
-      <div className="flex gap-3">
-        <select className="input" style={{ width: 'auto' }}>
-          <option value="">All Statuses</option>
-          <option value="PENDING">Pending</option>
-          <option value="APPROVED">Approved</option>
-          <option value="REJECTED">Rejected</option>
-        </select>
-      </div>
-
-      {reviews.length === 0 ? (
+      {isLoading ? (
+        <div className="flex justify-center items-center h-64">
+          <Loader2 className="animate-spin text-[var(--color-primary)]" size={32} />
+        </div>
+      ) : reviews.length === 0 ? (
         <EmptyState
           title="No reviews pending"
           description="When student evidence needs manual review, it will appear here."
@@ -65,15 +79,10 @@ export default function FacultyReviewsPage() {
                   <FileText size={20} className="text-[var(--color-muted)]" />
                 </div>
                 <div>
-                  <p className="font-medium text-sm">{review.evidenceTitle}</p>
+                  <p className="font-medium text-sm">{review.evidenceId?.title}</p>
                   <p className="text-xs text-[var(--color-muted)]">
-                    {review.studentName} · {review.evidenceType.replace('_', ' ')}
+                    {review.evidenceId?.studentId?.firstName} {review.evidenceId?.studentId?.lastName} · {review.evidenceId?.type?.replace('_', ' ')}
                   </p>
-                  {review.aiReasons.length > 0 && (
-                    <p className="text-xs text-[var(--color-warning)] mt-1">
-                      AI: {review.aiReasons[0]}
-                    </p>
-                  )}
                 </div>
               </div>
               <div className="flex items-center gap-3">
@@ -81,27 +90,11 @@ export default function FacultyReviewsPage() {
                 {review.status === 'PENDING' && (
                   <div className="flex gap-2">
                     <button
-                      className="btn btn-sm"
-                      style={{ backgroundColor: 'var(--color-success)', color: 'white' }}
-                      title="Approve"
-                    >
-                      <CheckCircle2 size={14} />
-                    </button>
-                    <button
-                      className="btn btn-sm btn-danger"
-                      title="Reject"
-                    >
-                      <XCircle size={14} />
-                    </button>
-                    <button
-                      className="btn btn-sm btn-secondary"
-                      title="Request Resubmission"
-                    >
-                      <RotateCcw size={14} />
-                    </button>
-                    <button
                       className="btn btn-sm btn-ghost"
-                      onClick={() => setSelectedReview(review)}
+                      onClick={() => {
+                        setSelectedReview(review);
+                        setComments('');
+                      }}
                       title="View Details"
                     >
                       <Eye size={14} />
@@ -131,61 +124,51 @@ export default function FacultyReviewsPage() {
             <div className="space-y-3">
               <div>
                 <span className="text-sm text-[var(--color-muted)]">Student:</span>
-                <p className="font-medium">{selectedReview.studentName}</p>
+                <p className="font-medium">{selectedReview.evidenceId?.studentId?.firstName} {selectedReview.evidenceId?.studentId?.lastName}</p>
+                <p className="text-sm text-[var(--color-muted)]">{selectedReview.evidenceId?.studentId?.email}</p>
               </div>
               <div>
                 <span className="text-sm text-[var(--color-muted)]">Evidence:</span>
-                <p className="font-medium">{selectedReview.evidenceTitle}</p>
+                <p className="font-medium">{selectedReview.evidenceId?.title}</p>
+                <p className="text-sm text-[var(--color-muted)]">{selectedReview.evidenceId?.type?.replace('_', ' ')}</p>
               </div>
-              <div>
-                <span className="text-sm text-[var(--color-muted)]">AI Analysis Reasons:</span>
-                <ul className="mt-1 space-y-1">
-                  {selectedReview.aiReasons.map((reason, i) => (
-                    <li key={i} className="text-sm text-[var(--color-warning)] flex items-start gap-2">
-                      <span>•</span>
-                      {reason}
-                    </li>
-                  ))}
-                </ul>
-              </div>
+              {selectedReview.evidenceId?.fileUrl && (
+                <div>
+                  <a href={selectedReview.evidenceId.fileUrl} target="_blank" rel="noopener noreferrer" className="text-sm text-[var(--color-primary)] hover:underline">
+                    View Uploaded File
+                  </a>
+                </div>
+              )}
             </div>
 
             <div className="border-t border-[var(--color-border)] pt-4 space-y-3">
               <div>
-                <label className="label">Rejection Reason (required for reject)</label>
+                <label className="label">Comments (required for rejection)</label>
                 <textarea
                   className="input"
-                  rows={2}
-                  value={rejectionReason}
-                  onChange={(e) => setRejectionReason(e.target.value)}
-                  placeholder="Reason for rejection..."
-                />
-              </div>
-              <div>
-                <label className="label">Resubmission Comment</label>
-                <textarea
-                  className="input"
-                  rows={2}
-                  value={resubmissionComment}
-                  onChange={(e) => setResubmissionComment(e.target.value)}
-                  placeholder="Instructions for the student..."
+                  rows={3}
+                  value={comments}
+                  onChange={(e) => setComments(e.target.value)}
+                  placeholder="Feedback for the student..."
                 />
               </div>
               <div className="flex gap-3">
                 <button
                   className="btn"
                   style={{ backgroundColor: 'var(--color-success)', color: 'white' }}
+                  onClick={() => handleDecision(selectedReview._id, 'APPROVED')}
+                  disabled={decisionMutation.isPending}
                 >
-                  <CheckCircle2 size={16} />
+                  {decisionMutation.isPending && decisionMutation.variables?.decision === 'APPROVED' ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
                   Approve
                 </button>
-                <button className="btn btn-danger">
-                  <XCircle size={16} />
+                <button 
+                  className="btn btn-danger"
+                  onClick={() => handleDecision(selectedReview._id, 'REJECTED')}
+                  disabled={decisionMutation.isPending}
+                >
+                  {decisionMutation.isPending && decisionMutation.variables?.decision === 'REJECTED' ? <Loader2 size={16} className="animate-spin" /> : <XCircle size={16} />}
                   Reject
-                </button>
-                <button className="btn btn-secondary">
-                  <RotateCcw size={16} />
-                  Request Resubmission
                 </button>
               </div>
             </div>

@@ -44,7 +44,7 @@ export function Features() {
         <div className="mb-20">
           <h2 className="text-4xl md:text-5xl font-serif text-foreground leading-[1.2]">
             Everything you need to <br className="hidden md:block" />
-            <span className="text-accent italic">build readiness.</span>
+            <span className="text-[#5B2A86] italic">build readiness.</span>
           </h2>
         </div>
 
@@ -58,8 +58,8 @@ export function Features() {
               transition={{ duration: 0.4, delay: i * 0.05 }}
               className="group"
             >
-              <div className="grid grid-cols-[60px_1fr] md:grid-cols-[100px_1fr_2fr] gap-4 md:gap-8 items-center py-8 border-b border-border group-hover:bg-[#f8f8f3] transition-colors -mx-6 px-6 cursor-default">
-                <div className="text-xl font-serif italic text-accent opacity-70">
+              <div className="grid grid-cols-[60px_1fr] md:grid-cols-[100px_1fr_2fr] gap-4 md:gap-8 items-center py-8 border-b border-border group-hover:bg-[#F8F7F3] transition-all duration-300 group-hover:translate-x-2 -mx-6 px-6 cursor-default">
+                <div className="text-xl font-serif italic text-[#777777] group-hover:text-[#5B2A86] transition-colors duration-300">
                   {feature.num}
                 </div>
                 <h3 className="text-xl font-bold text-foreground">

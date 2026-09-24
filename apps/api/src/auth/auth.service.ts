@@ -152,10 +152,28 @@ export class AuthService {
       return { message: 'If an account exists with this email, a password reset link has been sent.' };
     }
 
-    // TODO: Generate reset token, save to user, send email
-    // For now, log the intent
-    this.logger.log(`Password reset requested for: ${email}`);
+    // Generate random crypto token
+    const crypto = await import('crypto');
+    const resetToken = crypto.randomBytes(32).toString('hex');
+
+    await this.usersService.savePasswordResetToken(String(user._id), resetToken);
+
+    // TODO: Send email
+    // For now, log the intent and the token (in development)
+    this.logger.log(`Password reset requested for: ${email}. Token: ${resetToken}`);
     return { message: 'If an account exists with this email, a password reset link has been sent.' };
+  }
+
+  async resetPassword(token: string, newPassword: string): Promise<{ message: string }> {
+    const user = await this.usersService.findByPasswordResetToken(token);
+    if (!user) {
+      throw new ForbiddenException('Invalid or expired password reset token');
+    }
+
+    await this.usersService.updatePassword(String(user._id), newPassword);
+    this.logger.log(`Password reset successful for user: ${user.email}`);
+
+    return { message: 'Password has been successfully reset' };
   }
 
   async validateRefreshToken(refreshToken: string): Promise<TokenPayload> {
