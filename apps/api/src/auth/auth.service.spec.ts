@@ -1,157 +1,133 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { JwtService } from '@nestjs/jwt';
-import { ConfigService } from '@nestjs/config';
-import { UnauthorizedException, ConflictException } from '@nestjs/common';
 import { AuthService } from './auth.service.js';
 import { UsersService } from '../users/users.service.js';
-import { UserRole } from '../users/schemas/user.schema.js';
+import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
+import { getModelToken } from '@nestjs/mongoose';
+import { RefreshSession } from './schemas/refresh-session.schema.js';
+import { UnauthorizedException } from '@nestjs/common';
+import * as bcrypt from 'bcrypt';
 
-// Mock user data
-const mockUser = {
-  _id: '507f1f77bcf86cd799439011',
-  email: 'test@example.com',
-  password: '$2b$12$hashedpassword',
-  firstName: 'Test',
-  lastName: 'User',
-  role: UserRole.STUDENT,
-  isActive: true,
-};
-
-// Mock UsersService
-const mockUsersService = {
-  create: vi.fn(),
-  findByEmailWithPassword: vi.fn(),
-  findByIdWithRefreshToken: vi.fn(),
-  updateRefreshToken: vi.fn(),
-  updateLastLogin: vi.fn(),
-  validatePassword: vi.fn(),
-};
-
-// Mock JwtService
-const mockJwtService = {
-  signAsync: vi.fn().mockResolvedValue('mock-token'),
-  verifyAsync: vi.fn(),
-};
-
-// Mock ConfigService
-const mockConfigService = {
-  get: vi.fn((key: string) => {
-    const config: Record<string, string> = {
-      'jwt.secret': 'test-secret',
-      'jwt.refreshSecret': 'test-refresh-secret',
-      'jwt.accessExpiration': '15m',
-      'jwt.refreshExpiration': '7d',
-    };
-    return config[key];
-  }),
-};
+vi.mock('bcrypt', () => ({
+  genSalt: vi.fn(),
+  hash: vi.fn(),
+  compare: vi.fn(),
+}));
 
 describe('AuthService', () => {
-  let authService: AuthService;
+  let service: AuthService;
+  let usersService: Partial<UsersService>;
+  let jwtService: Partial<JwtService>;
+  let configService: Partial<ConfigService>;
+  let refreshModel: any;
 
   beforeEach(async () => {
-    vi.clearAllMocks();
+    usersService = {
+      createStudent: vi.fn(),
+      findByEmail: vi.fn(),
+      findById: vi.fn(),
+      updateLastLogin: vi.fn(),
+      sanitize: vi.fn(),
+    };
+
+    jwtService = {
+      sign: vi.fn().mockReturnValue('access-token'),
+    };
+
+    configService = {
+      get: vi.fn().mockReturnValue(7),
+    };
+
+    refreshModel = function () {
+      return {
+        save: vi.fn().mockResolvedValue({ id: 'session-id' }),
+      };
+    };
+    refreshModel.findOne = vi.fn();
+    refreshModel.findOneAndUpdate = vi.fn();
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AuthService,
-        { provide: UsersService, useValue: mockUsersService },
-        { provide: JwtService, useValue: mockJwtService },
-        { provide: ConfigService, useValue: mockConfigService },
+        { provide: UsersService, useValue: usersService },
+        { provide: JwtService, useValue: jwtService },
+        { provide: ConfigService, useValue: configService },
+        { provide: getModelToken(RefreshSession.name), useValue: refreshModel },
       ],
     }).compile();
 
-    authService = module.get<AuthService>(AuthService);
-  });
-
-  describe('register', () => {
-    it('should register a new user and return tokens', async () => {
-      mockUsersService.create.mockResolvedValue(mockUser);
-      mockUsersService.updateRefreshToken.mockResolvedValue(undefined);
-      mockUsersService.updateLastLogin.mockResolvedValue(undefined);
-
-      const result = await authService.register({
-        email: 'test@example.com',
-        password: 'Password123!',
-        firstName: 'Test',
-        lastName: 'User',
-        role: UserRole.STUDENT,
-      });
-
-      expect(result.user.email).toBe('test@example.com');
-      expect(result.tokens.accessToken).toBeDefined();
-      expect(result.tokens.refreshToken).toBeDefined();
-      expect(mockUsersService.create).toHaveBeenCalledTimes(1);
-    });
-
-    it('should throw ConflictException if user already exists', async () => {
-      mockUsersService.create.mockRejectedValue(
-        new ConflictException('User with this email already exists'),
-      );
-
-      await expect(
-        authService.register({
-          email: 'existing@example.com',
-          password: 'Password123!',
-          firstName: 'Test',
-          lastName: 'User',
-          role: UserRole.STUDENT,
-        }),
-      ).rejects.toThrow(ConflictException);
-    });
+    service = module.get<AuthService>(AuthService);
   });
 
   describe('login', () => {
-    it('should login user with valid credentials', async () => {
-      mockUsersService.findByEmailWithPassword.mockResolvedValue(mockUser);
-      mockUsersService.validatePassword.mockResolvedValue(true);
-      mockUsersService.updateRefreshToken.mockResolvedValue(undefined);
-      mockUsersService.updateLastLogin.mockResolvedValue(undefined);
-
-      const result = await authService.login({
-        email: 'test@example.com',
-        password: 'Password123!',
-      });
-
-      expect(result.user.email).toBe('test@example.com');
-      expect(result.tokens).toBeDefined();
-    });
-
     it('should throw UnauthorizedException for invalid email', async () => {
-      mockUsersService.findByEmailWithPassword.mockResolvedValue(null);
-
+      vi.spyOn(usersService, 'findByEmail').mockResolvedValue(null);
       await expect(
-        authService.login({
-          email: 'wrong@example.com',
-          password: 'Password123!',
-        }),
+        service.login({ email: 'test@test.com', password: 'password' }),
       ).rejects.toThrow(UnauthorizedException);
     });
 
     it('should throw UnauthorizedException for invalid password', async () => {
-      mockUsersService.findByEmailWithPassword.mockResolvedValue(mockUser);
-      mockUsersService.validatePassword.mockResolvedValue(false);
-
+      vi.spyOn(usersService, 'findByEmail').mockResolvedValue({
+        id: '1',
+        isActive: true,
+        passwordHash: 'hash',
+        role: 'student',
+      } as any);
+      vi.spyOn(bcrypt, 'compare').mockResolvedValue(false as never);
       await expect(
-        authService.login({
-          email: 'test@example.com',
-          password: 'WrongPassword!',
-        }),
+        service.login({ email: 'test@test.com', password: 'wrong' }),
       ).rejects.toThrow(UnauthorizedException);
     });
   });
 
-  describe('logout', () => {
-    it('should clear refresh token', async () => {
-      mockUsersService.updateRefreshToken.mockResolvedValue(undefined);
+  describe('refresh', () => {
+    it('should throw if no refresh token', async () => {
+      await expect(service.refresh('')).rejects.toThrow(UnauthorizedException);
+    });
 
-      const result = await authService.logout('507f1f77bcf86cd799439011');
-
-      expect(result.message).toBe('Logged out successfully');
-      expect(mockUsersService.updateRefreshToken).toHaveBeenCalledWith(
-        '507f1f77bcf86cd799439011',
-        null,
+    it('should throw if token not found', async () => {
+      refreshModel.findOne.mockResolvedValue(null);
+      await expect(service.refresh('token')).rejects.toThrow(
+        UnauthorizedException,
       );
+    });
+
+    it('should throw if token revoked', async () => {
+      refreshModel.findOne.mockResolvedValue({ revokedAt: new Date() });
+      await expect(service.refresh('token')).rejects.toThrow(
+        UnauthorizedException,
+      );
+    });
+
+    it('should throw if token expired', async () => {
+      refreshModel.findOne.mockResolvedValue({
+        expiresAt: new Date(Date.now() - 10000),
+      });
+      await expect(service.refresh('token')).rejects.toThrow(
+        UnauthorizedException,
+      );
+    });
+  });
+
+  describe('register', () => {
+    it('should successfully register a user', async () => {
+      vi.spyOn(bcrypt, 'genSalt').mockResolvedValue('salt' as never);
+      vi.spyOn(bcrypt, 'hash').mockResolvedValue('hash' as never);
+
+      const mockUser = { id: '1', email: 'test@test.com', fullName: 'Test' };
+      vi.spyOn(usersService, 'createStudent').mockResolvedValue(
+        mockUser as any,
+      );
+      vi.spyOn(usersService, 'sanitize').mockReturnValue(mockUser as any);
+
+      const result = await service.register({
+        email: 'test@test.com',
+        fullName: 'Test',
+        password: 'password',
+      });
+
+      expect(result.user).toEqual(mockUser);
     });
   });
 });

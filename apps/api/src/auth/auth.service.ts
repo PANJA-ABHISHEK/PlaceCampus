@@ -1,206 +1,149 @@
 import {
   Injectable,
   UnauthorizedException,
-  ForbiddenException,
-  Logger,
+  BadRequestException,
+  InternalServerErrorException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model, Types } from 'mongoose';
 import * as bcrypt from 'bcrypt';
 import { UsersService } from '../users/users.service.js';
-import { type RegisterDto, type LoginDto } from './dto/index.js';
-
-export interface TokenPayload {
-  sub: string;
-  email: string;
-  role: string;
-}
-
-export interface AuthTokens {
-  accessToken: string;
-  refreshToken: string;
-  expiresIn: number;
-}
-
-export interface AuthResponse {
-  user: {
-    id: string;
-    email: string;
-    firstName: string;
-    lastName: string;
-    role: string;
-  };
-  tokens: AuthTokens;
-}
+import { RegisterDto, LoginDto } from './dto/auth.dto.js';
+import {
+  RefreshSession,
+  RefreshSessionDocument,
+} from './schemas/refresh-session.schema.js';
+import * as crypto from 'crypto';
 
 @Injectable()
 export class AuthService {
-  private readonly logger = new Logger(AuthService.name);
-
   constructor(
-    private readonly usersService: UsersService,
-    private readonly jwtService: JwtService,
-    private readonly configService: ConfigService,
+    private usersService: UsersService,
+    private jwtService: JwtService,
+    private configService: ConfigService,
+    @InjectModel(RefreshSession.name)
+    private refreshSessionModel: Model<RefreshSessionDocument>,
   ) {}
 
-  async register(registerDto: RegisterDto): Promise<AuthResponse> {
-    const user = await this.usersService.create({
-      email: registerDto.email,
-      password: registerDto.password,
-      firstName: registerDto.firstName,
-      lastName: registerDto.lastName,
-      role: registerDto.role,
-    });
+  async register(registerDto: RegisterDto) {
+    const salt = await bcrypt.genSalt();
+    const passwordHash = await bcrypt.hash(registerDto.password, salt);
 
-    const tokens = await this.generateTokens({
-      sub: String(user._id),
-      email: user.email,
-      role: user.role,
-    });
-
-    await this.usersService.updateRefreshToken(String(user._id), tokens.refreshToken);
-    await this.usersService.updateLastLogin(String(user._id));
-
-    this.logger.log(`User registered: ${user.email} with role ${user.role}`);
-
-    return {
-      user: {
-        id: String(user._id),
-        email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        role: user.role,
-      },
-      tokens,
-    };
-  }
-
-  async login(loginDto: LoginDto): Promise<AuthResponse> {
-    const user = await this.usersService.findByEmailWithPassword(loginDto.email);
-
-    if (!user) {
-      throw new UnauthorizedException('Invalid email or password');
-    }
-
-    const isPasswordValid = await this.usersService.validatePassword(
-      loginDto.password,
-      user.password,
+    const user = await this.usersService.createStudent(
+      registerDto.fullName,
+      registerDto.email,
+      passwordHash,
     );
 
-    if (!isPasswordValid) {
-      throw new UnauthorizedException('Invalid email or password');
-    }
-
-    const tokens = await this.generateTokens({
-      sub: String(user._id),
-      email: user.email,
-      role: user.role,
-    });
-
-    await this.usersService.updateRefreshToken(String(user._id), tokens.refreshToken);
-    await this.usersService.updateLastLogin(String(user._id));
-
-    this.logger.log(`User logged in: ${user.email}`);
-
     return {
-      user: {
-        id: String(user._id),
-        email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        role: user.role,
-      },
-      tokens,
+      message: 'Registration successful',
+      user: this.usersService.sanitize(user),
     };
   }
 
-  async refreshTokens(userId: string, refreshToken: string): Promise<AuthTokens> {
-    const user = await this.usersService.findByIdWithRefreshToken(userId);
+  async login(loginDto: LoginDto, ip?: string, userAgent?: string) {
+    const user = await this.usersService.findByEmail(loginDto.email);
 
-    if (!user || !user.refreshToken) {
-      throw new ForbiddenException('Access denied');
+    if (!user || !user.isActive) {
+      throw new UnauthorizedException('Invalid credentials');
     }
 
-    const isRefreshTokenValid = await bcrypt.compare(refreshToken, user.refreshToken);
-    if (!isRefreshTokenValid) {
-      throw new ForbiddenException('Invalid refresh token');
+    const isMatch = await bcrypt.compare(loginDto.password, user.passwordHash);
+
+    if (!isMatch) {
+      throw new UnauthorizedException('Invalid credentials');
     }
 
-    const tokens = await this.generateTokens({
-      sub: String(user._id),
-      email: user.email,
-      role: user.role,
+    await this.usersService.updateLastLogin(user.id);
+
+    return this.generateAuthResponse(user.id, user.role);
+  }
+
+  async refresh(refreshToken: string) {
+    if (!refreshToken) {
+      throw new UnauthorizedException('Refresh token is required');
+    }
+
+    const tokenHash = crypto
+      .createHash('sha256')
+      .update(refreshToken)
+      .digest('hex');
+    const session = await this.refreshSessionModel.findOne({ tokenHash });
+
+    if (!session) {
+      throw new UnauthorizedException('Invalid refresh token');
+    }
+
+    if (session.revokedAt) {
+      // Possible token reuse attack - we could optionally revoke ALL sessions for this user here
+      throw new UnauthorizedException('Session has been revoked');
+    }
+
+    if (new Date() > session.expiresAt) {
+      throw new UnauthorizedException('Refresh token expired');
+    }
+
+    // Revoke the old session
+    session.revokedAt = new Date();
+    await session.save();
+
+    const user = await this.usersService.findById(session.userId.toString());
+    if (!user || !user.isActive) {
+      throw new UnauthorizedException('User no longer active');
+    }
+
+    return this.generateAuthResponse(user.id, user.role, session.id);
+  }
+
+  async logout(refreshToken: string) {
+    if (!refreshToken) return;
+
+    const tokenHash = crypto
+      .createHash('sha256')
+      .update(refreshToken)
+      .digest('hex');
+    await this.refreshSessionModel.findOneAndUpdate(
+      { tokenHash },
+      { revokedAt: new Date() },
+    );
+  }
+
+  private async generateAuthResponse(
+    userId: string,
+    role: string,
+    rotatedFrom?: string,
+  ) {
+    const payload = { sub: userId, role };
+    const accessToken = this.jwtService.sign(payload);
+
+    // Generate random refresh token
+    const refreshToken = crypto.randomBytes(32).toString('hex');
+    const tokenHash = crypto
+      .createHash('sha256')
+      .update(refreshToken)
+      .digest('hex');
+
+    const expiresInDays = this.configService.get<number>(
+      'JWT_REFRESH_EXPIRES_DAYS',
+      7,
+    );
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + expiresInDays);
+
+    const newSession = new this.refreshSessionModel({
+      userId: new Types.ObjectId(userId),
+      tokenHash,
+      expiresAt,
+      rotatedFrom,
     });
 
-    // Rotate refresh token
-    await this.usersService.updateRefreshToken(String(user._id), tokens.refreshToken);
-
-    return tokens;
-  }
-
-  async logout(userId: string): Promise<{ message: string }> {
-    await this.usersService.updateRefreshToken(userId, null);
-    this.logger.log(`User logged out: ${userId}`);
-    return { message: 'Logged out successfully' };
-  }
-
-  async forgotPassword(email: string): Promise<{ message: string }> {
-    const user = await this.usersService.findByEmail(email);
-    // Always return success to prevent email enumeration
-    if (!user) {
-      this.logger.warn(`Forgot password attempt for non-existent email: ${email}`);
-      return { message: 'If an account exists with this email, a password reset link has been sent.' };
-    }
-
-    // TODO: Generate reset token, save to user, send email
-    // For now, log the intent
-    this.logger.log(`Password reset requested for: ${email}`);
-    return { message: 'If an account exists with this email, a password reset link has been sent.' };
-  }
-
-  async validateRefreshToken(refreshToken: string): Promise<TokenPayload> {
-    try {
-      const payload = await this.jwtService.verifyAsync<TokenPayload>(refreshToken, {
-        secret: this.configService.get<string>('jwt.refreshSecret'),
-      });
-      return payload;
-    } catch {
-      throw new ForbiddenException('Invalid or expired refresh token');
-    }
-  }
-
-  private async generateTokens(payload: TokenPayload): Promise<AuthTokens> {
-    const accessExpiration = this.configService.get<string>('jwt.accessExpiration', '15m');
-    const refreshExpiration = this.configService.get<string>('jwt.refreshExpiration', '7d');
-
-    // Cast payload to Record for JWT signAsync compatibility
-    const jwtPayload: Record<string, unknown> = { ...payload };
-
-    const [accessToken, refreshToken] = await Promise.all([
-      this.jwtService.signAsync(jwtPayload, {
-        expiresIn: accessExpiration as `${number}${'s' | 'm' | 'h' | 'd'}`,
-      }),
-      this.jwtService.signAsync(jwtPayload, {
-        secret: this.configService.get<string>('jwt.refreshSecret'),
-        expiresIn: refreshExpiration as `${number}${'s' | 'm' | 'h' | 'd'}`,
-      }),
-    ]);
+    await newSession.save();
 
     return {
       accessToken,
-      refreshToken,
-      expiresIn: this.parseExpirationToSeconds(accessExpiration),
+      refreshToken, // This will be sent as httpOnly cookie in the controller
     };
-  }
-
-  private parseExpirationToSeconds(expiration: string): number {
-    const match = /^(\d+)([smhd])$/.exec(expiration);
-    if (!match?.[1] || !match[2]) return 900; // default 15 minutes
-
-    const value = parseInt(match[1], 10);
-    const unit = match[2];
-
-    const multipliers: Record<string, number> = { s: 1, m: 60, h: 3600, d: 86400 };
-    return value * (multipliers[unit] ?? 60);
   }
 }
