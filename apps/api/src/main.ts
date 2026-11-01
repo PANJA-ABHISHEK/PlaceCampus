@@ -1,27 +1,45 @@
-import { NestFactory } from '@nestjs/core';
-import { Logger, ValidationPipe } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { AppModule } from './app.module.js';
-import { GlobalExceptionFilter } from './common/filters/http-exception.filter.js';
-import { ResponseInterceptor } from './common/interceptors/response.interceptor.js';
+import * as dotenv from 'dotenv';
+import { resolve } from 'path';
+dotenv.config({ path: resolve(process.cwd(), '../../.env') });
+dotenv.config({ path: resolve(process.cwd(), '.env') });
 
-async function bootstrap(): Promise<void> {
+import { configureMongoDns } from './config/dns.config.js';
+configureMongoDns();
+
+import { NestFactory } from '@nestjs/core';
+import { ValidationPipe } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import helmet from 'helmet';
+import cookieParser from 'cookie-parser';
+import { AppModule } from './app.module.js';
+import { GlobalExceptionFilter } from './common/filters/global-exception.filter.js';
+
+async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const configService = app.get(ConfigService);
-  const port = configService.get<number>('app.port', 4000);
 
-  // Global prefix for all routes
-  app.setGlobalPrefix('api');
+  // ── Security ──
+  app.use(helmet());
+  app.use(cookieParser());
+  app.useGlobalFilters(new GlobalExceptionFilter());
 
-  // Enable CORS for frontend
+  // ── CORS ──
+  const frontendUrl = configService.get<string>(
+    'FRONTEND_URL',
+    'http://localhost:3000',
+  );
   app.enableCors({
-    origin: configService.get<string>('NEXT_PUBLIC_API_URL', 'http://localhost:3000'),
+    origin: frontendUrl,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
   });
 
-  // Global validation pipe for DTO validation
+  // ── Global Prefix ──
+  app.setGlobalPrefix('api/v1');
+
+  // ── Validation Pipe ──
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
@@ -33,14 +51,40 @@ async function bootstrap(): Promise<void> {
     }),
   );
 
-  // Global exception filter
-  app.useGlobalFilters(new GlobalExceptionFilter());
+  // ── Swagger / OpenAPI ──
+  const swaggerConfig = new DocumentBuilder()
+    .setTitle('PlaceCampus API')
+    .setDescription('Unified Placement & Student Readiness Platform API')
+    .setVersion('1.0')
+    .addBearerAuth(
+      {
+        type: 'http',
+        scheme: 'bearer',
+        bearerFormat: 'JWT',
+        name: 'Authorization',
+        description: 'Enter your JWT token',
+        in: 'header',
+      },
+      'access-token',
+    )
+    .addTag('auth', 'Authentication endpoints')
+    .addTag('users', 'User management endpoints')
+    .addTag('health', 'Health check')
+    .build();
 
-  // Global response interceptor
-  app.useGlobalInterceptors(new ResponseInterceptor());
+  const document = SwaggerModule.createDocument(app, swaggerConfig);
+  SwaggerModule.setup('api/docs', app, document, {
+    swaggerOptions: {
+      persistAuthorization: true,
+    },
+  });
 
+  // ── Start ──
+  const port = configService.get<number>('PORT', 4000);
   await app.listen(port);
-  Logger.log(`🚀 PlaceCampus API running on http://localhost:${String(port)}/api`, 'Bootstrap');
+
+  console.log(`🚀 PlaceCampus API running on http://localhost:${port}`);
+  console.log(`📖 Swagger docs at http://localhost:${port}/api/docs`);
 }
 
 await bootstrap();
