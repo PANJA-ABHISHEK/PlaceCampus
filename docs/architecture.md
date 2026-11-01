@@ -1,134 +1,84 @@
-# SkillBridge Architecture
+# PlaceCampus Architecture
 
-## System Overview
+## Overview
 
-SkillBridge is a modular monorepo consisting of a Next.js frontend, NestJS backend, and shared TypeScript packages. The system is designed around evidence-based skill verification and placement readiness analysis.
+PlaceCampus is a unified platform for tracking student readiness, verifying skills, and connecting graduates with opportunities. The architecture is designed for scale, maintainability, and clean separation of concerns.
 
-## High-Level Architecture
+## Monorepo Structure
 
-```
-┌──────────────────────────────────────────────────────────┐
-│                      CLIENT LAYER                         │
-│                                                           │
-│   Next.js 16 (App Router)                                │
-│   ├── Server Components (data fetching, SEO)             │
-│   ├── Client Components (interactivity, forms)           │
-│   ├── TanStack Query (server state management)           │
-│   └── React Hook Form + Zod (validation)                 │
-│                                                           │
-├──────────────────────────────────────────────────────────┤
-│                       API LAYER                           │
-│                                                           │
-│   NestJS 12 (REST API)                                   │
-│   ├── Auth Guards (JWT + RBAC)                           │
-│   ├── Validation Pipes (class-validator DTOs)            │
-│   ├── Response Interceptor (ApiResponse<T>)              │
-│   ├── Exception Filter (ApiError)                        │
-│   └── Module-based architecture                          │
-│                                                           │
-├──────────────────────────────────────────────────────────┤
-│                     SERVICE LAYER                         │
-│                                                           │
-│   ├── Eligibility Engine (deterministic rules)           │
-│   ├── Readiness Engine (configurable weights)            │
-│   ├── Matching Engine (skill gap analysis)               │
-│   ├── AI Service (LLM abstraction)                       │
-│   └── Notification Service                               │
-│                                                           │
-├──────────────────────────────────────────────────────────┤
-│                      DATA LAYER                           │
-│                                                           │
-│   ├── MongoDB 7 (Mongoose ODM)                           │
-│   │   ├── Users, Profiles                                │
-│   │   ├── Skills, Evidence, Claims                       │
-│   │   ├── Drives, Eligibility, Readiness                 │
-│   │   └── Audit Logs                                     │
-│   │                                                       │
-│   ├── Redis 7 (Caching + Queues)                         │
-│   │   ├── Session cache                                  │
-│   │   ├── API response cache                             │
-│   │   └── BullMQ job queues                              │
-│   │                                                       │
-│   └── Cloud Storage (Cloudinary)                         │
-│       └── File uploads (resumes, certificates)           │
-│                                                           │
-└──────────────────────────────────────────────────────────┘
-```
-
-## Module Architecture (Backend)
-
-Each NestJS module follows this pattern:
+We use a pnpm workspace to manage multiple applications and shared packages within a single repository.
 
 ```
-module/
-├── module.module.ts       → Module declaration
-├── module.controller.ts   → HTTP route handlers
-├── module.service.ts      → Business logic
-├── dto/                   → Request/response DTOs
-├── schemas/               → Mongoose schemas
-├── guards/                → Module-specific guards
-└── interfaces/            → Module-specific types
+placecampus/
+├── apps/
+│   ├── web/                # Next.js Frontend
+│   └── api/                # NestJS Backend
+├── packages/
+│   ├── shared-types/       # Type definitions shared between apps
+│   └── eslint-config/      # Shared linting rules
+├── .github/workflows/      # CI/CD Pipelines
+├── docker-compose.yml      # Local infrastructure (MongoDB, Redis)
+└── package.json            # Root workspace configuration
 ```
 
-## Core Engine Separation
+## Frontend (`apps/web`)
 
-### Eligibility Engine
-- **Input**: Student profile + Drive eligibility criteria
-- **Logic**: Deterministic rule evaluation (CGPA ≥ X, backlogs ≤ Y, branch ∈ [A, B])
-- **Output**: `EligibilityResult` with pass/fail per criterion
-- **Rule**: NO AI involvement. Pure boolean logic.
+- **Framework**: Next.js 15 (App Router)
+- **UI Library**: React 19
+- **Styling**: Tailwind CSS + custom CSS variables (Design Tokens)
+- **Component System**: shadcn/ui (Radix primitives)
+- **Forms & Validation**: React Hook Form + Zod
+- **Data Fetching**: TanStack Query + native `fetch` client
+- **Charts**: Recharts
+- **Animations**:
+  - GSAP / ScrollTrigger (Complex hero motion, parallax)
+  - AOS (Scroll-triggered section reveals)
+  - Swiper (Carousels)
 
-### Readiness Engine
-- **Input**: Student verified skills + Drive skill requirements + Assessment scores + Interview scores
-- **Logic**: Weighted multi-dimensional scoring
-- **Output**: `ReadinessResult` with per-dimension percentages + explanation
-- **Rule**: Weights are configurable. Every result is explainable.
+### UI Architecture
 
-### Matching Engine
-- **Input**: Student skill claims (verified) + Drive skill requirements
-- **Output**: Skill-by-skill gap analysis with priority ranking
-- **Rule**: Only verified evidence contributes to official skill levels.
+The UI is built on a robust token system defined in `globals.css` and mirrored in `lib/tokens.ts`. This ensures strict consistency for colors, typography, spacing, and animations across the application, including complex interactive elements and charts.
 
-## Data Flow
+## Backend (`apps/api`)
 
-```
-Evidence Submission
-       ↓
-AI Skill Extraction (suggestions only)
-       ↓
-Taxonomy Matching
-       ↓
-Skill Claim Created (PENDING)
-       ↓
-Faculty Review
-       ↓
-   ┌───┴───┐
-   ↓       ↓
-VERIFIED  REJECTED
-   ↓
-Skill Profile Updated
-   ↓
-Readiness Recalculated
-```
+- **Framework**: NestJS 12
+- **Runtime**: Node.js
+- **Database**: MongoDB (via Mongoose)
+- **Caching & Queues**: Redis + BullMQ
+- **Authentication**: JWT, Passport
+- **Validation**: `class-validator` & `class-transformer`
+- **Documentation**: Swagger / OpenAPI
 
-## RBAC Model
+### API Design Principles
 
-| Role               | Scope                                         |
-|--------------------|-----------------------------------------------|
-| STUDENT            | Own profile, evidence, skills, readiness      |
-| FACULTY            | Assigned students, evidence verification      |
-| PLACEMENT_OFFICER  | Drives, criteria, eligibility, analytics      |
-| PLACEMENT_HEAD     | Institutional admin, approvals, analytics     |
-| RECRUITER          | Approved drives only, authorized candidates   |
-| ADMIN              | System config, taxonomy, user management      |
+- **Modular Design**: Features are encapsulated in their own NestJS modules (e.g., `AuthModule`, `UsersModule`).
+- **Thin Controllers**: Controllers handle HTTP requests and delegate business logic to services.
+- **Global Validation**: DTOs strictly validate incoming requests.
+- **Unified Error Handling**: A global exception filter ensures a consistent error response structure across all endpoints.
 
-## Shared Types Package
+## Infrastructure
 
-The `@skillbridge/shared-types` package serves as the contract layer between frontend and backend, containing:
+- **Local Dev**: Docker Compose provides MongoDB and Redis instances.
+- **Production Storage**: Object storage (S3-compatible) is intended for handling document uploads (resumes, evidence).
+- **Background Jobs**: BullMQ handles asynchronous tasks like AI verification processing and readiness recalculations.
 
-- API response wrappers (`ApiResponse<T>`, `ApiError`)
-- Domain enums (`UserRole`, `SkillLevel`, `VerificationStatus`)
-- Entity interfaces (`IUser`, `ISkill`, `IEvidence`, `IPlacementDrive`)
-- Engine result types (`IEligibilityResult`, `IReadinessResult`, `ISkillGap`)
+## Authentication & Authorization (Step 4)
 
-Both apps depend on this package, ensuring type consistency across the stack.
+- **Authentication**: JWT-based stateless authentication with `httpOnly` secure cookies for refresh tokens.
+- **RBAC**: Role-based access control using the `@Roles()` decorator. Institutional roles include Student, Faculty, Recruiter, etc.
+- **Token Rotation**: The backend implements strict refresh-token rotation to mitigate token theft while maintaining user sessions securely.
+
+## Student Profile Foundation (Step 5)
+
+- **Schema Mapping**: `StudentProfile` has a strict 1:1 relationship with the base `User` document. Identifiable data like emails remain in `User`, whereas domain data (CGPA, resume, bio) resides in `StudentProfile`.
+- **API Integration**: Handled cleanly with React Hook Form + Zod locally, syncing upstream through TanStack Query (`useStudentProfile`).
+- **Dashboard**: Features an authentic progress calculator reflecting genuine populated database attributes, rather than fabricated demonstration data.
+
+## Future AI & Document Processing
+
+The architecture includes placeholders and configuration readiness for:
+
+- AI-based skill verification.
+- OCR for processing uploaded certificates/evidence.
+
+_This document reflects the foundational architecture setup and auth/profile milestones up to Step 5._
