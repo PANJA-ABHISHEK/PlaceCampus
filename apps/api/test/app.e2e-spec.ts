@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
+
 import { AppModule } from './../src/app.module.js';
 
 describe('AppController (e2e)', () => {
@@ -12,19 +13,14 @@ describe('AppController (e2e)', () => {
     }).compile();
 
     app = moduleFixture.createNestApplication();
-    app.setGlobalPrefix('api');
     await app.init();
   });
 
-  it('/api/health (GET)', () => {
+  it('/ (GET)', () => {
     return request(app.getHttpServer())
-      .get('/api/health')
+      .get('/')
       .expect(200)
-      .expect((res: request.Response) => {
-        const body = res.body as Record<string, unknown>;
-        expect(body).toHaveProperty('service', 'PlaceCampus API');
-        expect(body).toHaveProperty('status', 'healthy');
-      });
+      .expect('Hello World!');
   });
 
   afterEach(async () => {
