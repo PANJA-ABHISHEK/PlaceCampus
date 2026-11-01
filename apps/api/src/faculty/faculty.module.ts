@@ -1,19 +1,27 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
-import { FacultyReviewController } from './faculty-review.controller.js';
-import { FacultyReviewService } from './faculty-review.service.js';
-import { ReviewTask, ReviewTaskSchema } from './schemas/review-task.schema.js';
-import { EvidenceModule } from '../evidence/evidence.module.js';
+import {
+  Evidence,
+  EvidenceSchema,
+} from '../evidence/schemas/evidence.schema.js';
+import {
+  VerificationRecord,
+  VerificationRecordSchema,
+} from '../verification/schemas/verification-record.schema.js';
+import { FacultyController } from './faculty.controller.js';
+import { FacultyService } from './faculty.service.js';
+import { StorageModule } from '../storage/storage.module.js';
 
 @Module({
   imports: [
     MongooseModule.forFeature([
-      { name: ReviewTask.name, schema: ReviewTaskSchema },
+      { name: Evidence.name, schema: EvidenceSchema },
+      { name: VerificationRecord.name, schema: VerificationRecordSchema },
     ]),
-    EvidenceModule,
+    StorageModule,
   ],
-  controllers: [FacultyReviewController],
-  providers: [FacultyReviewService],
-  exports: [FacultyReviewService],
+  controllers: [FacultyController],
+  providers: [FacultyService],
+  exports: [FacultyService],
 })
 export class FacultyModule {}
