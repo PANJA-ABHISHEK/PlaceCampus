@@ -3,215 +3,202 @@ import {
   NotFoundException,
   ForbiddenException,
   BadRequestException,
-  Logger,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
-import {
-  Evidence,
-  type EvidenceDocument,
-  EvidenceStatus,
-} from './schemas/evidence.schema.js';
+import { Model } from 'mongoose';
+import { InjectQueue } from '@nestjs/bull';
+import type { Queue } from 'bull';
+import { Evidence } from './schemas/evidence.schema.js';
 import { CreateEvidenceDto, UpdateEvidenceDto } from './dto/evidence.dto.js';
+import { EvidenceStatus } from '@placecampus/shared-types';
 
 @Injectable()
 export class EvidenceService {
-  private readonly logger = new Logger(EvidenceService.name);
-
   constructor(
-    @InjectModel(Evidence.name)
-    private readonly evidenceModel: Model<EvidenceDocument>,
+    @InjectModel(Evidence.name) private evidenceModel: Model<Evidence>,
+    @InjectQueue('verification') private verificationQueue: Queue,
   ) {}
 
-  async create(
-    studentId: string,
-    dto: CreateEvidenceDto,
-    file: { url: string; originalName: string; mimeType: string; size: number },
-  ): Promise<Evidence> {
-    // Check for duplicate
-    const duplicate = await this.evidenceModel
-      .findOne({
-        studentId: new Types.ObjectId(studentId),
-        title: dto.title,
-        type: dto.type,
-        status: { $nin: [EvidenceStatus.REJECTED] },
-      })
-      .exec();
-
-    if (duplicate) {
-      throw new BadRequestException(
-        'Evidence with the same title and type already exists',
-      );
+  sanitize(evidence: any) {
+    const doc = evidence.toObject ? evidence.toObject() : evidence;
+    doc.id = doc._id.toString();
+    delete doc._id;
+    delete doc.__v;
+    // Don't leak the storage internal key
+    if (doc.document && doc.document.key) {
+      delete doc.document.key;
     }
-
-    const evidence = new this.evidenceModel({
-      ...dto,
-      studentId: new Types.ObjectId(studentId),
-      fileUrl: file.url,
-      originalFileName: file.originalName,
-      mimeType: file.mimeType,
-      fileSize: file.size,
-      status: EvidenceStatus.UPLOADED,
-    });
-
-    const saved = await evidence.save();
-    this.logger.log(
-      `Evidence created: ${saved._id.toString()} by student ${studentId}`,
-    );
-    return saved;
+    return doc;
   }
 
-  async findByStudent(
-    studentId: string,
-    filters?: { status?: EvidenceStatus; page?: number; limit?: number },
-  ): Promise<{ evidence: Evidence[]; total: number }> {
-    const query: Record<string, unknown> = {
-      studentId: new Types.ObjectId(studentId),
-    };
-    if (filters?.status) query['status'] = filters.status;
-
-    const page = filters?.page ?? 1;
-    const limit = filters?.limit ?? 20;
-    const skip = (page - 1) * limit;
-
-    const [evidence, total] = await Promise.all([
-      this.evidenceModel.find(query).skip(skip).limit(limit).sort({ createdAt: -1 }).exec(),
-      this.evidenceModel.countDocuments(query).exec(),
-    ]);
-
-    return { evidence, total };
+  async findAllForStudent(studentId: string) {
+    const items = await this.evidenceModel
+      .find({ studentId })
+      .sort({ createdAt: -1 })
+      .exec();
+    return items.map((i) => this.sanitize(i));
   }
 
-  async findById(id: string): Promise<Evidence> {
-    const evidence = await this.evidenceModel.findById(id).exec();
+  async findOne(id: string, studentId: string) {
+    const evidence = await this.evidenceModel
+      .findOne({ _id: id, studentId })
+      .exec();
     if (!evidence) {
       throw new NotFoundException('Evidence not found');
     }
-    return evidence;
+    return this.sanitize(evidence);
   }
 
-  async findByIdForStudent(id: string, studentId: string): Promise<Evidence> {
-    const evidence = await this.findById(id);
-    if (evidence.studentId.toString() !== studentId) {
-      throw new ForbiddenException('You do not have access to this evidence');
-    }
-    return evidence;
+  async create(studentId: string, dto: CreateEvidenceDto) {
+    const created = new this.evidenceModel({
+      ...dto,
+      studentId,
+      status: EvidenceStatus.UNVERIFIED,
+    });
+    const saved = await created.save();
+    return this.sanitize(saved);
   }
 
-  async update(
-    id: string,
-    studentId: string,
-    dto: UpdateEvidenceDto,
-  ): Promise<Evidence> {
-    const evidence = await this.findByIdForStudent(id, studentId);
-    if (
-      evidence.status !== EvidenceStatus.UPLOADED &&
-      evidence.status !== EvidenceStatus.REJECTED
-    ) {
-      throw new BadRequestException(
-        'Can only update evidence in UPLOADED or REJECTED status',
-      );
-    }
-
-    const updated = await this.evidenceModel
-      .findByIdAndUpdate(id, { $set: dto }, { new: true })
+  async update(id: string, studentId: string, dto: UpdateEvidenceDto) {
+    const evidence = await this.evidenceModel
+      .findOne({ _id: id, studentId })
       .exec();
-    return updated!;
-  }
-
-  async delete(id: string, studentId: string): Promise<void> {
-    const evidence = await this.findByIdForStudent(id, studentId);
-    if (
-      evidence.status !== EvidenceStatus.UPLOADED &&
-      evidence.status !== EvidenceStatus.REJECTED
-    ) {
-      throw new BadRequestException(
-        'Can only delete evidence in UPLOADED or REJECTED status',
-      );
-    }
-    await this.evidenceModel.findByIdAndDelete(id).exec();
-  }
-
-  async updateStatus(
-    id: string,
-    status: EvidenceStatus,
-    extra?: {
-      aiAnalysis?: Evidence['aiAnalysis'];
-      verifiedBy?: string;
-      rejectionReason?: string;
-      reviewNotes?: string;
-    },
-  ): Promise<Evidence> {
-    const updateData: Record<string, unknown> = { status };
-    if (extra?.aiAnalysis) updateData['aiAnalysis'] = extra.aiAnalysis;
-    if (extra?.verifiedBy) {
-      updateData['verifiedBy'] = new Types.ObjectId(extra.verifiedBy);
-      updateData['verifiedAt'] = new Date();
-    }
-    if (extra?.rejectionReason) updateData['rejectionReason'] = extra.rejectionReason;
-    if (extra?.reviewNotes) updateData['reviewNotes'] = extra.reviewNotes;
-
-    const updated = await this.evidenceModel
-      .findByIdAndUpdate(id, { $set: updateData }, { new: true })
-      .exec();
-    if (!updated) {
+    if (!evidence) {
       throw new NotFoundException('Evidence not found');
     }
-    return updated;
-  }
 
-  async findPendingReview(filters?: {
-    status?: EvidenceStatus;
-    page?: number;
-    limit?: number;
-  }): Promise<{ evidence: Evidence[]; total: number }> {
-    const query: Record<string, unknown> = {
-      status: filters?.status ?? EvidenceStatus.NEEDS_REVIEW,
-    };
-
-    const page = filters?.page ?? 1;
-    const limit = filters?.limit ?? 20;
-    const skip = (page - 1) * limit;
-
-    const [evidence, total] = await Promise.all([
-      this.evidenceModel
-        .find(query)
-        .populate('studentId', 'firstName lastName email')
-        .skip(skip)
-        .limit(limit)
-        .sort({ createdAt: 1 })
-        .exec(),
-      this.evidenceModel.countDocuments(query).exec(),
-    ]);
-
-    return { evidence, total };
-  }
-
-  async getStats(studentId?: string): Promise<Record<string, number>> {
-    const match: Record<string, unknown> = {};
-    if (studentId) match['studentId'] = new Types.ObjectId(studentId);
-
-    const stats = await this.evidenceModel.aggregate([
-      { $match: match },
-      { $group: { _id: '$status', count: { $sum: 1 } } },
-    ]).exec();
-
-    const result: Record<string, number> = {
-      total: 0,
-      uploaded: 0,
-      processing: 0,
-      verified: 0,
-      rejected: 0,
-      needsReview: 0,
-    };
-
-    for (const s of stats as Array<{ _id: string; count: number }>) {
-      if (!s._id) continue;
-      const key = s._id.toLowerCase().replace('_', '');
-      result[key === 'needsreview' ? 'needsReview' : key] = s.count;
-      result['total'] = (result['total'] ?? 0) + s.count;
+    // Status enforcement rules
+    if (
+      evidence.status === EvidenceStatus.VERIFIED ||
+      evidence.status === EvidenceStatus.PROCESSING
+    ) {
+      throw new ForbiddenException(
+        `Cannot edit evidence that is currently ${evidence.status}`,
+      );
     }
 
-    return result;
+    // Apply updates
+    Object.assign(evidence, dto);
+
+    // If it was rejected or needs review, and they update it, push it back to UNVERIFIED for review again
+    if (
+      evidence.status === EvidenceStatus.REJECTED ||
+      evidence.status === EvidenceStatus.RESUBMISSION_REQUESTED ||
+      evidence.status === EvidenceStatus.NEEDS_REVIEW
+    ) {
+      evidence.status = EvidenceStatus.UNVERIFIED;
+      evidence.rejectionReason = undefined;
+    }
+
+    const updated = await evidence.save();
+    return this.sanitize(updated);
+  }
+
+  async delete(id: string, studentId: string) {
+    const evidence = await this.evidenceModel
+      .findOne({ _id: id, studentId })
+      .exec();
+    if (!evidence) {
+      throw new NotFoundException('Evidence not found');
+    }
+
+    if (
+      evidence.status === EvidenceStatus.VERIFIED ||
+      evidence.status === EvidenceStatus.PROCESSING
+    ) {
+      throw new ForbiddenException(
+        `Cannot delete evidence that is currently ${evidence.status}`,
+      );
+    }
+
+    await this.evidenceModel.deleteOne({ _id: id }).exec();
+    return { success: true };
+  }
+
+  // Handle document attachment
+  async attachDocument(id: string, studentId: string, documentMeta: any) {
+    const evidence = await this.evidenceModel
+      .findOne({ _id: id, studentId })
+      .exec();
+    if (!evidence) {
+      throw new NotFoundException('Evidence not found');
+    }
+
+    if (
+      evidence.status === EvidenceStatus.VERIFIED ||
+      evidence.status === EvidenceStatus.PROCESSING
+    ) {
+      throw new ForbiddenException(
+        `Cannot attach documents to evidence that is currently ${evidence.status}`,
+      );
+    }
+
+    evidence.document = documentMeta;
+    evidence.status = EvidenceStatus.PROCESSING;
+    evidence.rejectionReason = undefined;
+
+    const updated = await evidence.save();
+
+    // Trigger asynchronous verification
+    await this.verificationQueue.add(
+      'verify-evidence',
+      {
+        evidenceId: updated.id.toString(),
+        studentId,
+        documentKey: documentMeta.key,
+      },
+      {
+        attempts: 3,
+        backoff: { type: 'exponential', delay: 5000 },
+        removeOnComplete: true,
+      },
+    );
+
+    return this.sanitize(updated);
+  }
+
+  // Allow controller to access internal document data for download
+  async getInternalDocumentMeta(id: string, studentId: string) {
+    const evidence = await this.evidenceModel
+      .findOne({ _id: id, studentId })
+      .exec();
+    if (!evidence || !evidence.document) {
+      throw new NotFoundException('Evidence document not found');
+    }
+    return evidence.document;
+  }
+
+  // Secure internal method for the verification worker
+  async updateVerificationResult(
+    id: string,
+    studentId: string,
+    status: EvidenceStatus,
+    reason?: string,
+  ) {
+    const evidence = await this.evidenceModel
+      .findOne({ _id: id, studentId })
+      .exec();
+    if (!evidence) {
+      throw new NotFoundException('Evidence not found');
+    }
+
+    evidence.status = status;
+
+    if (
+      status === EvidenceStatus.REJECTED ||
+      status === EvidenceStatus.NEEDS_REVIEW ||
+      status === EvidenceStatus.RESUBMISSION_REQUESTED
+    ) {
+      evidence.rejectionReason = reason;
+    } else {
+      evidence.rejectionReason = undefined;
+    }
+
+    if (status === EvidenceStatus.VERIFIED) {
+      evidence.verifiedAt = new Date().toISOString();
+    }
+
+    const updated = await evidence.save();
+    return this.sanitize(updated);
   }
 }

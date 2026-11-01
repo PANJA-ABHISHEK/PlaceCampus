@@ -1,33 +1,40 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { InjectQueue } from '@nestjs/bullmq';
-import { Queue } from 'bullmq';
-import {
-  VERIFICATION_QUEUE,
-  type VerificationJobData,
-} from './verification.processor.js';
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
+import { VerificationRecord } from './schemas/verification-record.schema.js';
+import { EvidenceService } from '../evidence/evidence.service.js';
 
 @Injectable()
 export class VerificationService {
-  private readonly logger = new Logger(VerificationService.name);
-
   constructor(
-    @InjectQueue(VERIFICATION_QUEUE) private readonly verificationQueue: Queue,
+    @InjectModel(VerificationRecord.name)
+    private recordModel: Model<VerificationRecord>,
+    private evidenceService: EvidenceService,
   ) {}
 
-  async queueVerification(data: VerificationJobData): Promise<string> {
-    const job = await this.verificationQueue.add('verify-evidence', data, {
-      attempts: 3,
-      backoff: {
-        type: 'exponential',
-        delay: 5000,
-      },
-      removeOnComplete: 100,
-      removeOnFail: 50,
-    });
+  async getLatestRecord(evidenceId: string, studentId: string) {
+    // 1. Verify ownership first
+    await this.evidenceService.findOne(evidenceId, studentId);
 
-    this.logger.log(
-      `Queued verification job ${job.id} for evidence ${data.evidenceId}`,
-    );
-    return job.id ?? data.evidenceId;
+    // 2. Fetch latest verification record
+    const record = await this.recordModel
+      .findOne({ evidenceId, studentId })
+      .sort({ attemptNumber: -1 })
+      .exec();
+
+    if (!record) {
+      throw new NotFoundException(
+        'No verification record found for this evidence',
+      );
+    }
+
+    // Sanitize the record (don't leak AI API internal errors, full AI dumps, etc., unless necessary)
+    const sanitized = record.toObject();
+    delete (sanitized as any)._id;
+    delete (sanitized as any).__v;
+    delete (sanitized as any).aiResult; // Hide internal AI JSON from students
+    delete (sanitized as any).errorInformation; // Hide raw errors
+
+    return sanitized;
   }
 }
