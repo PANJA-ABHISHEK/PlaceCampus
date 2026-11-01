@@ -1,29 +1,27 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { type HydratedDocument, Types } from 'mongoose';
+import { Document } from 'mongoose';
+import { SkillCluster as ISkillCluster } from '@placecampus/shared-types';
 
-export type SkillClusterDocument = HydratedDocument<SkillCluster>;
+export type SkillClusterDocument = SkillCluster & Document;
 
 @Schema({ timestamps: true })
-export class SkillCluster {
-  declare _id: Types.ObjectId;
+export class SkillCluster implements Omit<ISkillCluster, 'id'> {
+  @Prop({ required: true, unique: true })
+  name: string;
 
-  @Prop({ required: true, unique: true, trim: true })
-  name!: string;
-
-  @Prop({ trim: true })
+  @Prop()
   description?: string;
-
-  @Prop({ type: [{ type: Types.ObjectId, ref: 'Skill' }], default: [] })
-  skillIds!: Types.ObjectId[];
-
-  @Prop({ type: [String], default: [] })
-  roleMappings!: string[];
-
-  declare createdAt: Date;
-  declare updatedAt: Date;
 }
 
 export const SkillClusterSchema = SchemaFactory.createForClass(SkillCluster);
 
-// Indexes
-SkillClusterSchema.index({ name: 1 }, { unique: true });
+// To normalize virtuals
+SkillClusterSchema.set('toJSON', {
+  virtuals: true,
+  versionKey: false,
+  transform: function (doc, ret) {
+    const r = ret as any;
+    r.id = r._id.toString();
+    delete (ret as any)._id;
+  },
+});

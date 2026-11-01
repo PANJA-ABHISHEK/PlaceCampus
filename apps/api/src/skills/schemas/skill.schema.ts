@@ -1,47 +1,39 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { type HydratedDocument, Types } from 'mongoose';
-import { SkillCategory } from '@placecampus/shared-types';
+import { Document, Types } from 'mongoose';
+import { Skill as ISkill } from '@placecampus/shared-types';
 
-export type SkillDocument = HydratedDocument<Skill>;
+export type SkillDocument = Skill & Document;
 
 @Schema({ timestamps: true })
-export class Skill {
-  declare _id: Types.ObjectId;
+export class Skill implements Omit<ISkill, 'id'> {
+  @Prop({ required: true, unique: true })
+  name: string;
 
-  @Prop({ required: true, unique: true, trim: true })
-  name!: string;
+  @Prop({ required: true, unique: true })
+  normalizedName: string;
 
-  @Prop({ required: true, enum: SkillCategory, type: String })
-  category!: SkillCategory;
-
-  @Prop({ trim: true })
+  @Prop()
   description?: string;
 
-  @Prop({ type: [String], default: [] })
-  synonyms!: string[];
-
-  @Prop({ type: Types.ObjectId, ref: 'Skill' })
-  parentSkillId?: Types.ObjectId;
-
-  @Prop({ type: [{ type: Types.ObjectId, ref: 'Skill' }], default: [] })
-  childSkillIds!: Types.ObjectId[];
-
-  @Prop({ type: [{ type: Types.ObjectId, ref: 'Skill' }], default: [] })
-  relatedSkillIds!: Types.ObjectId[];
-
-  @Prop({ type: [{ type: Types.ObjectId, ref: 'SkillCluster' }], default: [] })
-  clusterIds!: Types.ObjectId[];
+  @Prop({ type: Types.ObjectId, ref: 'SkillCluster' })
+  clusterId?: string;
 
   @Prop({ default: true })
-  isActive!: boolean;
+  active: boolean;
 
-  declare createdAt: Date;
-  declare updatedAt: Date;
+  @Prop({ type: [String], default: [] })
+  synonyms: string[];
 }
 
 export const SkillSchema = SchemaFactory.createForClass(Skill);
 
-// Indexes for typical queries
-SkillSchema.index({ name: 1 }, { unique: true });
-SkillSchema.index({ category: 1 });
-SkillSchema.index({ isActive: 1 });
+// To normalize virtuals
+SkillSchema.set('toJSON', {
+  virtuals: true,
+  versionKey: false,
+  transform: function (doc, ret) {
+    const r = ret as any;
+    r.id = r._id.toString();
+    delete (ret as any)._id;
+  },
+});
