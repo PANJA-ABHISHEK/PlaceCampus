@@ -1,90 +1,27 @@
-version: '3.9'
+version: "3.9"
 
 services:
-  # ─── MongoDB ───────────────────────────────
   mongodb:
     image: mongo:7
-    container_name: placecampus-mongodb
+    container_name: placecampus-mongo
     restart: unless-stopped
     ports:
-      - '27017:27017'
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
     environment:
       MONGO_INITDB_DATABASE: placecampus
-    volumes:
-      - mongodb_data:/data/db
-    networks:
-      - placecampus-network
-    healthcheck:
-      test: ['CMD', 'mongosh', '--eval', "db.adminCommand('ping')"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
 
-  # ─── Redis ─────────────────────────────────
   redis:
     image: redis:7-alpine
     container_name: placecampus-redis
     restart: unless-stopped
     ports:
-      - '6379:6379'
+      - "6379:6379"
     volumes:
-      - redis_data:/data
-    networks:
-      - placecampus-network
-    healthcheck:
-      test: ['CMD', 'redis-cli', 'ping']
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  # ─── NestJS Backend API ────────────────────
-  api:
-    build:
-      context: .
-      dockerfile: apps/api/Dockerfile
-    container_name: placecampus-api
-    restart: unless-stopped
-    ports:
-      - '4000:4000'
-    environment:
-      NODE_ENV: production
-      PORT: 4000
-      MONGODB_URI: mongodb://mongodb:27017/placecampus
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
-      JWT_SECRET: ${JWT_SECRET}
-      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
-      AI_API_KEY: ${AI_API_KEY}
-    depends_on:
-      mongodb:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    networks:
-      - placecampus-network
-
-  # ─── Next.js Frontend ─────────────────────
-  web:
-    build:
-      context: .
-      dockerfile: apps/web/Dockerfile
-    container_name: placecampus-web
-    restart: unless-stopped
-    ports:
-      - '3000:3000'
-    environment:
-      NEXT_PUBLIC_API_URL: http://api:4000
-    depends_on:
-      - api
-    networks:
-      - placecampus-network
+      - redis-data:/data
+    command: redis-server --appendonly yes
 
 volumes:
-  mongodb_data:
-    driver: local
-  redis_data:
-    driver: local
-
-networks:
-  placecampus-network:
-    driver: bridge
+  mongo-data:
+  redis-data:

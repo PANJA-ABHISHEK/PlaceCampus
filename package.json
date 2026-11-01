@@ -2,36 +2,32 @@
   "name": "placecampus",
   "version": "0.1.0",
   "private": true,
-  "description": "PlaceCampus – Intelligent University Placement Readiness Platform",
-  "workspaces": [
-    "packages/*",
-    "apps/*"
-  ],
+  "description": "PlaceCampus — Unified Placement & Student Readiness Platform",
   "scripts": {
-    "dev": "npm run dev --workspace=apps/api & npm run dev --workspace=apps/web",
-    "dev:web": "npm run dev --workspace=apps/web",
-    "dev:api": "npm run dev --workspace=apps/api",
-    "build": "npm run build --workspaces --if-present",
-    "build:web": "npm run build --workspace=apps/web",
-    "build:api": "npm run build --workspace=apps/api",
-    "build:types": "npm run build --workspace=packages/shared-types",
-    "lint": "npm run lint --workspaces --if-present",
-    "lint:fix": "npm run lint:fix --workspaces --if-present",
-    "typecheck": "npm run typecheck --workspaces --if-present",
-    "test": "npm run test --workspaces --if-present",
-    "test:cov": "npm run test:cov --workspaces --if-present",
-    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
-    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md}\"",
-    "prepare": "husky"
-  },
-  "devDependencies": {
-    "@commitlint/cli": "^19.6.0",
-    "@commitlint/config-conventional": "^19.6.0",
-    "husky": "^9.1.0",
-    "lint-staged": "^15.4.0",
-    "prettier": "^3.4.0"
+    "dev": "pnpm --parallel -r run dev",
+    "dev:web": "pnpm --filter @placecampus/web dev",
+    "dev:api": "pnpm --filter @placecampus/api dev",
+    "build": "pnpm -r run build",
+    "build:web": "pnpm --filter @placecampus/web build",
+    "build:api": "pnpm --filter @placecampus/api build",
+    "lint": "pnpm -r run lint",
+    "lint:web": "pnpm --filter @placecampus/web lint",
+    "lint:api": "pnpm --filter @placecampus/api lint",
+    "typecheck": "pnpm -r run typecheck",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md,css}\"",
+    "clean": "pnpm -r exec rimraf dist .next node_modules/.cache",
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down",
+    "prepare": "echo 'Ready'"
   },
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=18.17.0",
+    "pnpm": ">=8.0.0"
+  },
+  "packageManager": "pnpm@9.1.0",
+  "devDependencies": {
+    "prettier": "^3.3.3",
+    "rimraf": "^6.0.1",
+    "typescript": "^5.5.4"
   }
 }
