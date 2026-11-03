@@ -3,9 +3,11 @@
 import * as React from "react";
 import {
   useAssessment,
+  useStartAssessment,
   useStudentAssessmentHistory,
   useSubmitAssessment,
 } from "@/features/assessments/hooks/use-assessments";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Clock, CheckCircle2 } from "lucide-react";
 import { useRouter, useParams } from "next/navigation";
@@ -20,9 +22,11 @@ export default function AssessmentAttemptPage() {
   const { data: history, isLoading: isHistoryLoading } =
     useStudentAssessmentHistory();
   const submitMutation = useSubmitAssessment();
+  const startMutation = useStartAssessment();
 
   const [currentQuestionIndex, setCurrentQuestionIndex] = React.useState(0);
-  const [answers, setAnswers] = React.useState<Record<string, string>>({});
+  const [answersOverride, setAnswersOverride] =
+    React.useState<Record<string, string> | null>(null);
 
   const attempt = React.useMemo(
     () =>
@@ -30,20 +34,16 @@ export default function AssessmentAttemptPage() {
     [history, id],
   );
 
-  React.useEffect(() => {
-    if (attempt?.answers) {
-      setAnswers(attempt.answers);
-    }
-  }, [attempt]);
+  const answers = answersOverride ?? attempt?.answers ?? {};
 
   if (isAssessmentLoading || isHistoryLoading) {
     return <div className="p-12 text-center">Loading...</div>;
   }
 
-  if (!assessment || !attempt) {
+  if (!assessment) {
     return (
       <div className="p-12 text-center">
-        Assessment or active attempt not found.
+        Assessment not found.
         <Button
           className="mt-4 block mx-auto"
           onClick={() => router.push("/student/assessments")}
@@ -54,11 +54,49 @@ export default function AssessmentAttemptPage() {
     );
   }
 
+  if (!attempt) {
+    // e.g. arriving from a preparation checkpoint link before starting.
+    return (
+      <div className="mx-auto max-w-md space-y-4 rounded-2xl border border-[hsl(var(--border))] bg-white p-8 text-center shadow-sm">
+        <h1 className="text-xl font-bold text-heading">{assessment.title}</h1>
+        <p className="text-sm text-[hsl(var(--muted-foreground))]">
+          {assessment.questions?.length ?? 0} questions ·{" "}
+          {assessment.durationMinutes} mins · pass at{" "}
+          {assessment.passingScore}%
+        </p>
+        <div className="flex justify-center gap-2">
+          <Button
+            variant="outline"
+            onClick={() => router.push("/student/assessments")}
+          >
+            Back
+          </Button>
+          <Button
+            onClick={() =>
+              startMutation.mutate(id, {
+                onError: (error) =>
+                  toast.error("Couldn't start the assessment", {
+                    description: error.message,
+                  }),
+              })
+            }
+            disabled={startMutation.isPending}
+          >
+            {startMutation.isPending ? "Starting..." : "Start Assessment"}
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   const questions = assessment.questions || [];
   const currentQuestion = questions[currentQuestionIndex];
 
   const handleOptionSelect = (questionId: string, option: string) => {
-    setAnswers((prev) => ({ ...prev, [questionId]: option }));
+    setAnswersOverride((prev) => ({
+      ...(prev ?? attempt?.answers ?? {}),
+      [questionId]: option,
+    }));
   };
 
   const handleSubmit = () => {
@@ -66,9 +104,19 @@ export default function AssessmentAttemptPage() {
       submitMutation.mutate(
         { attemptId: attempt.id, payload: { answers } },
         {
-          onSuccess: () => {
-            router.push("/student/assessments");
+          onSuccess: (result) => {
+            toast.success("Assessment submitted", {
+              description:
+                typeof result.percentage === "number"
+                  ? `You scored ${result.percentage}%.`
+                  : undefined,
+            });
+            router.push(`/student/assessments?result=${result.id}`);
           },
+          onError: (error) =>
+            toast.error("Couldn't submit the assessment", {
+              description: error.message,
+            }),
         },
       );
     }

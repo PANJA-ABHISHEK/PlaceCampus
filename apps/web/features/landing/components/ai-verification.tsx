@@ -24,13 +24,13 @@ export function AiVerificationSection() {
   }, []);
 
   return (
-    <section className="py-24 bg-[hsl(var(--background))] border-t border-[hsl(var(--border))] overflow-hidden">
+    <section className="border-t border-[hsl(var(--border))] bg-[hsl(var(--background))] py-20 md:py-24 overflow-hidden">
       <div className="container-app">
         <div className="grid lg:grid-cols-2 gap-16 items-center">
           <div data-aos="fade-right">
             <Badge
               variant="outline"
-              className="mb-6 bg-[hsl(var(--primary)/0.05)] text-[hsl(var(--primary-dark))] border-[hsl(var(--primary)/0.2)]"
+              className="mb-6 bg-[hsl(var(--primary)/0.05)] text-[hsl(var(--color-primary-dark))] border-[hsl(var(--primary)/0.2)]"
             >
               Intelligent Workflow
             </Badge>
@@ -85,22 +85,27 @@ export function AiVerificationSection() {
 
           <div ref={container} className="relative" data-aos="fade-left">
             {/* Visual Interface */}
-            <div className="bg-[hsl(var(--card))] rounded-2xl border border-[hsl(var(--border))] shadow-2xl overflow-hidden flex flex-col">
+            <div className="bg-[hsl(var(--card))] rounded-2xl border border-[hsl(var(--border))] shadow-[var(--shadow-2xl)] overflow-hidden flex flex-col">
               {/* Header */}
               <div className="border-b border-[hsl(var(--border))] p-4 flex items-center justify-between bg-[hsl(var(--muted)/0.5)]">
-                <div className="flex items-center gap-2">
+                <div className="flex min-w-0 items-center gap-2">
                   <FileCheck className="w-5 h-5 text-[hsl(var(--primary))]" />
                   <span className="font-semibold text-sm">
                     Evidence Verification
                   </span>
                 </div>
-                <Badge variant="warning">Needs Review</Badge>
+                <div className="flex shrink-0 items-center gap-2">
+                  <span className="hidden sm:inline text-[10px] font-medium uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
+                    Illustrative preview
+                  </span>
+                  <Badge variant="warning">Needs Review</Badge>
+                </div>
               </div>
 
               {/* Content */}
-              <div className="p-6 grid md:grid-cols-2 gap-6 relative">
+              <div className="relative grid gap-5 p-4 sm:p-6 md:grid-cols-2 md:gap-6">
                 {/* Document Preview */}
-                <div className="relative aspect-[3/4] bg-[hsl(var(--muted))] rounded-lg border border-[hsl(var(--border))] overflow-hidden flex items-center justify-center p-4">
+                <div className="relative aspect-[16/10] overflow-hidden rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted))] p-3 sm:p-4 md:aspect-[3/4]">
                   <div className="w-full h-full bg-white rounded shadow-sm border border-gray-200 p-4 flex flex-col gap-3 opacity-80">
                     <div className="h-4 w-1/3 bg-gray-200 rounded" />
                     <div className="h-8 w-3/4 bg-gray-300 rounded mb-4" />
@@ -128,7 +133,7 @@ export function AiVerificationSection() {
                     <div className="text-xs font-semibold text-[hsl(var(--muted-foreground))] uppercase mb-1">
                       AI Reasoning
                     </div>
-                    <div className="text-sm p-3 bg-[hsl(var(--primary)/0.05)] text-[hsl(var(--primary-dark))] rounded-lg border border-[hsl(var(--primary)/0.2)]">
+                    <div className="text-sm p-3 bg-[hsl(var(--primary)/0.05)] text-[hsl(var(--color-primary-dark))] rounded-lg border border-[hsl(var(--primary)/0.2)]">
                       Document text matches &quot;React&quot; and &quot;Advanced
                       Patterns&quot;. Issued by a recognized authority (Udemy).
                       Date is within 1 year.
@@ -139,7 +144,7 @@ export function AiVerificationSection() {
                     <div className="text-xs font-semibold text-[hsl(var(--muted-foreground))] uppercase mb-1">
                       Rule Check
                     </div>
-                    <div className="flex items-center gap-2 text-sm text-[hsl(var(--success))] mb-2">
+                    <div className="flex items-center gap-2 text-sm text-[hsl(var(--color-success))] mb-2">
                       <ShieldCheck className="w-4 h-4" /> Institution Approved
                     </div>
                     <div className="flex items-center gap-2 text-sm text-[hsl(var(--warning))]">

@@ -27,7 +27,8 @@ export default function FacultyReviewsPage() {
     data: reviews,
     isLoading,
     isError,
-  } = useFacultyReviews(statusFilter === "ALL" ? undefined : statusFilter);
+    refetch,
+  } = useFacultyReviews(statusFilter);
 
   return (
     <div className="max-w-6xl mx-auto space-y-8 animate-in fade-in duration-500">
@@ -54,8 +55,11 @@ export default function FacultyReviewsPage() {
               Needs Review
             </p>
             <p className="text-2xl font-bold text-heading">
-              {reviews?.filter((r) => r.status === EvidenceStatus.NEEDS_REVIEW)
-                .length || 0}
+              {isError
+                ? "--"
+                : reviews?.filter(
+                    (r) => r.status === EvidenceStatus.NEEDS_REVIEW,
+                  ).length || 0}
             </p>
           </div>
         </div>
@@ -118,7 +122,26 @@ export default function FacultyReviewsPage() {
             </div>
           )}
 
-          {!isLoading && (!reviews || reviews.length === 0) && (
+          {isError && (
+            <div className="p-12 text-center" role="alert">
+              <AlertCircle className="w-8 h-8 text-red-500 mx-auto mb-3" />
+              <h3 className="text-lg font-bold text-heading">
+                Could not load the review queue
+              </h3>
+              <p className="text-[hsl(var(--muted-foreground))] mt-2">
+                Check that the API and database are available, then try again.
+              </p>
+              <button
+                type="button"
+                onClick={() => refetch()}
+                className="mt-4 rounded-md bg-[hsl(var(--primary))] px-4 py-2 text-sm font-semibold text-white hover:opacity-90"
+              >
+                Retry
+              </button>
+            </div>
+          )}
+
+          {!isLoading && !isError && (!reviews || reviews.length === 0) && (
             <div className="p-16 text-center">
               <div className="w-16 h-16 bg-[hsl(var(--muted))] rounded-full flex items-center justify-center mx-auto mb-4">
                 <CheckCircle2 className="w-8 h-8 text-[hsl(var(--muted-foreground))]" />
@@ -179,10 +202,18 @@ export default function FacultyReviewsPage() {
                   <div className="shrink-0 flex items-center gap-4">
                     <div className="hidden md:block text-right">
                       <p className="text-sm font-medium text-heading">
-                        Student Review
+                        {item.status === EvidenceStatus.PROCESSING
+                          ? "Verification"
+                          : item.status === EvidenceStatus.UNVERIFIED
+                            ? "Submission"
+                            : "Faculty Review"}
                       </p>
                       <p className="text-xs text-[hsl(var(--muted-foreground))]">
-                        Needs Action
+                        {item.status === EvidenceStatus.PROCESSING
+                          ? "In progress"
+                          : item.status === EvidenceStatus.UNVERIFIED
+                            ? "Awaiting verification"
+                            : "Needs Action"}
                       </p>
                     </div>
                     <ChevronRight className="w-5 h-5 text-[hsl(var(--muted-foreground))] group-hover:text-[hsl(var(--primary))] transition-colors" />

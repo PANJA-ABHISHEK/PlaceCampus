@@ -12,6 +12,9 @@ import { Evidence } from './schemas/evidence.schema.js';
 import { CreateEvidenceDto, UpdateEvidenceDto } from './dto/evidence.dto.js';
 import { EvidenceStatus } from '@placecampus/shared-types';
 
+/** How long to wait for Redis to accept a verification job before falling back to manual review. */
+export const VERIFICATION_ENQUEUE_TIMEOUT_MS = 5000;
+
 @Injectable()
 export class EvidenceService {
   constructor(
@@ -77,8 +80,12 @@ export class EvidenceService {
       );
     }
 
-    // Apply updates
-    Object.assign(evidence, dto);
+    // Apply only provided fields. With ES2022+ class fields the transformed DTO
+    // has every property as an own `undefined`, which would wipe required
+    // fields like title and type. `null` is kept so a field can be cleared.
+    for (const [key, value] of Object.entries(dto)) {
+      if (value !== undefined) evidence.set(key, value);
+    }
 
     // If it was rejected or needs review, and they update it, push it back to UNVERIFIED for review again
     if (
@@ -139,20 +146,42 @@ export class EvidenceService {
 
     const updated = await evidence.save();
 
-    // Trigger asynchronous verification
-    await this.verificationQueue.add(
-      'verify-evidence',
-      {
-        evidenceId: updated.id.toString(),
+    // Trigger asynchronous verification. Bull waits for Redis to reconnect
+    // instead of failing, so bound the wait or an outage hangs the request.
+    let enqueueTimer: NodeJS.Timeout | undefined;
+    try {
+      await Promise.race([
+        this.verificationQueue.add(
+          'verify-evidence',
+          {
+            evidenceId: updated.id.toString(),
+            studentId,
+            documentKey: documentMeta.key,
+          },
+          {
+            attempts: 3,
+            backoff: { type: 'exponential', delay: 5000 },
+            removeOnComplete: true,
+          },
+        ),
+        new Promise((_, reject) => {
+          enqueueTimer = setTimeout(
+            () => reject(new Error('Verification queue unavailable')),
+            VERIFICATION_ENQUEUE_TIMEOUT_MS,
+          );
+        }),
+      ]);
+    } catch {
+      // A Redis outage should not leave a submitted document stuck in PROCESSING.
+      return this.updateVerificationResult(
+        id,
         studentId,
-        documentKey: documentMeta.key,
-      },
-      {
-        attempts: 3,
-        backoff: { type: 'exponential', delay: 5000 },
-        removeOnComplete: true,
-      },
-    );
+        EvidenceStatus.NEEDS_REVIEW,
+        'Automated verification could not be started. Manual faculty review is required.',
+      );
+    } finally {
+      clearTimeout(enqueueTimer);
+    }
 
     return this.sanitize(updated);
   }

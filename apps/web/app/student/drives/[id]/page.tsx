@@ -37,6 +37,8 @@ import {
   useMyApplications,
 } from "@/features/applications/hooks/use-applications";
 import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
+import { ApiError } from "@/lib/api-client";
 import {
   useCreatePreparationPlan,
   usePreparationPlans,
@@ -119,16 +121,21 @@ export default function StudentDriveDetailPage() {
 
   const handleApply = async () => {
     if (!eligibility?.eligible) {
-      alert("You are not eligible to apply.");
+      toast.error("You are not eligible to apply.");
       return;
     }
     if (confirm("Are you sure you want to apply to this drive?")) {
       try {
         await applyMutation.mutateAsync(id);
-        alert("Application submitted successfully!");
-      } catch (e: unknown) {
-        const error = e as { response?: { data?: { message?: string } } };
-        alert(error.response?.data?.message || "Failed to apply.");
+        toast.success("Application submitted", {
+          description: "Track its status from Applications.",
+        });
+      } catch (error: unknown) {
+        // The API explains why: deadline passed, already applied, not eligible…
+        toast.error("Couldn't submit your application", {
+          description:
+            error instanceof ApiError ? error.message : "Please try again.",
+        });
       }
     }
   };

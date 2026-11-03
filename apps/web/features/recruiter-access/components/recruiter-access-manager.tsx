@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { AlertCircle, Plus } from 'lucide-react';
+import { ApiError } from '@/lib/api-client';
 
 const AVAILABLE_FIELDS = [
   { id: 'studentName', label: 'Student Name' },
@@ -17,7 +18,6 @@ const AVAILABLE_FIELDS = [
   { id: 'graduationYear', label: 'Graduation Year' },
   { id: 'cgpa', label: 'CGPA' },
   { id: 'skills', label: 'Skill Match' },
-  { id: 'readinessScore', label: 'Readiness Score' },
   { id: 'skillMatchCoverage', label: 'Skill Match Coverage' },
   { id: 'applicationStatus', label: 'Application Status' },
   { id: 'linkedinUrl', label: 'LinkedIn URL' },
@@ -57,8 +57,10 @@ export function RecruiterAccessManager({ driveId }: { driveId: string }) {
       setIsDialogOpen(false);
       setRecruiterId('');
       setExpiresAt('');
-    } catch (e: any) {
-      toast.error(e.response?.data?.message || 'Failed to grant access');
+    } catch (error: unknown) {
+      toast.error(
+        error instanceof ApiError ? error.message : 'Failed to grant access',
+      );
     }
   };
 
@@ -143,7 +145,7 @@ export function RecruiterAccessManager({ driveId }: { driveId: string }) {
               <div key={grant.id} className="flex items-center justify-between p-4 border rounded-lg">
                 <div>
                   <div className="flex items-center gap-2 mb-1">
-                    <span className="font-medium text-heading">{(grant.recruiterId as any)?.fullName || 'Recruiter'}</span>
+                    <span className="font-medium text-heading">Recruiter</span>
                     <Badge variant={grant.status === 'ACTIVE' ? 'success' : grant.status === 'REVOKED' ? 'destructive' : 'secondary'}>
                       {grant.status}
                     </Badge>

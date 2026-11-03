@@ -1,0 +1,332 @@
+/*
+ * Auth motion — CSS-driven entrances and micro-interactions.
+ *
+ * Form entrances use CSS keyframes so server-rendered markup never flashes
+ * before hydration, and so each route change replays the sequence when the
+ * new form mounts. GSAP (see use-auth-motion.ts) handles the illustration.
+ */
+
+.feedback {
+  animation: auth-feedback-in 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+/* Form column: slight fade + slide when a route's form mounts. */
+.formEnter {
+  animation: auth-form-in 420ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+/* Staggered reveal: elements set --auth-i to control their order. */
+.reveal {
+  animation: auth-rise 460ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  animation-delay: calc(80ms + var(--auth-i, 0) * 55ms);
+}
+
+/* Left-panel heading crossfade when switching between auth routes. */
+.copyEnter {
+  animation: auth-copy-in 520ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+/* Dashboard card fade-up; delayed so GSAP can prime the ring first. */
+.cardEnter {
+  animation: auth-card-in 700ms cubic-bezier(0.22, 1, 0.36, 1) 150ms backwards;
+}
+
+.panelEnter {
+  animation: auth-panel-in 600ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+.successIcon {
+  animation: auth-pop 420ms cubic-bezier(0.34, 1.4, 0.64, 1) 80ms backwards;
+}
+
+/* Collapsible feedback row: smooth height + opacity on show and hide. */
+.collapse {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition:
+    grid-template-rows 220ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    opacity 180ms ease;
+}
+
+.collapse[data-open='true'] {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+
+.collapse > * {
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Animated underline used by secondary auth links. */
+.linkUnderline {
+  background-image: linear-gradient(currentColor, currentColor);
+  background-position: 0 100%;
+  background-repeat: no-repeat;
+  background-size: 0% 1px;
+  transition:
+    background-size 260ms cubic-bezier(0.22, 1, 0.36, 1),
+    color 160ms ease;
+}
+
+.linkUnderline:hover,
+.linkUnderline:focus-visible {
+  background-size: 100% 1px;
+}
+
+/* Gentle sheen across the sample progress bars — decorative, not data. */
+.barSheen {
+  position: relative;
+  overflow: hidden;
+}
+
+.barSheen::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    100deg,
+    transparent 0%,
+    rgb(255 255 255 / 0.45) 50%,
+    transparent 100%
+  );
+  transform: translateX(-120%);
+  animation: auth-sheen 5.5s ease-in-out 2s infinite;
+}
+
+.pulseDot {
+  animation: auth-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes auth-feedback-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes auth-form-in {
+  from {
+    opacity: 0;
+    transform: translateX(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes auth-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes auth-copy-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes auth-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes auth-panel-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes auth-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.7);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes auth-sheen {
+  0% {
+    transform: translateX(-120%);
+  }
+  35%,
+  100% {
+    transform: translateX(120%);
+  }
+}
+
+@keyframes auth-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+/* PlaceCampus brand colours, scoped to the auth pages. */
+.theme {
+  --primary: 21 100% 55%; /* #FF6B1A */
+  --ring: 21 100% 55%;
+  --color-primary-dark: 21 90% 44%;
+  --color-primary-600: 21 92% 48%;
+  --color-navy: 219 72% 15%; /* #0B1F44 */
+  --foreground: 219 72% 15%;
+  --background: 24 100% 99%; /* #FFFCFA */
+}
+
+/* Student panel (left side of the auth pages). */
+.studentIn {
+  animation: auth-student-in 900ms cubic-bezier(0.22, 1, 0.36, 1) 150ms both;
+}
+
+/* Gentle 2.5° side-to-side tilt plus a slow float, pivoting at her feet. */
+.studentSway {
+  transform-origin: 50% 100%;
+  animation: auth-sway 9s ease-in-out 1s infinite;
+}
+
+.bubbleFloat {
+  animation: auth-bubble 6s ease-in-out var(--float-delay, 0s) infinite;
+}
+
+.glowPulse {
+  animation: auth-glow 6s ease-in-out infinite;
+}
+
+/* Floating badges: fade + slide up in, then each drifts on its own rhythm. */
+.badgeIn {
+  animation: auth-badge-in 700ms cubic-bezier(0.22, 1, 0.36, 1) var(--badge-delay, 0.5s) both;
+}
+
+.badgeFloat {
+  animation: auth-badge-float var(--badge-duration, 6s) ease-in-out var(--badge-float-delay, 1s) infinite;
+}
+
+@keyframes auth-student-in {
+  from {
+    opacity: 0;
+    transform: translateY(48px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes auth-sway {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  25% {
+    transform: translateY(-8px) rotate(1.25deg);
+  }
+  50% {
+    transform: translateY(-14px) rotate(0deg);
+  }
+  75% {
+    transform: translateY(-8px) rotate(-1.25deg);
+  }
+}
+
+@keyframes auth-bubble {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-12px);
+  }
+}
+
+@keyframes auth-glow {
+  0%,
+  100% {
+    opacity: 0.85;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.04);
+  }
+}
+
+@keyframes auth-badge-in {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes auth-badge-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-9px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .studentIn,
+  .studentSway,
+  .bubbleFloat,
+  .glowPulse,
+  .badgeIn,
+  .badgeFloat,
+  .feedback,
+  .formEnter,
+  .reveal,
+  .copyEnter,
+  .cardEnter,
+  .panelEnter,
+  .successIcon,
+  .pulseDot {
+    animation: none;
+  }
+
+  .barSheen::after {
+    display: none;
+  }
+
+  .collapse,
+  .linkUnderline {
+    transition: none;
+  }
+}

@@ -36,7 +36,17 @@ export class RecruiterService {
       throw new ForbiddenException('You do not have active access to this drive');
     }
 
-    const { applications, total } = await this.applicationsService.findAllForDrivePaginated(driveId, page, limit, status, query);
+    const searchQuery = grant.releasedFields.includes('studentName')
+      ? query
+      : undefined;
+    const { applications, total } =
+      await this.applicationsService.findAllForDrivePaginated(
+        driveId,
+        page,
+        limit,
+        status,
+        searchQuery,
+      );
 
     const candidates = await Promise.all(applications.map(async (app) => {
       return this.mapCandidateData(app, grant.releasedFields);
@@ -89,7 +99,6 @@ export class RecruiterService {
     if (releasedFields.includes('studentName')) {
       // Need user full name, or assume studentService populates user?
       mapped.studentName = (student as any).userId?.fullName || 'Hidden Name';
-      mapped.email = (student as any).userId?.email;
     }
     if (releasedFields.includes('department')) {
       mapped.department = student.department;
@@ -102,9 +111,6 @@ export class RecruiterService {
     }
     if (releasedFields.includes('skills')) {
       mapped.skills = application.matchSnapshot?.skills || [];
-    }
-    if (releasedFields.includes('readinessScore')) {
-      mapped.readinessScore = application.readinessSnapshot?.overallScore;
     }
     if (releasedFields.includes('skillMatchCoverage')) {
       mapped.skillMatchCoverage = application.matchSnapshot?.requiredSkillCoverage;

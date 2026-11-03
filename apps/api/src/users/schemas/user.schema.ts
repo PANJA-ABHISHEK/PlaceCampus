@@ -18,6 +18,13 @@ export class User {
   @Prop({ type: String, enum: UserRole, default: UserRole.STUDENT })
   role: UserRole;
 
+  /**
+   * Further campus role assignments held by the same person (e.g. a faculty
+   * member who is also a placement officer). `role` stays the primary role.
+   */
+  @Prop({ type: [String], enum: UserRole, default: undefined })
+  roles?: UserRole[];
+
   @Prop({ default: true })
   isActive: boolean;
 

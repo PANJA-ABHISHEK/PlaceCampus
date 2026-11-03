@@ -27,12 +27,47 @@ export class AssessmentsService {
     @Optional() private eventEmitter?: EventEmitter2,
   ) {}
 
+  /**
+   * Lean documents skip the schema's toJSON transform, so map `_id` to the
+   * `id` the shared types promise.
+   */
+  private toAssessmentResponse(doc: any) {
+    const { _id, __v, ...rest } = doc;
+    return { ...rest, id: _id.toString() };
+  }
+
+  /**
+   * Keep `assessmentId` a string (per the shared AssessmentAttempt type) and
+   * expose the populated summary separately as `assessment`.
+   */
+  private toAttemptResponse(doc: any) {
+    const { _id, __v, assessmentId, ...rest } = doc;
+    const populated =
+      assessmentId && typeof assessmentId === 'object' && 'title' in assessmentId
+        ? assessmentId
+        : null;
+    return {
+      ...rest,
+      id: _id.toString(),
+      assessmentId: (populated?._id ?? assessmentId)?.toString(),
+      assessment: populated
+        ? {
+            id: populated._id.toString(),
+            title: populated.title,
+            type: populated.type,
+            difficulty: populated.difficulty,
+          }
+        : null,
+    };
+  }
+
   async getActiveAssessments() {
-    return this.assessmentModel
+    const assessments = await this.assessmentModel
       .find({ active: true })
       .select('-questions.correctAnswer -questions.explanation')
       .lean()
       .exec();
+    return assessments.map((a) => this.toAssessmentResponse(a));
   }
 
   async getAssessmentById(id: string) {
@@ -42,16 +77,17 @@ export class AssessmentsService {
       .lean()
       .exec();
     if (!assessment) throw new NotFoundException('Assessment not found');
-    return assessment;
+    return this.toAssessmentResponse(assessment);
   }
 
   async getStudentAttemptHistory(studentId: string) {
-    return this.attemptModel
+    const attempts = await this.attemptModel
       .find({ studentId })
       .sort({ createdAt: -1 })
       .populate('assessmentId', 'title type difficulty')
       .lean()
       .exec();
+    return attempts.map((a) => this.toAttemptResponse(a));
   }
 
   async getAttemptById(attemptId: string, studentId: string) {
@@ -61,7 +97,7 @@ export class AssessmentsService {
       .lean()
       .exec();
     if (!attempt) throw new NotFoundException('Assessment attempt not found');
-    return attempt;
+    return this.toAttemptResponse(attempt);
   }
 
   async startAssessment(assessmentId: string, studentId: string) {

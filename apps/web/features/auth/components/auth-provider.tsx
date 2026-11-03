@@ -1,19 +1,25 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import { UserReference } from "@placecampus/shared-types";
+import { PORTAL_ROUTE_PATTERN, RECRUITER_LOGIN_ROUTE, SELECT_ROLE_ROUTE } from "@/lib/routes";
 
 interface AuthState {
   user: UserReference | null;
   loading: boolean;
   authenticated: boolean;
-  setAuth: (accessToken: string) => void;
-  clearAuth: () => void;
+  /** Stores the token and resolves once the signed-in user is loaded. */
+  setAuth: (accessToken: string) => Promise<UserReference | null>;
+  clearAuth: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthState | undefined>(undefined);
+
+const ME_KEY = ["auth", "me"] as const;
+const fetchMe = async () => (await apiClient.get<{ user: UserReference | null }>("/auth/me")).user;
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [accessToken, setAccessToken] = useState<string | null>(null);
@@ -21,18 +27,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const queryClient = useQueryClient();
 
   const setAuth = React.useCallback(
-    (token: string) => {
+    async (token: string) => {
       setAccessToken(token);
       apiClient.setAccessToken(token);
-      queryClient.invalidateQueries({ queryKey: ["auth", "me"] });
+      // Load the user before callers navigate, so portal guards never see stale role data.
+      return queryClient.fetchQuery({ queryKey: ME_KEY, queryFn: fetchMe, staleTime: 0 }).catch(() => null);
     },
     [queryClient],
   );
 
-  const clearAuth = React.useCallback(() => {
-    setAccessToken(null);
-    apiClient.setAccessToken(null);
-    queryClient.setQueryData(["auth", "me"], null);
+  const clearAuth = React.useCallback(async () => {
+    try {
+      await apiClient.post("/auth/logout");
+    } catch {
+      // Clear the local session even when the server cannot be reached.
+    } finally {
+      setAccessToken(null);
+      apiClient.setAccessToken(null);
+      queryClient.setQueryData(ME_KEY, null);
+    }
   }, [queryClient]);
 
   useEffect(() => {
@@ -52,7 +65,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           "/auth/refresh",
         );
         if (mounted) {
-          setAuth(res.accessToken);
+          await setAuth(res.accessToken);
         }
       } catch (err) {
         // No valid session, stay unauthenticated
@@ -70,16 +83,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [queryClient, setAuth]);
 
   const { data, isLoading } = useQuery({
-    queryKey: ["auth", "me"],
-    queryFn: async () => {
-      const res = await apiClient.get<{ user: UserReference }>("/auth/me");
-      return res.user;
-    },
+    queryKey: ME_KEY,
+    queryFn: fetchMe,
     enabled: !!accessToken,
     retry: false,
   });
 
   const loading = !initialized || isLoading;
+
+  // A multi-role session has no active role yet: keep it out of every portal.
+  const pathname = usePathname();
+  const router = useRouter();
+  const blocked =
+    !!data?.requiresRoleSelection &&
+    PORTAL_ROUTE_PATTERN.test(pathname) &&
+    pathname !== RECRUITER_LOGIN_ROUTE;
+  useEffect(() => {
+    if (blocked) router.replace(SELECT_ROLE_ROUTE);
+  }, [blocked, router]);
 
   return (
     <AuthContext.Provider
@@ -91,7 +112,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         clearAuth,
       }}
     >
-      {children}
+      {blocked ? null : children}
     </AuthContext.Provider>
   );
 }

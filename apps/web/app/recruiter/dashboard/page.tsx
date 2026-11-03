@@ -70,7 +70,7 @@ export default function RecruiterDashboardPage() {
             <AlertTriangle className="w-10 h-10 text-gray-400 mb-4" />
             <h3 className="text-lg font-medium">No Active Drives</h3>
             <p className="text-sm text-muted-foreground max-w-sm mt-2">
-              You haven't been granted access to any placement drives yet, or your previous access has expired.
+              You haven&apos;t been granted access to any placement drives yet, or your previous access has expired.
             </p>
           </CardContent>
         </Card>

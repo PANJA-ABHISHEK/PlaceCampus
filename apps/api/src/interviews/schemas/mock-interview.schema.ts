@@ -42,6 +42,25 @@ export class MockInterview implements Omit<IMockInterview, 'id'> {
   scheduledAt: string;
 
   @Prop()
+  durationMinutes?: number;
+
+  @Prop()
+  meetingUrl?: string;
+
+  /** The faculty slot this interview was booked from, if any. */
+  @Prop({ type: Types.ObjectId, ref: 'InterviewSlot' })
+  slotId?: string;
+
+  @Prop()
+  cancelledAt?: string;
+
+  @Prop({ type: String, enum: ['STUDENT', 'FACULTY'] })
+  cancelledBy?: 'STUDENT' | 'FACULTY';
+
+  @Prop({ maxlength: 300 })
+  cancellationReason?: string;
+
+  @Prop()
   startedAt?: string;
 
   @Prop()

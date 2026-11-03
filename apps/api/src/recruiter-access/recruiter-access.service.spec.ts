@@ -1,5 +1,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { RecruiterAccessService } from './recruiter-access.service.js';
+import {
+  ALLOWED_RELEASE_FIELDS,
+  RecruiterAccessService,
+} from './recruiter-access.service.js';
 import { getModelToken } from '@nestjs/mongoose';
 import { RecruiterAccessGrant } from './schemas/access-grant.schema.js';
 import { AuditService } from '../audit/audit.service.js';
@@ -40,5 +43,9 @@ describe('RecruiterAccessService', () => {
 
   it('should be defined', () => {
     expect(service).toBeDefined();
+  });
+
+  it('never allows recruiters to receive student readiness scores', () => {
+    expect(ALLOWED_RELEASE_FIELDS).not.toContain('readinessScore');
   });
 });

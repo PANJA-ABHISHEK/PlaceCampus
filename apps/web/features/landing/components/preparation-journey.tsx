@@ -8,9 +8,13 @@ import { CheckCircle2, Circle } from "lucide-react";
 
 export function PreparationJourneySection() {
   useAOS();
+  const completedCount = preparationPlan.filter((step) => step.completed).length;
+  const completionPercentage = Math.round(
+    (completedCount / preparationPlan.length) * 100,
+  );
 
   return (
-    <section className="py-24 bg-[hsl(var(--background-secondary))] border-t border-[hsl(var(--border))]">
+    <section className="border-t border-[hsl(var(--border))] bg-[hsl(var(--background-secondary))] py-20 md:py-24">
       <div className="container-app">
         <div className="max-w-3xl mx-auto text-center mb-16" data-aos="fade-up">
           <h2 className="text-heading text-3xl md:text-4xl lg:text-5xl mb-6 text-[hsl(var(--foreground))]">
@@ -28,22 +32,25 @@ export function PreparationJourneySection() {
           data-aos="fade-up"
           data-aos-delay="100"
         >
-          <div className="bg-[hsl(var(--card))] rounded-3xl border border-[hsl(var(--border))] shadow-xl p-8 md:p-12">
-            <div className="flex items-center justify-between mb-12">
+          <div className="rounded-3xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5 shadow-[var(--shadow-xl)] sm:p-8 md:p-12">
+            <div className="mb-8 flex flex-wrap items-center justify-between gap-4 md:mb-12">
               <div>
-                <h3 className="text-2xl font-bold mb-2">
+                <span className="mb-2 inline-flex rounded-full bg-[hsl(var(--primary)/0.1)] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--color-primary-dark))]">
+                  Illustrative plan preview
+                </span>
+                <h3 className="text-xl font-bold sm:text-2xl">
                   14-Day DSA Preparation
                 </h3>
                 <p className="text-[hsl(var(--muted-foreground))]">
-                  Target: Level 4 • Amazon Drive Eligibility
+                  Target: Level 4 · Example drive requirement
                 </p>
               </div>
-              <div className="hidden sm:block text-right">
-                <div className="text-3xl font-bold text-[hsl(var(--primary))]">
-                  40%
+              <div className="text-right">
+                <div className="text-2xl font-bold text-[hsl(var(--primary))] sm:text-3xl">
+                  {completionPercentage}%
                 </div>
                 <div className="text-sm font-medium uppercase tracking-wider text-[hsl(var(--muted-foreground))]">
-                  Completed
+                  {completedCount} of {preparationPlan.length} complete
                 </div>
               </div>
             </div>
@@ -51,16 +58,19 @@ export function PreparationJourneySection() {
             <div className="relative">
               {/* Timeline Line */}
               <div className="absolute left-4 md:left-[10%] top-0 bottom-0 w-1 bg-[hsl(var(--muted))]" />
-              <div className="absolute left-4 md:left-[10%] top-0 h-[40%] w-1 bg-[hsl(var(--primary))] shadow-[0_0_10px_hsl(var(--primary))]" />
+              <div
+                className="absolute left-4 top-0 w-1 bg-[hsl(var(--primary))] md:left-[10%]"
+                style={{ height: `${completionPercentage}%` }}
+              />
 
               <div className="space-y-8 relative z-10">
                 {preparationPlan.map((step) => (
                   <div
                     key={step.day}
-                    className="flex items-center gap-6 md:gap-12 group cursor-default"
+                    className="group flex items-center gap-4 md:gap-12"
                   >
                     {/* Day Marker */}
-                    <div className="w-10 md:w-[20%] flex-shrink-0 text-right hidden md:block">
+                    <div className="hidden w-10 shrink-0 text-right md:block md:w-[20%]">
                       <span
                         className={cn(
                           "font-mono font-bold text-lg transition-colors",
@@ -74,15 +84,17 @@ export function PreparationJourneySection() {
                     </div>
 
                     {/* Node */}
-                    <div className="flex-shrink-0 relative flex justify-center w-8">
+                    <div className="relative flex w-8 shrink-0 justify-center">
                       {step.completed ? (
                         <CheckCircle2
+                          aria-label="Completed"
                           className="w-8 h-8 text-[hsl(var(--primary))] bg-[hsl(var(--card))] rounded-full"
                           fill="currentColor"
                           stroke="white"
                         />
                       ) : (
                         <Circle
+                          aria-label="Upcoming"
                           className="w-8 h-8 text-[hsl(var(--muted-foreground))] bg-[hsl(var(--card))] rounded-full"
                           strokeWidth={3}
                         />
@@ -92,7 +104,7 @@ export function PreparationJourneySection() {
                     {/* Content */}
                     <div
                       className={cn(
-                        "flex-1 p-4 rounded-xl border transition-all duration-[var(--duration-normal)]",
+                        "min-w-0 flex-1 rounded-xl border p-3 transition-colors duration-[var(--duration-normal)] sm:p-4",
                         step.completed
                           ? "bg-[hsl(var(--primary)/0.05)] border-[hsl(var(--primary)/0.2)]"
                           : "bg-[hsl(var(--muted)/0.3)] border-[hsl(var(--border))] group-hover:border-[hsl(var(--muted-foreground)/0.3)]",

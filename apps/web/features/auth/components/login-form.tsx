@@ -1,29 +1,47 @@
-"use client";
+'use client';
 
-import * as React from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import * as z from "zod";
-import { AuthInput } from "./auth-input";
-import { Button } from "@/components/ui/button";
-import { Loader2 } from "lucide-react";
-import { useAuth } from "./auth-provider";
-import { apiClient, ApiError } from "@/lib/api-client";
-import { getDashboardRoute } from "@/lib/routes";
+import * as React from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
+import { Check } from 'lucide-react';
+import { AuthInput } from './auth-input';
+import { AuthFeedback } from './auth-feedback';
+import { AuthSubmitButton, reveal } from './auth-submit-button';
+import { useAuth } from './auth-provider';
+import type { LoginResponse } from '@placecampus/shared-types';
+import { apiClient, ApiError } from '@/lib/api-client';
+import { CAMPUS_LOGIN_ROUTE, RECRUITER_LOGIN_ROUTE, getPostLoginRoute } from '@/lib/routes';
+import { cn } from '@/lib/utils';
+import styles from './auth-motion.module.css';
 
 const loginSchema = z.object({
-  email: z.string().email("Please enter a valid email address"),
-  password: z.string().min(1, "Password is required"),
+  email: z.string().email('Please enter a valid email address'),
+  password: z.string().min(1, 'Password is required'),
 });
 
 type LoginValues = z.infer<typeof loginSchema>;
 
-export function LoginForm() {
+const linkClass =
+  'rounded-sm font-semibold text-[hsl(var(--color-primary-dark))] hover:text-[hsl(var(--primary))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))] focus-visible:ring-offset-2';
+
+const PORTALS = {
+  campus: { endpoint: '/auth/login', subtitle: 'Enter your credentials to access your account.' },
+  recruiter: { endpoint: '/recruiter/auth/login', subtitle: 'Sign in with your recruiter account to review shared candidates.' },
+} as const;
+
+/**
+ * Email and password only. The account's role comes from the API response,
+ * never from anything the user picks or the URL.
+ */
+export function LoginForm({ portal = 'campus' }: { portal?: keyof typeof PORTALS }) {
   const { setAuth } = useAuth();
   const router = useRouter();
   const [serverError, setServerError] = React.useState<string | null>(null);
+  // Keeps the button busy between a successful login and the dashboard route loading.
+  const [isRedirecting, setIsRedirecting] = React.useState(false);
 
   const {
     register,
@@ -31,101 +49,106 @@ export function LoginForm() {
     formState: { errors, isSubmitting },
   } = useForm<LoginValues>({
     resolver: zodResolver(loginSchema),
-    defaultValues: { email: "", password: "" },
+    mode: 'onTouched',
+    defaultValues: { email: '', password: '' },
   });
 
   const onSubmit = async (data: LoginValues) => {
     setServerError(null);
     try {
-      const res = await apiClient.post<{ accessToken: string }>(
-        "/auth/login",
-        data,
-      );
-      setAuth(res.accessToken);
-
-      try {
-        const meRes = await apiClient.get<{ user: { role: string } }>(
-          "/auth/me",
-        );
-        const route = getDashboardRoute(meRes.user.role);
-        router.push(route);
-      } catch (err) {
-        router.push("/");
-      }
+      const res = await apiClient.post<LoginResponse>(PORTALS[portal].endpoint, data);
+      setIsRedirecting(true);
+      await setAuth(res.accessToken);
+      router.replace(getPostLoginRoute(res));
     } catch (error) {
+      setIsRedirecting(false);
       if (error instanceof ApiError) {
         setServerError(error.message);
       } else {
-        setServerError("An unexpected error occurred. Please try again.");
+        setServerError('An unexpected error occurred. Please try again.');
       }
     }
   };
 
+  const busy = isSubmitting || isRedirecting;
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-2">
-        <h2 className="text-heading text-3xl font-bold tracking-tight">
-          Welcome back
-        </h2>
-        <p className="text-body text-sm text-[hsl(var(--muted-foreground))]">
-          Enter your credentials to access your account.
+        <h2 {...reveal(0, 'text-heading text-3xl font-bold tracking-tight')}>Welcome Back!</h2>
+        <p {...reveal(1, 'text-body text-sm text-[hsl(var(--muted-foreground))]')}>
+          {PORTALS[portal].subtitle}
         </p>
       </div>
 
-      <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
-        {serverError && (
-          <div className="p-3 text-sm rounded bg-red-500/10 text-red-500 border border-red-500/20">
-            {serverError}
-          </div>
-        )}
+      <form
+        onSubmit={handleSubmit(onSubmit)}
+        className="flex flex-col gap-4"
+        aria-busy={busy}
+        noValidate
+      >
+        <AuthFeedback message={serverError} variant="banner" className="-mb-4 data-[open=true]:mb-0" />
 
         <AuthInput
           label="Email address"
           type="email"
           placeholder="name@university.edu"
+          autoComplete="email"
+          revealIndex={2}
           error={errors.email?.message}
-          {...register("email")}
+          {...register('email')}
         />
         <AuthInput
           label="Password"
           type="password"
           placeholder="••••••••"
+          autoComplete="current-password"
+          revealIndex={3}
           error={errors.password?.message}
-          {...register("password")}
+          {...register('password')}
         />
 
-        <div className="flex items-center justify-between mt-2">
-          <label className="flex items-center gap-2 text-sm text-[hsl(var(--muted-foreground))] cursor-pointer hover:text-[hsl(var(--foreground))]">
-            <input
-              type="checkbox"
-              className="rounded border-[hsl(var(--border))] text-[hsl(var(--primary))] focus:ring-[hsl(var(--primary))]"
-            />
+        <div {...reveal(4, 'mt-1 flex items-center justify-between gap-3')}>
+          <label className="group inline-flex cursor-pointer select-none items-center gap-2.5 text-sm text-[hsl(var(--muted-foreground))] transition-colors hover:text-[hsl(var(--foreground))]">
+            <span className="relative inline-flex h-[18px] w-[18px] shrink-0">
+              <input
+                type="checkbox"
+                className="peer absolute inset-0 h-full w-full cursor-pointer appearance-none rounded-[5px] border border-[hsl(var(--input))] bg-[hsl(var(--background))] transition-[background-color,border-color,box-shadow] duration-200 checked:border-[hsl(var(--primary))] checked:bg-[hsl(var(--primary))] group-hover:border-[hsl(var(--primary)/0.6)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))] focus-visible:ring-offset-2"
+              />
+              <Check
+                aria-hidden="true"
+                strokeWidth={3}
+                className="pointer-events-none absolute inset-0 m-auto h-3 w-3 scale-50 text-white opacity-0 transition-[opacity,scale] duration-200 ease-out peer-checked:scale-100 peer-checked:opacity-100"
+              />
+            </span>
             Remember me
           </label>
-          <Link
-            href="/forgot-password"
-            className="text-sm font-medium text-[hsl(var(--primary))] hover:underline"
-          >
+          <Link href="/forgot-password" className={cn('text-sm font-medium', linkClass, styles.linkUnderline)}>
             Forgot password?
           </Link>
         </div>
 
-        <Button type="submit" className="w-full mt-4" disabled={isSubmitting}>
-          {isSubmitting ? (
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          ) : null}
+        <AuthSubmitButton busy={busy} busyLabel={isRedirecting ? 'Redirecting…' : 'Signing in…'} revealIndex={5}>
           Sign In
-        </Button>
+        </AuthSubmitButton>
       </form>
 
-      <div className="text-center text-sm text-[hsl(var(--muted-foreground))] mt-2">
-        Don&apos;t have an account?{" "}
-        <Link
-          href="/register"
-          className="font-medium text-[hsl(var(--primary))] hover:underline"
-        >
-          Create account
-        </Link>
+      <div {...reveal(6, 'mt-2 text-center text-sm text-[hsl(var(--muted-foreground))]')}>
+        {portal === 'campus' ? (
+          <>
+            Recruiter?{' '}
+            <Link href={RECRUITER_LOGIN_ROUTE} className={cn(linkClass, styles.linkUnderline)}>
+              Sign in to Recruiter access
+            </Link>
+          </>
+        ) : (
+          <>
+            Student or university staff?{' '}
+            <Link href={CAMPUS_LOGIN_ROUTE} className={cn(linkClass, styles.linkUnderline)}>
+              Campus sign in
+            </Link>
+          </>
+        )}
       </div>
     </div>
   );

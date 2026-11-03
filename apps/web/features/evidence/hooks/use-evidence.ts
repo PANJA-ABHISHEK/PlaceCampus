@@ -90,13 +90,22 @@ export function useUploadEvidenceDocument() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ id, file }: { id: string; file: File }) => {
+    mutationFn: async ({
+      id,
+      file,
+      onProgress,
+    }: {
+      id: string;
+      file: File;
+      onProgress?: (percent: number) => void;
+    }) => {
       const formData = new FormData();
       formData.append("file", file);
 
-      const res = await apiClient.post<EvidenceItem>(
+      const res = await apiClient.upload<EvidenceItem>(
         `/evidence/${id}/document`,
         formData,
+        onProgress,
       );
       return res;
     },
@@ -120,5 +129,41 @@ export function useEvidenceVerification(evidenceId: string) {
     },
     enabled: !!evidenceId,
     retry: false, // Don't retry infinitely if there's no record yet
+  });
+}
+
+/**
+ * The document download endpoint requires a bearer token, so a plain link
+ * cannot open it. Fetch it through the API client and open a blob URL.
+ */
+export async function openEvidenceDocument(evidenceId: string) {
+  // Open the tab synchronously so popup blockers allow it.
+  const tab = window.open("", "_blank");
+  try {
+    const blob = await apiClient.get<Blob>(
+      `/evidence/${evidenceId}/document/download`,
+      { responseType: "blob" },
+    );
+    const url = URL.createObjectURL(blob);
+    if (tab) tab.location.href = url;
+    else window.location.href = url;
+    // Give the new tab time to load before releasing the blob.
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  } catch (error) {
+    tab?.close();
+    throw error;
+  }
+}
+
+export function useEvidenceDocumentBlob(evidenceId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: [...EVIDENCE_KEYS.detail(evidenceId), "document"],
+    queryFn: () =>
+      apiClient.get<Blob>(`/evidence/${evidenceId}/document/download`, {
+        responseType: "blob",
+      }),
+    enabled: !!evidenceId && enabled,
+    staleTime: 5 * 60_000,
+    retry: false,
   });
 }

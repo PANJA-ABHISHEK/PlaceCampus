@@ -33,7 +33,18 @@ export class FacultyService {
       },
     };
 
-    if (query.status) filter.status = query.status;
+    if (query.status === 'ALL') {
+      filter.status = {
+        $in: [
+          EvidenceStatus.UNVERIFIED,
+          EvidenceStatus.PROCESSING,
+          EvidenceStatus.NEEDS_REVIEW,
+          EvidenceStatus.RESUBMISSION_REQUESTED,
+        ],
+      };
+    } else if (query.status) {
+      filter.status = query.status;
+    }
     if (query.type) filter.type = query.type;
 
     const evidence = await this.evidenceModel

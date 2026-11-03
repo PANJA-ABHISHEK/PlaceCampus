@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import type { NotificationItem, NotificationListResponse } from "@placecampus/shared-types";
 
@@ -14,6 +14,20 @@ export function useNotifications(filters: { page?: number; limit?: number; unrea
     queryKey: NOTIFICATION_KEYS.list(params),
     queryFn: () => apiClient.get<NotificationListResponse>("/notifications/me", { params }),
     refetchInterval: 30_000,
+    refetchOnWindowFocus: true,
+  });
+}
+
+/** All of the user's notifications, newest first, 50 per page (the API max). */
+export function useNotificationFeed() {
+  return useInfiniteQuery({
+    queryKey: [...NOTIFICATION_KEYS.all, "feed"] as const,
+    queryFn: ({ pageParam }) =>
+      apiClient.get<NotificationListResponse>("/notifications/me", {
+        params: { page: String(pageParam), limit: "50" },
+      }),
+    initialPageParam: 1,
+    getNextPageParam: (last) => (last.hasMore ? last.page + 1 : undefined),
     refetchOnWindowFocus: true,
   });
 }

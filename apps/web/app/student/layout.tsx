@@ -2,13 +2,13 @@
 
 import * as React from "react";
 import { useAuth } from "@/features/auth/components/auth-provider";
-import { redirect, usePathname } from "next/navigation";
+import { redirect, usePathname, useRouter } from "next/navigation";
+import Image from "next/image";
 import Link from "next/link";
 import {
   LayoutDashboard,
   UserCircle,
   FileCheck,
-  Target,
   TrendingUp,
   AlertCircle,
   Briefcase,
@@ -16,9 +16,7 @@ import {
   ClipboardList,
   Video,
   BookOpen,
-  Bell,
   Settings,
-  LogOut,
   Menu,
   X,
   BrainCircuit,
@@ -26,6 +24,7 @@ import {
 import { cn } from "@/lib/utils";
 import { UserRole } from "@placecampus/shared-types";
 import { NotificationBell } from "@/features/notifications/components/notification-bell";
+import { UserMenu } from "@/components/layout/user-menu";
 
 const navigation = [
   { name: "Overview", href: "/student/dashboard", icon: LayoutDashboard },
@@ -45,11 +44,6 @@ const navigation = [
   { name: "Applications", href: "/student/applications", icon: Send },
   { name: "Preparation", href: "/student/preparation", icon: BookOpen },
   {
-    name: "Notifications",
-    href: "/student/notifications",
-    icon: Bell,
-  },
-  {
     name: "Settings",
     href: "/student/settings",
     icon: Settings,
@@ -65,6 +59,7 @@ export default function StudentLayout({
   const { user, authenticated, loading, clearAuth } = useAuth();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
   const pathname = usePathname();
+  const router = useRouter();
 
   // Route Protection
   React.useEffect(() => {
@@ -84,134 +79,127 @@ export default function StudentLayout({
     );
   }
 
-  const handleLogout = () => {
-    clearAuth();
-  };
-
-  const getInitials = (name: string) => {
-    return name
-      .split(" ")
-      .map((n) => n[0])
-      .join("")
-      .toUpperCase()
-      .substring(0, 2);
+  const handleLogout = async () => {
+    await clearAuth();
+    router.replace("/login");
   };
 
   return (
-    <div className="min-h-screen bg-[hsl(var(--background))] flex flex-col md:flex-row">
-      {/* Mobile Header */}
-      <div className="md:hidden flex items-center justify-between p-4 border-b border-[hsl(var(--border))] bg-white/50 backdrop-blur-md sticky top-0 z-30">
-        <Link
-          href="/student/dashboard"
-          className="text-xl font-bold tracking-tighter text-heading"
-        >
-          Place<span className="text-[hsl(var(--primary))]">Campus</span>
-        </Link>
-        <button
-          onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-          className="text-[hsl(var(--muted-foreground))] hover:text-heading"
-        >
-          {isMobileMenuOpen ? (
-            <X className="h-6 w-6" />
-          ) : (
-            <Menu className="h-6 w-6" />
-          )}
-        </button>
-      </div>
-
-      {/* Sidebar Navigation */}
-      <nav
-        className={cn(
-          "fixed inset-y-0 left-0 z-40 w-64 bg-white border-r border-[hsl(var(--border))] transform transition-transform duration-300 ease-in-out md:relative md:translate-x-0 flex flex-col",
-          isMobileMenuOpen ? "translate-x-0" : "-translate-x-full",
-        )}
-      >
-        <div className="p-6 hidden md:block border-b border-[hsl(var(--border))]">
+    <div className="min-h-screen bg-[hsl(var(--background))]">
+      {/* Top Header */}
+      <header className="sticky top-0 z-40 flex h-16 items-center justify-between gap-4 bg-white/90 px-4 shadow-[0_1px_12px_-4px_rgba(15,23,42,0.08)] backdrop-blur-md md:h-[72px] md:px-6">
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            aria-label={isMobileMenuOpen ? "Close navigation" : "Open navigation"}
+            aria-expanded={isMobileMenuOpen}
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            className="-ml-1 flex h-10 w-10 items-center justify-center rounded-xl text-[hsl(var(--foreground)/0.8)] transition-colors hover:bg-[hsl(var(--muted))] md:hidden"
+          >
+            {isMobileMenuOpen ? (
+              <X className="h-5 w-5" />
+            ) : (
+              <Menu className="h-5 w-5" />
+            )}
+          </button>
           <Link
             href="/student/dashboard"
-            className="text-2xl font-bold tracking-tighter text-heading"
+            aria-label="PlaceCampus student dashboard"
+            className="flex shrink-0 items-center transition-opacity hover:opacity-85"
           >
-            Place<span className="text-[hsl(var(--primary))]">Campus</span>
+            <Image
+              src="/images/placecampus-logo-trimmed.png"
+              alt="PlaceCampus"
+              width={1200}
+              height={269}
+              priority
+              className="h-auto w-[150px] sm:w-[180px] md:w-[200px]"
+            />
           </Link>
         </div>
 
-        <div className="p-4 border-b border-[hsl(var(--border))] flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-[hsl(var(--primary)/0.1)] text-[hsl(var(--primary))] flex items-center justify-center font-bold">
-            {getInitials(user?.fullName || "Student")}
-          </div>
-          <div className="flex flex-col">
-            <span className="text-sm font-bold text-heading truncate">
-              {user?.fullName}
-            </span>
-            <span className="text-xs text-[hsl(var(--muted-foreground))]">
-              Student Portal
-            </span>
-          </div>
+        <div className="flex items-center gap-2 sm:gap-3">
+          <NotificationBell inboxHref="/student/notifications" variant="link" />
+          <span
+            aria-hidden="true"
+            className="hidden h-8 w-px bg-[hsl(var(--border))] sm:block"
+          />
+          <UserMenu
+            name={user?.fullName || "Student"}
+            roleLabel="Student"
+            profileHref="/student/profile"
+            switchRoleHref={(user?.roles?.length ?? 0) > 1 ? "/select-role" : undefined}
+            onLogout={handleLogout}
+          />
         </div>
+      </header>
 
-        <div className="flex-1 overflow-y-auto py-4 px-3 space-y-1">
-          {navigation.map((item) => {
-            const isActive =
-              pathname === item.href || pathname.startsWith(`${item.href}/`);
-            return (
-              <Link
-                key={item.name}
-                href={item.comingSoon ? "#" : item.href}
-                className={cn(
-                  "flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-colors relative group",
-                  isActive
-                    ? "bg-[hsl(var(--primary)/0.1)] text-[hsl(var(--primary))]"
-                    : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted)/0.5)] hover:text-heading",
-                  item.comingSoon && "opacity-60 cursor-not-allowed",
-                )}
-                onClick={(e) => {
-                  if (item.comingSoon) e.preventDefault();
-                  if (isMobileMenuOpen) setIsMobileMenuOpen(false);
-                }}
-              >
-                <item.icon className="h-4 w-4" />
-                {item.name}
-                {item.comingSoon && (
-                  <span className="absolute right-2 text-[10px] bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))] px-1.5 py-0.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
-                    Soon
-                  </span>
-                )}
-              </Link>
-            );
-          })}
-        </div>
+      <div className="flex">
+        {/* Sidebar Navigation */}
+        <nav
+          aria-label="Student navigation"
+          className={cn(
+            "fixed bottom-0 left-0 top-16 z-30 w-64 shrink-0 overflow-y-auto bg-white px-3 py-5 transition-transform duration-300 ease-in-out md:sticky md:top-[72px] md:h-[calc(100vh-72px)] md:translate-x-0 md:bg-transparent md:px-4 md:py-6",
+            isMobileMenuOpen
+              ? "translate-x-0 shadow-[var(--shadow-xl)]"
+              : "-translate-x-full",
+          )}
+        >
+          <ul className="space-y-1">
+            {navigation.map((item) => {
+              const isActive =
+                pathname === item.href || pathname.startsWith(`${item.href}/`);
+              return (
+                <li key={item.name}>
+                  <Link
+                    href={item.comingSoon ? "#" : item.href}
+                    aria-current={isActive ? "page" : undefined}
+                    aria-disabled={item.comingSoon || undefined}
+                    className={cn(
+                      "group flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-[15px] font-medium transition-colors duration-150",
+                      isActive
+                        ? "bg-[hsl(var(--primary)/0.1)] font-semibold text-[hsl(var(--primary))]"
+                        : "text-[hsl(var(--foreground)/0.75)] hover:bg-white hover:text-[hsl(var(--foreground))] hover:shadow-[var(--shadow-xs)] max-md:hover:bg-[hsl(var(--muted))]",
+                      item.comingSoon &&
+                        "cursor-not-allowed opacity-55 hover:bg-transparent hover:shadow-none",
+                    )}
+                    onClick={(e) => {
+                      if (item.comingSoon) e.preventDefault();
+                      if (isMobileMenuOpen) setIsMobileMenuOpen(false);
+                    }}
+                  >
+                    <item.icon
+                      aria-hidden="true"
+                      className={cn(
+                        "h-[18px] w-[18px] shrink-0",
+                        isActive
+                          ? "text-[hsl(var(--primary))]"
+                          : "text-[hsl(var(--muted-foreground))] group-hover:text-[hsl(var(--foreground))]",
+                      )}
+                    />
+                    <span className="truncate">{item.name}</span>
+                    {item.comingSoon && (
+                      <span className="ml-auto rounded-full bg-[hsl(var(--muted))] px-2 py-0.5 text-[10px] font-semibold text-[hsl(var(--muted-foreground))]">
+                        Soon
+                      </span>
+                    )}
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </nav>
 
-        <div className="p-4 border-t border-[hsl(var(--border))]">
-          <button
-            onClick={handleLogout}
-            className="flex items-center gap-3 px-3 py-2.5 w-full rounded-md text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
-          >
-            <LogOut className="h-4 w-4" />
-            Logout
-          </button>
-        </div>
-      </nav>
-
-      {/* Main Content Area */}
-      <main className="flex-1 flex flex-col min-w-0 bg-[#f8f9fa]">
-        {/* Top Header (Desktop) */}
-        <header className="hidden md:flex items-center justify-between p-6 border-b border-[hsl(var(--border))] bg-white/50 backdrop-blur-md sticky top-0 z-30">
-          <div className="flex-1">
-            {/* Breadcrumb or Page Title can go here */}
-          </div>
-          <div className="flex items-center gap-4">
-            <NotificationBell inboxHref="/student/notifications" />
-          </div>
-        </header>
-
-        {/* Content Wrapper */}
-        <div className="flex-1 p-4 md:p-8 overflow-y-auto">{children}</div>
-      </main>
+        {/* Main Content Area */}
+        <main className="min-w-0 flex-1 px-4 py-6 md:px-8 md:py-8">
+          <div className="mx-auto max-w-[1400px]">{children}</div>
+        </main>
+      </div>
 
       {/* Mobile Overlay */}
       {isMobileMenuOpen && (
         <div
-          className="fixed inset-0 bg-black/20 z-30 md:hidden"
+          className="fixed inset-0 top-16 z-20 bg-[hsl(var(--foreground)/0.2)] md:hidden"
           onClick={() => setIsMobileMenuOpen(false)}
         />
       )}

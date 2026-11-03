@@ -8,7 +8,10 @@ export function ValueSection() {
   useAOS();
 
   return (
-    <section className="py-24 bg-[hsl(var(--background))] border-t border-[hsl(var(--border))]">
+    <section
+      id="platform"
+      className="scroll-mt-24 py-20 md:py-24 bg-[hsl(var(--background))] border-t border-[hsl(var(--border))]"
+    >
       <div className="container-app">
         <div className="max-w-3xl mx-auto text-center mb-16" data-aos="fade-up">
           <h2 className="text-heading text-3xl md:text-4xl lg:text-5xl mb-6 text-[hsl(var(--foreground))]">
@@ -21,15 +24,15 @@ export function ValueSection() {
           </p>
         </div>
 
-        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
+        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-5 lg:gap-6">
           {valueCards.map((card, index) => (
             <div
               key={card.title}
-              className="group p-6 rounded-2xl bg-[hsl(var(--card))] border border-[hsl(var(--border))] hover:border-[hsl(var(--primary)/0.5)] hover:shadow-xl transition-all duration-[var(--duration-normal)]"
+              className="group h-full p-6 md:p-7 rounded-2xl bg-[hsl(var(--card))] border border-[hsl(var(--border))] hover:-translate-y-1 hover:border-[hsl(var(--primary)/0.5)] hover:shadow-[var(--shadow-card-hover)] transition-all duration-[var(--duration-normal)]"
               data-aos="fade-up"
               data-aos-delay={index * 100}
             >
-              <div className="w-12 h-12 rounded-xl bg-[hsl(var(--primary)/0.1)] flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-[var(--duration-spring)] group-hover:bg-[hsl(var(--primary))] group-hover:text-white text-[hsl(var(--primary))]">
+              <div className="w-12 h-12 shrink-0 rounded-xl bg-[hsl(var(--primary)/0.1)] flex items-center justify-center mb-6 group-hover:scale-105 transition-transform duration-[var(--duration-normal)] group-hover:bg-[hsl(var(--primary))] group-hover:text-white text-[hsl(var(--primary))]">
                 <card.icon className="h-6 w-6" />
               </div>
               <h3 className="text-xl font-semibold mb-3 text-[hsl(var(--foreground))]">

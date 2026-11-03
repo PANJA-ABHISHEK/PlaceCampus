@@ -21,6 +21,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ApiError } from "@/lib/api-client";
 
 export default function PlacementApplicationReviewPage() {
   const { id } = useParams() as { id: string };
@@ -61,8 +62,12 @@ export default function PlacementApplicationReviewPage() {
         },
       });
       alert(`Application marked as ${status.replace("_", " ")}`);
-    } catch (e: any) {
-      alert(e.response?.data?.message || "Failed to update status.");
+    } catch (error: unknown) {
+      alert(
+        error instanceof ApiError
+          ? error.message
+          : "Failed to update status.",
+      );
     }
   };
 

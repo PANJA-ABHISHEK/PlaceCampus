@@ -1,5 +1,6 @@
-import { IsEmail, IsNotEmpty, IsString, MinLength } from 'class-validator';
+import { IsEmail, IsIn, IsNotEmpty, IsString, MinLength } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
+import { UserRole } from '@placecampus/shared-types';
 
 export class RegisterDto {
   @ApiProperty({ example: 'John Doe', description: 'Full name of the user' })
@@ -32,6 +33,16 @@ export class LoginDto {
   @IsString()
   @IsNotEmpty()
   password: string;
+}
+
+export class SetActiveRoleDto {
+  @ApiProperty({
+    enum: Object.values(UserRole),
+    example: UserRole.FACULTY,
+    description: 'One of the signed-in user\'s own role assignments',
+  })
+  @IsIn(Object.values(UserRole))
+  role: UserRole;
 }
 
 export class ForgotPasswordDto {

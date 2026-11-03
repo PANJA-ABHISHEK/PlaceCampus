@@ -10,6 +10,12 @@ import { ErrorState } from '@/components/ui/error-state';
 import { ArrowLeft, User, GraduationCap, Briefcase, ExternalLink, Calendar } from 'lucide-react';
 import Link from 'next/link';
 
+interface CandidateSkill {
+  skillId: string;
+  skillName: string;
+  status: string;
+}
+
 export default function RecruiterCandidateDetailPage() {
   const { id, applicationId } = useParams() as { id: string; applicationId: string };
   const router = useRouter();
@@ -68,36 +74,21 @@ export default function RecruiterCandidateDetailPage() {
             </CardContent>
           </Card>
 
-          <Card className="bg-orange-50 border-orange-200">
-            <CardContent className="p-4 flex items-center text-orange-800 text-sm">
-              <Calendar className="w-4 h-4 mr-2 shrink-0" />
-              <span>Access to this candidate's data expires on {new Date(candidate.expiresAt).toLocaleDateString()}</span>
-            </CardContent>
-          </Card>
+          {candidate.expiresAt && (
+            <Card className="bg-orange-50 border-orange-200">
+              <CardContent className="p-4 flex items-center text-orange-800 text-sm">
+                <Calendar className="w-4 h-4 mr-2 shrink-0" />
+                <span>
+                  Access to this candidate&apos;s data expires on{" "}
+                  {new Date(candidate.expiresAt).toLocaleDateString()}
+                </span>
+              </CardContent>
+            </Card>
+          )}
         </div>
 
         {/* Right Column: Detailed Insights */}
         <div className="w-full md:w-2/3 space-y-6">
-          {candidate.readinessScore !== undefined && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Overall Readiness</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center gap-4">
-                  <div className="text-4xl font-bold text-orange-600">
-                    {Math.round(candidate.readinessScore)}<span className="text-xl text-navy-400">/100</span>
-                  </div>
-                  <div>
-                    <Badge variant={candidate.readinessScore > 75 ? 'success' : 'secondary'}>
-                      {candidate.readinessScore > 75 ? 'Highly Ready' : 'Developing'}
-                    </Badge>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
           {candidate.skills && candidate.skills.length > 0 && (
             <Card>
               <CardHeader>
@@ -108,7 +99,7 @@ export default function RecruiterCandidateDetailPage() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {candidate.skills.map((skill: any) => (
+                  {candidate.skills.map((skill: CandidateSkill) => (
                     <div key={skill.skillId} className="flex items-center justify-between p-3 border rounded-lg">
                       <div>
                         <span className="font-medium text-navy-900">{skill.skillName}</span>

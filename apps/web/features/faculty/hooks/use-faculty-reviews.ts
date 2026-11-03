@@ -18,6 +18,8 @@ export type ReviewDetailResponse = {
 export function useFacultyReviews(status?: string, type?: string) {
   return useQuery({
     queryKey: FACULTY_KEYS.list(JSON.stringify({ status, type })),
+    // Keep the faculty queue current when students submit evidence in another tab.
+    refetchInterval: 5000,
     queryFn: async () => {
       const params = new URLSearchParams();
       if (status) params.append("status", status);

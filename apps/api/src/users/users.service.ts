@@ -9,6 +9,16 @@ import { User, UserDocument } from './schemas/user.schema.js';
 import { UserRole } from '@placecampus/shared-types';
 import * as bcrypt from 'bcrypt';
 
+/**
+ * Every role the user may act as. Recruiters are always separate identities
+ * and never hold campus roles.
+ */
+export function assignedRoles(user: Pick<User, 'role' | 'roles'>): UserRole[] {
+  if (user.role === UserRole.RECRUITER) return [UserRole.RECRUITER];
+  const extra = (user.roles ?? []).filter((role) => role !== UserRole.RECRUITER);
+  return [...new Set([user.role, ...extra])];
+}
+
 @Injectable()
 export class UsersService {
   constructor(@InjectModel(User.name) private userModel: Model<UserDocument>) {}

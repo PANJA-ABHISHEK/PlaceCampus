@@ -56,6 +56,59 @@ describe('AssessmentsService', () => {
     expect(mockAssessmentModel.find).toHaveBeenCalledWith({ active: true });
   });
 
+  it('returns assessments with a string id (lean docs only carry _id)', async () => {
+    const _id = new Types.ObjectId();
+    mockAssessmentModel.find.mockReturnValue({
+      select: vi.fn().mockReturnValue({
+        lean: vi.fn().mockReturnValue({
+          exec: vi.fn().mockResolvedValue([{ _id, __v: 0, title: 'SQL Basics' }]),
+        }),
+      }),
+    });
+
+    const [assessment] = await service.getActiveAssessments();
+
+    expect(assessment).toEqual({ id: _id.toString(), title: 'SQL Basics' });
+  });
+
+  it('returns attempt history with string ids and the populated assessment summary', async () => {
+    const attemptId = new Types.ObjectId();
+    const assessmentId = new Types.ObjectId();
+    mockAttemptModel.find.mockReturnValue({
+      sort: vi.fn().mockReturnValue({
+        populate: vi.fn().mockReturnValue({
+          lean: vi.fn().mockReturnValue({
+            exec: vi.fn().mockResolvedValue([
+              {
+                _id: attemptId,
+                status: AssessmentAttemptStatus.EVALUATED,
+                percentage: 80,
+                assessmentId: {
+                  _id: assessmentId,
+                  title: 'SQL Basics',
+                  type: 'MCQ',
+                  difficulty: 2,
+                },
+              },
+            ]),
+          }),
+        }),
+      }),
+    });
+
+    const [attempt] = await service.getStudentAttemptHistory('student-1');
+
+    expect(attempt.id).toBe(attemptId.toString());
+    expect(attempt.assessmentId).toBe(assessmentId.toString());
+    expect(attempt.assessment).toEqual({
+      id: assessmentId.toString(),
+      title: 'SQL Basics',
+      type: 'MCQ',
+      difficulty: 2,
+    });
+    expect(attempt.percentage).toBe(80);
+  });
+
   it('should start an assessment idempotently', async () => {
     const studentId = new Types.ObjectId().toString();
     const assessmentId = new Types.ObjectId().toString();

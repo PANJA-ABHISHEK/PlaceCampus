@@ -370,6 +370,17 @@ export default function ReviewDetailPage({
             </div>
           )}
 
+          {(evidence.status === EvidenceStatus.UNVERIFIED ||
+            evidence.status === EvidenceStatus.PROCESSING) && (
+            <div className="bg-blue-50 p-5 rounded-2xl border border-blue-200 text-blue-950">
+              <h3 className="font-bold">Awaiting verification</h3>
+              <p className="mt-1 text-sm text-blue-900/80">
+                The submission is visible to faculty, but review actions become
+                available after verification finishes.
+              </p>
+            </div>
+          )}
+
           {/* Action Controls */}
           {(evidence.status === EvidenceStatus.NEEDS_REVIEW ||
             evidence.status === EvidenceStatus.RESUBMISSION_REQUESTED) && (

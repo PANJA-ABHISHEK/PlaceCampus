@@ -7,7 +7,7 @@ import {
   Optional,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import {
   PlacementApplication,
   ApplicationDocument,
@@ -22,6 +22,33 @@ import {
   ReviewApplicationDto,
   DriveStatus,
 } from '@placecampus/shared-types';
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * When applications open and close (epoch ms, or null if unbounded).
+ * Drive dates are picked as calendar dates and stored as UTC midnight, so a
+ * date-only deadline stays open through the end of that day.
+ */
+export function getApplicationWindow(drive: {
+  applicationStart?: string | Date | null;
+  applicationDeadline?: string | Date | null;
+}) {
+  const toMs = (value?: string | Date | null) => {
+    if (!value) return null;
+    const ms = new Date(value).getTime();
+    return Number.isNaN(ms) ? null : ms;
+  };
+  const opensAt = toMs(drive.applicationStart);
+  const deadline = toMs(drive.applicationDeadline);
+  const closesAt =
+    deadline === null
+      ? null
+      : deadline % DAY_MS === 0
+        ? deadline + DAY_MS - 1
+        : deadline;
+  return { opensAt, closesAt };
+}
 
 @Injectable()
 export class ApplicationsService {
@@ -44,6 +71,16 @@ export class ApplicationsService {
 
     if (drive.status !== DriveStatus.PUBLISHED) {
       throw new BadRequestException('Drive is not accepting applications');
+    }
+
+    // 1b. Respect the application window
+    const window = getApplicationWindow(drive);
+    const now = Date.now();
+    if (window.opensAt !== null && now < window.opensAt) {
+      throw new BadRequestException('Applications for this drive are not open yet');
+    }
+    if (window.closesAt !== null && now > window.closesAt) {
+      throw new BadRequestException('The application deadline for this drive has passed');
     }
 
     // 2. Prevent duplicates
@@ -126,12 +163,46 @@ export class ApplicationsService {
   }
 
   async findAllForDrivePaginated(driveId: string, page: number, limit: number, status?: string, query?: string) {
-    const filter: any = { driveId };
+    const filter: {
+      driveId: string;
+      status?: string;
+      studentId?: { $in: string[] };
+    } = { driveId };
     if (status) {
       filter.status = status;
     }
-    // Note: To implement text search properly on applications, we might need to lookup user details.
-    // For now, filtering by status is the primary backend filter.
+
+    const normalizedQuery = query?.trim();
+    if (normalizedQuery) {
+      const applicantIds = await this.applicationModel
+        .distinct('studentId', { ...filter })
+        .exec();
+      const applicantObjectIds = applicantIds
+        .filter((studentId): studentId is string =>
+          Types.ObjectId.isValid(studentId),
+        )
+        .map((studentId) => new Types.ObjectId(studentId));
+      const escapedQuery = normalizedQuery.replace(
+        /[.*+?^${}()|[\]\\]/g,
+        '\\$&',
+      );
+      const matchingUsers = applicantObjectIds.length
+        ? await this.applicationModel.db
+            .collection('users')
+            .find(
+              {
+                _id: { $in: applicantObjectIds },
+                fullName: { $regex: escapedQuery, $options: 'i' },
+              },
+              { projection: { _id: 1 } },
+            )
+            .toArray()
+        : [];
+
+      filter.studentId = {
+        $in: matchingUsers.map((user) => user._id.toString()),
+      };
+    }
     
     const skip = (page - 1) * limit;
     

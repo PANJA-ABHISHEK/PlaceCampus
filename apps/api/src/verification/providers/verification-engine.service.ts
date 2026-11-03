@@ -73,20 +73,14 @@ export class VerificationEngineService {
       };
     }
 
-    // 5. Explicit Reject from AI
+    // AI output is advisory; a faculty member makes the final decision.
     if (aiResult.decision === 'REJECTED') {
-      ruleResults.checks.aiRejected = true;
-      return { finalDecision: EvidenceStatus.REJECTED, reasons, ruleResults };
+      reasons.push('AI recommends rejection; faculty review is required.');
+      ruleResults.checks.aiRecommendedRejection = true;
     }
 
-    // 6. Explicit Needs Review from AI
     if (aiResult.decision === 'NEEDS_REVIEW') {
       ruleResults.checks.aiNeedsReview = true;
-      return {
-        finalDecision: EvidenceStatus.NEEDS_REVIEW,
-        reasons,
-        ruleResults,
-      };
     }
 
     // 7. Relevance Check
@@ -102,8 +96,15 @@ export class VerificationEngineService {
       };
     }
 
-    // If it passed all deterministic filters and AI says VERIFIED, then verify it
+    if (aiResult.decision === 'VERIFIED') {
+      reasons.push('Automated checks passed; faculty review is required.');
+    }
     ruleResults.checks.passed = true;
-    return { finalDecision: EvidenceStatus.VERIFIED, reasons, ruleResults };
+    ruleResults.checks.awaitingFacultyReview = true;
+    return {
+      finalDecision: EvidenceStatus.NEEDS_REVIEW,
+      reasons,
+      ruleResults,
+    };
   }
 }

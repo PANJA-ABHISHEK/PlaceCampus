@@ -31,9 +31,12 @@ import {
   CheckCircle2,
   Search,
 } from "lucide-react";
-import { useEvidenceVerification } from "@/features/evidence/hooks/use-evidence";
+import {
+  openEvidenceDocument,
+  useEvidenceVerification,
+} from "@/features/evidence/hooks/use-evidence";
 
-function VerificationRecordSection({ evidenceId }: { evidenceId: string }) {
+export function VerificationRecordSection({ evidenceId }: { evidenceId: string }) {
   const { data: record, isLoading } = useEvidenceVerification(evidenceId);
 
   if (isLoading || !record) return null;
@@ -291,15 +294,6 @@ export function EvidenceDetail({ id }: { id: string }) {
             </div>
           )}
 
-          {evidence.description && (
-            <div className="space-y-3">
-              <h3 className="font-semibold text-heading">Description</h3>
-              <p className="text-muted-foreground whitespace-pre-wrap text-sm leading-relaxed">
-                {evidence.description}
-              </p>
-            </div>
-          )}
-
           {evidence.externalUrl && (
             <div className="space-y-3">
               <h3 className="font-semibold text-heading">External Link</h3>
@@ -342,16 +336,15 @@ export function EvidenceDetail({ id }: { id: string }) {
                 <Button
                   variant="ghost"
                   size="sm"
-                  asChild
                   className="shrink-0 ml-4"
+                  aria-label="Open document"
+                  onClick={() =>
+                    openEvidenceDocument(evidence.id).catch(() =>
+                      toast.error("Couldn't open the document"),
+                    )
+                  }
                 >
-                  <a
-                    href={`http://localhost:4000${evidence.document.url}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    <Download className="w-4 h-4" />
-                  </a>
+                  <Download className="w-4 h-4" />
                 </Button>
               </div>
             </div>

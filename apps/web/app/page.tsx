@@ -16,7 +16,7 @@ export const metadata: Metadata = {
 
 export default function HomePage() {
   return (
-    <div className="flex flex-col min-h-screen overflow-x-hidden">
+    <div id="top" className="flex flex-col min-h-screen overflow-x-hidden">
       <HeroSection />
       <ValueSection />
       <HowItWorksSection />

@@ -36,16 +36,39 @@ export class ReadinessService {
     @InjectModel(MockInterview.name) private interviewModel: Model<any>,
   ) {}
 
-  @OnEvent('evidence.verified')
-  @OnEvent('assessment.evaluated')
-  @OnEvent('interview.evaluated')
-  async handleReadinessTriggers(payload: { studentId: string }) {
+  @OnEvent('evidence.verified', { async: true })
+  @OnEvent('assessment.evaluated', { async: true })
+  @OnEvent('interview.evaluated', { async: true })
+  async handleReadinessTriggers(payload: {
+    studentId?: unknown;
+    evidence?: { studentId?: unknown };
+    attempt?: { studentId?: unknown };
+    interview?: { studentId?: unknown };
+  }) {
+    // Emitters send { evidence }, { attempt } or { interview }, not a bare
+    // studentId. Without one the queries below would match every student.
+    const raw =
+      payload?.studentId ??
+      payload?.interview?.studentId ??
+      payload?.attempt?.studentId ??
+      payload?.evidence?.studentId;
+    const studentId = raw == null ? '' : String(raw);
+    if (!studentId) {
+      this.logger.warn('Readiness trigger without a studentId; skipped.');
+      return;
+    }
     this.logger.log(
-      `Triggered readiness recomputation for student ${payload.studentId}`,
+      `Triggered readiness recomputation for student ${studentId}`,
     );
     // In a production system, this would push to a BullMQ queue.
     // For this implementation, we compute directly.
-    await this.calculateAndSaveReadiness(payload.studentId);
+    try {
+      await this.calculateAndSaveReadiness(studentId);
+    } catch (error) {
+      this.logger.error(
+        `Readiness recomputation failed for student ${studentId}: ${error}`,
+      );
+    }
   }
 
   async getLatestSnapshot(studentId: string) {

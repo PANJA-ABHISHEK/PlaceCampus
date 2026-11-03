@@ -2,12 +2,13 @@
 
 import * as React from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { Menu, X } from "lucide-react";
-import { Logo } from "@/components/brand";
 import { Button } from "@/components/ui/button";
 import { navigationLinks } from "@/config/marketing-data";
 import { cn } from "@/lib/utils";
+import { AUTH_ROUTE_PATTERN } from "@/lib/routes";
 
 interface NavbarProps {
   className?: string;
@@ -38,7 +39,7 @@ export function Navbar({ className }: NavbarProps) {
     setIsMobileMenuOpen(false);
   }, [pathname]);
 
-  if (isDashboardRoute) return null;
+  if (isDashboardRoute || AUTH_ROUTE_PATTERN.test(pathname ?? "")) return null;
 
   return (
     <header
@@ -51,12 +52,26 @@ export function Navbar({ className }: NavbarProps) {
       )}
     >
       <div className="container-app flex items-center justify-between">
-        <Link href="/" className="transition-opacity hover:opacity-80 z-50">
-          <Logo size={isScrolled ? "sm" : "md"} />
+        <Link
+          href="/"
+          aria-label="PlaceCampus home"
+          className="z-50 flex shrink-0 items-center transition-opacity hover:opacity-80"
+        >
+          <Image
+            src="/images/placecampus-logo.png"
+            alt="PlaceCampus"
+            width={2137}
+            height={736}
+            priority
+            className={cn(
+              "h-auto object-contain",
+              isScrolled ? "w-[124px] sm:w-[140px]" : "w-[140px] sm:w-[158px]",
+            )}
+          />
         </Link>
 
         {/* Desktop Navigation */}
-        <nav className="hidden md:flex items-center gap-8 absolute left-1/2 -translate-x-1/2">
+        <nav aria-label="Primary navigation" className="absolute left-1/2 hidden -translate-x-1/2 items-center gap-6 lg:flex xl:gap-8">
           {navigationLinks.main.map((link) => (
             <Link
               key={link.title}
@@ -69,7 +84,7 @@ export function Navbar({ className }: NavbarProps) {
         </nav>
 
         {/* Desktop Actions */}
-        <div className="hidden md:flex items-center gap-4">
+        <div className="hidden items-center gap-3 lg:flex xl:gap-4">
           <Button variant="ghost" asChild className="font-medium">
             <Link href="/login">Log in</Link>
           </Button>
@@ -83,9 +98,11 @@ export function Navbar({ className }: NavbarProps) {
 
         {/* Mobile Menu Trigger */}
         <button
-          className="md:hidden z-50 p-2 text-[hsl(var(--foreground))]"
+          className="z-50 p-2 text-[hsl(var(--foreground))] lg:hidden"
           onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
           aria-label="Toggle menu"
+          aria-expanded={isMobileMenuOpen}
+          aria-controls="site-mobile-navigation"
         >
           {isMobileMenuOpen ? (
             <X className="h-6 w-6" />
@@ -98,11 +115,11 @@ export function Navbar({ className }: NavbarProps) {
       {/* Mobile Menu Overlay */}
       <div
         className={cn(
-          "fixed inset-0 z-40 bg-[hsl(var(--background))] transition-transform duration-[var(--duration-normal)] ease-in-out md:hidden flex flex-col pt-24 pb-8 px-6",
+          "fixed inset-0 z-40 flex flex-col bg-[hsl(var(--background))] px-6 pt-24 pb-8 transition-transform duration-[var(--duration-normal)] ease-in-out lg:hidden",
           isMobileMenuOpen ? "translate-x-0" : "translate-x-full",
         )}
       >
-        <nav className="flex flex-col gap-6 flex-1">
+        <nav id="site-mobile-navigation" aria-label="Mobile navigation" className="flex flex-1 flex-col gap-6">
           {navigationLinks.main.map((link) => (
             <Link
               key={link.title}

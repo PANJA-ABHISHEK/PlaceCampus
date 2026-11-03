@@ -4,9 +4,10 @@ import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
 import { AuthService } from './auth.service.js';
-import { AuthController } from './auth.controller.js';
+import { AuthController, RecruiterAuthController } from './auth.controller.js';
 import { JwtStrategy } from './strategies/jwt.strategy.js';
 import { UsersModule } from '../users/users.module.js';
+import { AuditModule } from '../audit/audit.module.js';
 import {
   RefreshSession,
   RefreshSessionSchema,
@@ -15,6 +16,7 @@ import {
 @Module({
   imports: [
     UsersModule,
+    AuditModule,
     PassportModule,
     MongooseModule.forFeature([
       { name: RefreshSession.name, schema: RefreshSessionSchema },
@@ -33,7 +35,7 @@ import {
       inject: [ConfigService],
     }),
   ],
-  controllers: [AuthController],
+  controllers: [AuthController, RecruiterAuthController],
   providers: [AuthService, JwtStrategy],
   exports: [AuthService],
 })

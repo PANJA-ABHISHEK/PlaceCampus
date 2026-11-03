@@ -7,6 +7,8 @@ const API_BASE_URL =
 
 interface RequestConfig extends RequestInit {
   params?: Record<string, string>;
+  /** Parse the body as a Blob (e.g. authenticated file downloads). Defaults to JSON. */
+  responseType?: "json" | "blob";
   _retry?: boolean;
 }
 
@@ -47,7 +49,7 @@ class ApiClient {
     path: string,
     config: RequestConfig = {},
   ): Promise<T> {
-    const { params, ...fetchConfig } = config;
+    const { params, responseType, ...fetchConfig } = config;
     const url = this.buildUrl(path, params);
 
     const headers = new Headers(fetchConfig.headers || {});
@@ -72,6 +74,7 @@ class ApiClient {
         response.status === 401 &&
         !config._retry &&
         path !== "/auth/login" &&
+        path !== "/recruiter/auth/login" &&
         path !== "/auth/refresh"
       ) {
         if (this.isRefreshing) {
@@ -121,11 +124,78 @@ class ApiClient {
       );
     }
 
+    if (responseType === "blob") {
+      return (await response.blob()) as T;
+    }
     return response.json();
   }
 
   async get<T>(path: string, config?: RequestConfig): Promise<T> {
     return this.request<T>(path, { ...config, method: "GET" });
+  }
+
+  /**
+   * Multipart upload with progress reporting. Uses XHR because fetch does not
+   * expose upload progress. Retries once after refreshing an expired token.
+   */
+  async upload<T>(
+    path: string,
+    data: FormData,
+    onProgress?: (percent: number) => void,
+    retried = false,
+  ): Promise<T> {
+    const { status, body } = await new Promise<{
+      status: number;
+      body: string;
+    }>((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", this.buildUrl(path));
+      xhr.withCredentials = true;
+      if (this.accessToken) {
+        xhr.setRequestHeader("Authorization", `Bearer ${this.accessToken}`);
+      }
+      xhr.upload.onprogress = (event) => {
+        if (event.lengthComputable && onProgress) {
+          onProgress(Math.round((event.loaded / event.total) * 100));
+        }
+      };
+      xhr.onload = () => resolve({ status: xhr.status, body: xhr.responseText });
+      xhr.onerror = () => reject(new ApiError(0, "Network error during upload"));
+      xhr.send(data);
+    });
+
+    const parsed = (() => {
+      try {
+        return body ? JSON.parse(body) : {};
+      } catch {
+        return {};
+      }
+    })();
+
+    if (status === 401 && !retried) {
+      try {
+        const refreshed = await this.post<{ accessToken: string }>(
+          "/auth/refresh",
+        );
+        this.setAccessToken(refreshed.accessToken);
+      } catch {
+        this.setAccessToken(null);
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new Event("auth:unauthorized"));
+        }
+        throw new ApiError(401, "Session expired");
+      }
+      return this.upload<T>(path, data, onProgress, true);
+    }
+
+    if (status < 200 || status >= 300) {
+      throw new ApiError(
+        status,
+        parsed.message || "Upload failed",
+        parsed.errors,
+      );
+    }
+    return parsed as T;
   }
 
   async post<T>(

@@ -59,7 +59,7 @@ export default function RecruiterLayout({
 
   React.useEffect(() => {
     if (!loading && !authenticated) {
-      redirect("/login");
+      redirect("/recruiter/login");
     }
     if (
       !loading &&

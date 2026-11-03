@@ -19,6 +19,14 @@ export class RefreshSession {
 
   @Prop()
   rotatedFrom?: string;
+
+  /** Which login issued the session: campus (/auth/login) or recruiter (/recruiter/auth/login). */
+  @Prop({ type: String, enum: ['CAMPUS', 'RECRUITER'], default: 'CAMPUS' })
+  audience: 'CAMPUS' | 'RECRUITER';
+
+  /** The role this session acts as; unset until a multi-role user chooses one. */
+  @Prop({ type: String })
+  activeRole?: string;
 }
 
 export const RefreshSessionSchema =

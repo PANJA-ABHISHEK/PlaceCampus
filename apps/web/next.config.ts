@@ -27,6 +27,7 @@ const nextConfig: NextConfig = {
     // Optimize package imports
     optimizePackageImports: [
       "lucide-react",
+      "@icons-pack/react-simple-icons",
       "recharts",
       "@radix-ui/react-dialog",
       "@radix-ui/react-dropdown-menu",

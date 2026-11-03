@@ -29,8 +29,34 @@ async function bootstrap() {
     'FRONTEND_URL',
     'http://localhost:3000',
   );
+  const isLocalDevelopmentOrigin = (origin: string) => {
+    try {
+      const parsedOrigin = new URL(origin);
+      return (
+        ['http:', 'https:'].includes(parsedOrigin.protocol) &&
+        ['localhost', '127.0.0.1', '[::1]'].includes(parsedOrigin.hostname)
+      );
+    } catch {
+      return false;
+    }
+  };
+
   app.enableCors({
-    origin: frontendUrl,
+    origin: (
+      origin: string | undefined,
+      callback: (error: Error | null, allow?: boolean) => void,
+    ) => {
+      const isAllowed =
+        !origin ||
+        origin === frontendUrl ||
+        (process.env.NODE_ENV !== 'production' &&
+          isLocalDevelopmentOrigin(origin));
+
+      callback(
+        isAllowed ? null : new Error('Origin is not allowed by CORS'),
+        isAllowed,
+      );
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],

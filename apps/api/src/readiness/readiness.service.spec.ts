@@ -53,6 +53,26 @@ describe('ReadinessService', () => {
     vi.clearAllMocks();
   });
 
+  it.each([
+    ['interview.evaluated', { interview: { studentId: new Types.ObjectId('6ac6a169f09e276ad2e40a85') } }],
+    ['assessment.evaluated', { attempt: { studentId: '6ac6a169f09e276ad2e40a85' } }],
+    ['evidence.verified', { evidence: { studentId: '6ac6a169f09e276ad2e40a85' } }],
+  ])('recomputes for the student in a %s payload', async (_event, payload) => {
+    const spy = vi
+      .spyOn(service, 'calculateAndSaveReadiness')
+      .mockResolvedValue({} as any);
+
+    await service.handleReadinessTriggers(payload as any);
+
+    expect(spy).toHaveBeenCalledWith('6ac6a169f09e276ad2e40a85');
+  });
+
+  it('skips a trigger without a studentId instead of querying every student', async () => {
+    const spy = vi.spyOn(service, 'calculateAndSaveReadiness');
+    await service.handleReadinessTriggers({ interview: {} });
+    expect(spy).not.toHaveBeenCalled();
+  });
+
   it('weights should sum to exactly 1.00', () => {
     const sum = Object.values(READINESS_WEIGHTS).reduce((a, b) => a + b, 0);
     // JS math precision can be tricky, rounding for safe equality

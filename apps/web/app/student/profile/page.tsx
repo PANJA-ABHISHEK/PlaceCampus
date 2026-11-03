@@ -1,366 +1,466 @@
 "use client";
 
 import * as React from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
+import { toast } from "sonner";
+import {
+  CircleCheck,
+  FileText,
+  Github,
+  Globe,
+  GraduationCap,
+  Link2,
+  Linkedin,
+  Loader2,
+  NotebookPen,
+  PencilLine,
+  Phone,
+  RotateCcw,
+  Save,
+  UserRound,
+} from "lucide-react";
+import type {
+  StudentProfile,
+  UpdateStudentProfileDto,
+} from "@placecampus/shared-types";
 import {
   useStudentProfile,
   useUpdateStudentProfile,
 } from "@/features/student/hooks/use-student-profile";
 import { useAuth } from "@/features/auth/components/auth-provider";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Loader2, CheckCircle2 } from "lucide-react";
+import { ApiError } from "@/lib/api-client";
+import { cn } from "@/lib/utils";
+import { Skeleton } from "@/components/ui/skeleton";
+import { getProfileCompletion } from "@/features/student/lib/profile-completion";
+import { ProfileOverview } from "@/features/student/components/profile/profile-overview";
+import { ProfileSectionCard } from "@/features/student/components/profile/profile-section-card";
+import { AcademicDetailsCard } from "@/features/student/components/profile/academic-details-card";
+import { ResumeCard } from "@/features/student/components/profile/resume-card";
+import {
+  IconInputField,
+  IconTextareaField,
+  SocialLinkField,
+  isHttpUrl,
+} from "@/features/student/components/profile/profile-fields";
+
+const BIO_MAX_LENGTH = 500;
+
+const optionalUrl = (name: string) =>
+  z
+    .string()
+    .trim()
+    .refine(
+      (value) => value === "" || isHttpUrl(value),
+      `Enter a valid ${name} URL starting with https://`,
+    );
 
 const profileSchema = z.object({
   phone: z
     .string()
-    .min(10, "Phone must be at least 10 digits")
-    .max(15)
-    .optional()
-    .or(z.literal("")),
-  bio: z.string().max(500).optional().or(z.literal("")),
-  university: z.string().optional().or(z.literal("")),
-  department: z.string().optional().or(z.literal("")),
-  program: z.string().optional().or(z.literal("")),
-  batch: z.string().optional().or(z.literal("")),
-  graduationYear: z.coerce
-    .number()
-    .min(1900)
-    .max(2100)
-    .optional()
-    .or(z.literal(0)),
-  cgpa: z.coerce.number().min(0).max(10).optional().or(z.literal(0)),
-  backlogs: z.coerce.number().min(0).optional().or(z.literal(0)),
-  linkedinUrl: z
+    .trim()
+    .refine(
+      (value) => value === "" || /^\+?[\d\s()-]{10,15}$/.test(value),
+      "Use 10–15 characters: digits, spaces, +, ( ) or -",
+    ),
+  bio: z
     .string()
-    .url("Invalid LinkedIn URL")
-    .optional()
-    .or(z.literal("")),
-  githubUrl: z.string().url("Invalid GitHub URL").optional().or(z.literal("")),
-  portfolioUrl: z
-    .string()
-    .url("Invalid Portfolio URL")
-    .optional()
-    .or(z.literal("")),
+    .trim()
+    .max(BIO_MAX_LENGTH, `Bio must be ${BIO_MAX_LENGTH} characters or fewer`),
+  linkedinUrl: optionalUrl("LinkedIn"),
+  githubUrl: optionalUrl("GitHub"),
+  portfolioUrl: optionalUrl("portfolio"),
 });
 
 type ProfileValues = z.infer<typeof profileSchema>;
+
+const toFormValues = (profile?: StudentProfile): ProfileValues => ({
+  phone: profile?.phone || "",
+  bio: profile?.bio || "",
+  linkedinUrl: profile?.linkedinUrl || "",
+  githubUrl: profile?.githubUrl || "",
+  portfolioUrl: profile?.portfolioUrl || "",
+});
+
+const SECTIONS = [
+  { id: "personal-info", label: "Personal Info", icon: UserRound },
+  { id: "academic-details", label: "Academic Details", icon: GraduationCap },
+  { id: "links-social", label: "Links & Social", icon: Link2 },
+  { id: "resume", label: "Resume", icon: FileText },
+] as const;
+
+type SectionId = (typeof SECTIONS)[number]["id"];
+
+const delay = (ms: number) =>
+  ({ "--pc-delay": `${ms}ms` }) as React.CSSProperties;
+
+/** Highlight for the section the student just jumped to. */
+const SPOTLIGHT_CLASS =
+  "ring-2 ring-[hsl(var(--primary)/0.45)] ring-offset-2 ring-offset-[hsl(var(--background))]";
+
+function ProfileSkeleton() {
+  return (
+    <div className="mx-auto w-full max-w-[1200px] space-y-6" aria-busy="true">
+      <span className="sr-only">Loading profile…</span>
+      <Skeleton className="h-[190px] w-full rounded-[20px]" />
+      <div className="flex gap-3">
+        {SECTIONS.map((section) => (
+          <Skeleton key={section.id} className="h-11 w-36 rounded-xl" />
+        ))}
+      </div>
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        {SECTIONS.map((section) => (
+          <Skeleton key={section.id} className="h-72 w-full rounded-2xl" />
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export default function StudentProfilePage() {
   const { user } = useAuth();
   const { data: profile, isLoading } = useStudentProfile();
   const updateMutation = useUpdateStudentProfile();
 
-  const [successMsg, setSuccessMsg] = React.useState("");
+  const [activeSection, setActiveSection] =
+    React.useState<SectionId>("personal-info");
+  const [spotlight, setSpotlight] = React.useState<SectionId | null>(null);
+  const [justSaved, setJustSaved] = React.useState(false);
 
   const {
     register,
     handleSubmit,
     reset,
-    formState: { errors, isSubmitting, isDirty },
+    setFocus,
+    control,
+    formState: { errors, isSubmitting, isDirty, dirtyFields },
   } = useForm<ProfileValues>({
     resolver: zodResolver(profileSchema),
-    defaultValues: {
-      phone: "",
-      bio: "",
-      university: "",
-      department: "",
-      program: "",
-      batch: "",
-      graduationYear: 0,
-      cgpa: 0,
-      backlogs: 0,
-      linkedinUrl: "",
-      githubUrl: "",
-      portfolioUrl: "",
-    },
+    mode: "onTouched",
+    defaultValues: toFormValues(),
+  });
+
+  const [bio, linkedinUrl, githubUrl, portfolioUrl] = useWatch({
+    control,
+    name: ["bio", "linkedinUrl", "githubUrl", "portfolioUrl"],
   });
 
   React.useEffect(() => {
     if (profile) {
-      reset({
-        phone: profile.phone || "",
-        bio: profile.bio || "",
-        university: profile.university || "",
-        department: profile.department || "",
-        program: profile.program || "",
-        batch: profile.batch || "",
-        graduationYear: profile.graduationYear || 0,
-        cgpa: profile.cgpa || 0,
-        backlogs: profile.backlogs || 0,
-        linkedinUrl: profile.linkedinUrl || "",
-        githubUrl: profile.githubUrl || "",
-        portfolioUrl: profile.portfolioUrl || "",
-      });
+      // Keep anything the student is mid-way through editing if the profile refetches.
+      reset(toFormValues(profile), { keepDirtyValues: true });
     }
   }, [profile, reset]);
 
-  const onSubmit = async (data: ProfileValues) => {
-    setSuccessMsg("");
-    try {
-      // Clean up empty zeros from coerce
-      const payload = {
-        ...data,
-        graduationYear:
-          data.graduationYear === 0 ? undefined : data.graduationYear,
-        cgpa: data.cgpa === 0 ? undefined : data.cgpa,
-        backlogs: data.backlogs === 0 ? undefined : data.backlogs,
-      };
+  // Warn before losing unsaved changes (tab close/reload and in-app links).
+  React.useEffect(() => {
+    if (!isDirty) return;
 
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    const handleLinkClick = (event: MouseEvent) => {
+      if (event.defaultPrevented || event.button !== 0) return;
+      if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey)
+        return;
+      const anchor = (event.target as Element | null)?.closest?.("a");
+      if (!anchor || anchor.target === "_blank" || !anchor.href) return;
+      const url = new URL(anchor.href);
+      if (
+        url.origin !== window.location.origin ||
+        url.pathname === window.location.pathname
+      )
+        return;
+      if (
+        !window.confirm("You have unsaved changes. Leave without saving?")
+      ) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    window.addEventListener("click", handleLinkClick, true);
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+      window.removeEventListener("click", handleLinkClick, true);
+    };
+  }, [isDirty]);
+
+  React.useEffect(() => {
+    if (!spotlight) return;
+    const timeout = window.setTimeout(() => setSpotlight(null), 1800);
+    return () => window.clearTimeout(timeout);
+  }, [spotlight]);
+
+  const goToSection = (id: SectionId) => {
+    setActiveSection(id);
+    const reduceMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+    document
+      .getElementById(id)
+      ?.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" });
+    setSpotlight(null);
+    requestAnimationFrame(() => setSpotlight(id));
+  };
+
+  const startEditing = () => {
+    setActiveSection("personal-info");
+    setFocus("phone");
+  };
+
+  const onSubmit = async (values: ProfileValues) => {
+    // Send only what changed; an emptied field is sent as null to clear it.
+    const payload: UpdateStudentProfileDto = {};
+    for (const key of Object.keys(dirtyFields) as (keyof ProfileValues)[]) {
+      payload[key] = values[key] || null;
+    }
+    if (Object.keys(payload).length === 0) return;
+
+    try {
       await updateMutation.mutateAsync(payload);
-      setSuccessMsg("Profile updated successfully");
-      setTimeout(() => setSuccessMsg(""), 3000);
+      setJustSaved(true);
+      toast.success("Profile updated", {
+        description: "Your changes have been saved.",
+      });
     } catch (error) {
-      console.error(error);
+      const detail =
+        error instanceof ApiError
+          ? error.errors?.validation?.[0] || error.message
+          : "Please check your connection and try again.";
+      toast.error("Couldn't save your profile", { description: detail });
     }
   };
 
-  if (isLoading) {
-    return (
-      <div className="flex h-64 items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[hsl(var(--primary))]"></div>
-      </div>
-    );
-  }
+  const handleDiscard = () => {
+    reset(toFormValues(profile));
+    setJustSaved(false);
+    toast("Changes discarded");
+  };
+
+  if (isLoading) return <ProfileSkeleton />;
+
+  const completion = getProfileCompletion(profile);
 
   return (
-    <div className="max-w-4xl space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-12">
-      <div className="space-y-1">
-        <h1 className="text-3xl font-bold tracking-tight text-heading">
-          Student Profile
-        </h1>
-        <p className="text-[hsl(var(--muted-foreground))]">
-          Manage your personal, academic, and professional information.
-        </p>
+    <div className="mx-auto w-full max-w-[1200px] space-y-6">
+      <ProfileOverview
+        name={user?.fullName || "Student"}
+        email={user?.email}
+        completion={completion}
+        onEdit={startEditing}
+      />
+
+      {/* Section navigation */}
+      <div
+        className="pc-enter flex items-center justify-between gap-4"
+        style={delay(60)}
+      >
+        <nav
+          aria-label="Profile sections"
+          className="-mx-4 flex gap-1.5 overflow-x-auto px-4 pb-1 [scrollbar-width:none] md:mx-0 md:px-0"
+        >
+          {SECTIONS.map(({ id, label, icon: Icon }) => {
+            const isActive = activeSection === id;
+            return (
+              <button
+                key={id}
+                type="button"
+                onClick={() => goToSection(id)}
+                aria-current={isActive ? "true" : undefined}
+                className={cn(
+                  "flex shrink-0 items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--primary)/0.5)]",
+                  isActive
+                    ? "bg-[hsl(var(--primary)/0.1)] text-[hsl(var(--primary))]"
+                    : "text-[hsl(var(--foreground)/0.75)] hover:bg-white hover:text-[hsl(var(--foreground))] hover:shadow-[var(--shadow-xs)]",
+                )}
+              >
+                <Icon className="h-[18px] w-[18px]" aria-hidden="true" />
+                {label}
+              </button>
+            );
+          })}
+        </nav>
+        <button
+          type="button"
+          onClick={startEditing}
+          className="hidden shrink-0 items-center gap-2 rounded-xl border border-[hsl(var(--primary)/0.5)] bg-white px-4 py-2.5 text-sm font-semibold text-[hsl(var(--primary))] transition-colors hover:bg-[hsl(var(--primary)/0.06)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--primary)/0.5)] lg:inline-flex"
+        >
+          <PencilLine className="h-4 w-4" aria-hidden="true" />
+          Edit Profile
+        </button>
       </div>
 
-      <div className="bg-white rounded-xl border border-[hsl(var(--border))] overflow-hidden shadow-sm">
-        {/* Profile Header (Read Only from User model) */}
-        <div className="bg-[hsl(var(--primary)/0.05)] px-8 py-8 border-b border-[hsl(var(--border))] flex items-center gap-6">
-          <div className="h-20 w-20 rounded-full bg-[hsl(var(--primary)/0.15)] text-[hsl(var(--primary))] flex items-center justify-center text-2xl font-bold border-2 border-white shadow-sm">
-            {user?.fullName
-              ?.split(" ")
-              .map((n) => n[0])
-              .join("")
-              .substring(0, 2)
-              .toUpperCase() || "ST"}
-          </div>
-          <div>
-            <h2 className="text-2xl font-bold text-heading">
-              {user?.fullName}
-            </h2>
-            <div className="flex items-center gap-2 text-sm text-[hsl(var(--muted-foreground))] mt-1">
-              <span>{user?.email}</span>
-              <span>•</span>
-              <span className="capitalize">{user?.role}</span>
+      <form onSubmit={handleSubmit(onSubmit)} noValidate>
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <ProfileSectionCard
+            id="personal-info"
+            style={delay(100)}
+            className={cn(spotlight === "personal-info" && SPOTLIGHT_CLASS)}
+            icon={UserRound}
+            title="Personal Information"
+            description="Your basic personal details and a short introduction."
+          >
+            <div className="space-y-5">
+              <IconInputField
+                id="phone"
+                label="Phone Number"
+                icon={Phone}
+                type="tel"
+                inputMode="tel"
+                autoComplete="tel"
+                placeholder="+1234567890"
+                registration={register("phone")}
+                error={errors.phone?.message}
+              />
+              <IconTextareaField
+                id="bio"
+                label="Bio / About Me"
+                icon={NotebookPen}
+                placeholder="Tell recruiters about your interests, strengths, and what you're working towards…"
+                registration={register("bio")}
+                length={bio?.length ?? 0}
+                maxLength={BIO_MAX_LENGTH}
+                error={errors.bio?.message}
+              />
             </div>
-          </div>
+          </ProfileSectionCard>
+
+          <AcademicDetailsCard
+            id="academic-details"
+            style={delay(160)}
+            className={cn(spotlight === "academic-details" && SPOTLIGHT_CLASS)}
+            profile={profile}
+          />
+
+          <ProfileSectionCard
+            id="links-social"
+            style={delay(220)}
+            className={cn(spotlight === "links-social" && SPOTLIGHT_CLASS)}
+            icon={Link2}
+            title="Links & Social"
+            description="Add your professional and project links."
+          >
+            <div className="space-y-3">
+              <SocialLinkField
+                id="linkedinUrl"
+                label="LinkedIn"
+                icon={Linkedin}
+                iconClassName="bg-[#0A66C2] text-white"
+                placeholder="https://linkedin.com/in/username"
+                registration={register("linkedinUrl")}
+                value={linkedinUrl}
+                error={errors.linkedinUrl?.message}
+              />
+              <SocialLinkField
+                id="githubUrl"
+                label="GitHub"
+                icon={Github}
+                iconClassName="bg-[#181717] text-white"
+                placeholder="https://github.com/username"
+                registration={register("githubUrl")}
+                value={githubUrl}
+                error={errors.githubUrl?.message}
+              />
+              <SocialLinkField
+                id="portfolioUrl"
+                label="Portfolio"
+                icon={Globe}
+                iconClassName="bg-[hsl(var(--primary)/0.12)] text-[hsl(var(--primary))]"
+                placeholder="https://yourportfolio.com"
+                registration={register("portfolioUrl")}
+                value={portfolioUrl}
+                error={errors.portfolioUrl?.message}
+              />
+            </div>
+          </ProfileSectionCard>
+
+          <ResumeCard
+            id="resume"
+            style={delay(280)}
+            className={cn(spotlight === "resume" && SPOTLIGHT_CLASS)}
+          />
         </div>
 
-        <div className="p-8">
-          {successMsg && (
-            <div className="mb-6 flex items-center gap-2 p-3 text-sm rounded bg-green-50 text-green-700 border border-green-200">
-              <CheckCircle2 className="h-4 w-4" />
-              {successMsg}
-            </div>
+        {/* Sticky save bar */}
+        {/* On small screens it only floats while there is something to save. */}
+        <div
+          className={cn(
+            "sticky bottom-3 z-20 mt-6 sm:bottom-4",
+            !isDirty && "max-sm:static",
           )}
-
-          {updateMutation.isError && (
-            <div className="mb-6 p-3 text-sm rounded bg-red-50 text-red-700 border border-red-200">
-              Failed to update profile. Please check your inputs.
-            </div>
-          )}
-
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
-            {/* Personal Information */}
-            <div className="space-y-4">
-              <h3 className="text-lg font-bold text-heading border-b border-[hsl(var(--border))] pb-2">
-                Personal Information
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Phone Number</Label>
-                  <Input placeholder="+1234567890" {...register("phone")} />
-                  {errors.phone && (
-                    <p className="text-xs text-destructive">
-                      {errors.phone.message}
-                    </p>
-                  )}
-                </div>
-                <div className="space-y-2 md:col-span-2">
-                  <Label>Bio / About Me</Label>
-                  <Textarea
-                    placeholder="Tell us a little about yourself..."
-                    className="resize-none h-24"
-                    {...register("bio")}
+        >
+          <div
+            className={cn(
+              "flex flex-col gap-3 rounded-2xl border bg-white/95 p-3 shadow-[var(--shadow-xl)] backdrop-blur-md transition-colors duration-300 sm:flex-row sm:items-center sm:justify-between sm:pl-5",
+              isDirty
+                ? "border-[hsl(var(--primary)/0.35)]"
+                : "border-[hsl(var(--border)/0.8)]",
+            )}
+          >
+            <p
+              aria-live="polite"
+              className="flex items-center gap-2.5 text-sm text-[hsl(var(--muted-foreground))]"
+            >
+              {isDirty ? (
+                <>
+                  <span className="relative flex h-2.5 w-2.5">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[hsl(var(--primary)/0.5)] motion-reduce:animate-none" />
+                    <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-[hsl(var(--primary))]" />
+                  </span>
+                  <span className="font-medium text-[hsl(var(--foreground))]">
+                    You have unsaved changes
+                  </span>
+                </>
+              ) : justSaved ? (
+                <>
+                  <CircleCheck
+                    className="pc-pop h-5 w-5 text-emerald-600"
+                    aria-hidden="true"
                   />
-                  {errors.bio && (
-                    <p className="text-xs text-destructive">
-                      {errors.bio.message}
-                    </p>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Academic Information */}
-            <div className="space-y-4">
-              <h3 className="text-lg font-bold text-heading border-b border-[hsl(var(--border))] pb-2">
-                Academic Details
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>University / College</Label>
-                  <Input
-                    placeholder="E.g. Technical University"
-                    {...register("university")}
+                  <span className="font-medium text-emerald-700">
+                    All changes saved
+                  </span>
+                </>
+              ) : (
+                <>
+                  <CircleCheck
+                    className="h-5 w-5 text-emerald-600"
+                    aria-hidden="true"
                   />
-                </div>
-                <div className="space-y-2">
-                  <Label>Department</Label>
-                  <Input
-                    placeholder="E.g. Computer Science"
-                    {...register("department")}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Program</Label>
-                  <Input placeholder="E.g. B.Tech" {...register("program")} />
-                </div>
-                <div className="space-y-2">
-                  <Label>Batch</Label>
-                  <Input placeholder="E.g. 2021-2025" {...register("batch")} />
-                </div>
-                <div className="space-y-2">
-                  <Label>Graduation Year</Label>
-                  <Input
-                    type="number"
-                    placeholder="2025"
-                    {...register("graduationYear")}
-                  />
-                  {errors.graduationYear && (
-                    <p className="text-xs text-destructive">
-                      {errors.graduationYear.message}
-                    </p>
-                  )}
-                </div>
-                <div className="space-y-2">
-                  <Label>CGPA (0-10)</Label>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    placeholder="8.5"
-                    {...register("cgpa")}
-                  />
-                  {errors.cgpa && (
-                    <p className="text-xs text-destructive">
-                      {errors.cgpa.message}
-                    </p>
-                  )}
-                </div>
-                <div className="space-y-2">
-                  <Label>Active Backlogs</Label>
-                  <Input
-                    type="number"
-                    placeholder="0"
-                    {...register("backlogs")}
-                  />
-                  {errors.backlogs && (
-                    <p className="text-xs text-destructive">
-                      {errors.backlogs.message}
-                    </p>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Social Links */}
-            <div className="space-y-4">
-              <h3 className="text-lg font-bold text-heading border-b border-[hsl(var(--border))] pb-2">
-                Links & Social
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>LinkedIn URL</Label>
-                  <Input
-                    type="url"
-                    placeholder="https://linkedin.com/in/username"
-                    {...register("linkedinUrl")}
-                  />
-                  {errors.linkedinUrl && (
-                    <p className="text-xs text-destructive">
-                      {errors.linkedinUrl.message}
-                    </p>
-                  )}
-                </div>
-                <div className="space-y-2">
-                  <Label>GitHub URL</Label>
-                  <Input
-                    type="url"
-                    placeholder="https://github.com/username"
-                    {...register("githubUrl")}
-                  />
-                  {errors.githubUrl && (
-                    <p className="text-xs text-destructive">
-                      {errors.githubUrl.message}
-                    </p>
-                  )}
-                </div>
-                <div className="space-y-2 md:col-span-2">
-                  <Label>Portfolio URL</Label>
-                  <Input
-                    type="url"
-                    placeholder="https://yourportfolio.com"
-                    {...register("portfolioUrl")}
-                  />
-                  {errors.portfolioUrl && (
-                    <p className="text-xs text-destructive">
-                      {errors.portfolioUrl.message}
-                    </p>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Resume Placeholder */}
-            <div className="space-y-4">
-              <h3 className="text-lg font-bold text-heading border-b border-[hsl(var(--border))] pb-2">
-                Resume
-              </h3>
-              <div className="p-4 rounded-lg border border-dashed border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.3)] text-center">
-                <p className="text-sm text-[hsl(var(--muted-foreground))]">
-                  Secure resume upload and AI parsing will be available in the
-                  next phase.
-                </p>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="mt-3 opacity-50 cursor-not-allowed"
-                >
-                  Upload Resume (Coming Soon)
-                </Button>
-              </div>
-            </div>
-
-            <div className="pt-4 flex items-center justify-end border-t border-[hsl(var(--border))]">
-              <Button
+                  Your profile is up to date.
+                </>
+              )}
+            </p>
+            <div className="grid grid-cols-2 gap-2 sm:flex">
+              <button
+                type="button"
+                onClick={handleDiscard}
+                disabled={!isDirty || isSubmitting}
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-[hsl(var(--border))] bg-white px-5 py-2.5 text-sm font-semibold text-[hsl(var(--foreground))] transition-colors hover:bg-[hsl(var(--muted))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--primary)/0.5)] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-white"
+              >
+                <RotateCcw className="h-4 w-4" aria-hidden="true" />
+                Discard
+              </button>
+              <button
                 type="submit"
-                disabled={isSubmitting || !isDirty}
-                className="min-w-[120px]"
+                disabled={!isDirty || isSubmitting}
+                className="inline-flex min-w-[150px] items-center justify-center gap-2 rounded-xl bg-[hsl(var(--primary))] px-5 py-2.5 text-sm font-semibold text-white shadow-[0_6px_16px_-6px_hsl(var(--primary)/0.7)] transition-all hover:bg-[hsl(var(--color-primary-600))] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--primary)/0.5)] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-[hsl(var(--primary)/0.45)] disabled:shadow-none disabled:active:scale-100"
               >
                 {isSubmitting ? (
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                ) : null}
-                Save Changes
-              </Button>
+                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                ) : (
+                  <Save className="h-4 w-4" aria-hidden="true" />
+                )}
+                {isSubmitting ? "Saving…" : "Save Changes"}
+              </button>
             </div>
-          </form>
+          </div>
         </div>
-      </div>
+      </form>
     </div>
   );
 }

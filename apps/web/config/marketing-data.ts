@@ -2,28 +2,28 @@ import { Shield, BarChart3, GraduationCap, CheckCircle } from "lucide-react";
 
 export const navigationLinks = {
   main: [
-    { title: "Platform", href: "#platform" },
-    { title: "How It Works", href: "#how-it-works" },
-    { title: "For Students", href: "#students" },
-    { title: "For Universities", href: "#universities" },
-    { title: "For Recruiters", href: "#recruiters" },
+    { title: "Platform", href: "/#platform" },
+    { title: "How It Works", href: "/#how-it-works" },
+    { title: "For Students", href: "/login" },
+    { title: "For Universities", href: "/login" },
+    { title: "For Recruiters", href: "/recruiter/login" },
   ],
   footer: {
     platform: [
-      { title: "Students", href: "/students" },
-      { title: "Faculty", href: "/faculty" },
-      { title: "Placement Teams", href: "/placements" },
-      { title: "Recruiters", href: "/recruiters" },
+      { title: "Students", href: "/#students" },
+      { title: "Faculty", href: "/#how-it-works" },
+      { title: "Placement Teams", href: "/#universities" },
+      { title: "Recruiters", href: "/#recruiters" },
     ],
     company: [
-      { title: "About", href: "/about" },
-      { title: "How It Works", href: "/how-it-works" },
-      { title: "Contact", href: "/contact" },
+      { title: "About", href: "/#platform" },
+      { title: "How It Works", href: "/#how-it-works" },
+      { title: "Explore Opportunities", href: "/#recruiters" },
     ],
     support: [
-      { title: "Help Center", href: "/help" },
-      { title: "Privacy Policy", href: "/privacy" },
-      { title: "Terms of Service", href: "/terms" },
+      { title: "Log in", href: "/login" },
+      { title: "Get Started", href: "/register" },
+      { title: "Back to top", href: "/#top" },
     ],
   },
 };
@@ -85,9 +85,9 @@ export const workflowSteps = [
   },
   {
     id: "06",
-    title: "Improve Gaps",
+    title: "Create Preparation Plan",
     description:
-      "Actionable feedback helps students improve targeted skill gaps.",
+      "Turn prioritized skill gaps into a guided preparation plan.",
   },
 ];
 
@@ -179,12 +179,11 @@ export const verificationStages = [
   { id: "decision", label: "Decision", status: "pending" },
 ];
 
-export const readinessFactors = [
-  { name: "Verified Skills", score: 85, weight: 30 },
-  { name: "Assessments", score: 72, weight: 25 },
-  { name: "Academics", score: 88, weight: 20 },
-  { name: "Projects", score: 75, weight: 15 },
-  { name: "Interviews", score: 65, weight: 10 },
+export const readinessDimensions = [
+  "Technical",
+  "Aptitude",
+  "Communication",
+  "Project Depth",
 ];
 
 export const rolesInfo = [

@@ -14,7 +14,6 @@ export const ALLOWED_RELEASE_FIELDS = [
   'graduationYear',
   'cgpa',
   'skills',
-  'readinessScore',
   'skillMatchCoverage',
   'applicationStatus',
   'projects',

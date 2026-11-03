@@ -1,4 +1,9 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  useQueries,
+  useQuery,
+  useMutation,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import {
   PlacementDrive,
@@ -43,6 +48,21 @@ export function useDriveEligibility(id: string) {
       return res;
     },
     enabled: !!id,
+  });
+}
+
+/**
+ * Eligibility for many drives at once, using the same cache key as
+ * useDriveEligibility so the detail page reuses these results.
+ */
+export function useDrivesEligibility(ids: string[]) {
+  return useQueries({
+    queries: ids.map((id) => ({
+      queryKey: ["student", "drives", id, "eligibility"],
+      queryFn: () =>
+        apiClient.get<EligibilityResult>(`/student/drives/${id}/eligibility`),
+      staleTime: 60_000,
+    })),
   });
 }
 

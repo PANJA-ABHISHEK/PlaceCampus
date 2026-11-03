@@ -19,9 +19,29 @@ import {
 } from '@nestjs/swagger';
 import { AuthService } from './auth.service.js';
 import { UsersService } from '../users/users.service.js';
-import { RegisterDto, LoginDto, ForgotPasswordDto } from './dto/auth.dto.js';
+import {
+  RegisterDto,
+  LoginDto,
+  ForgotPasswordDto,
+  SetActiveRoleDto,
+} from './dto/auth.dto.js';
 import { JwtAuthGuard } from './guards/jwt-auth.guard.js';
 import { CurrentUser } from './decorators/current-user.decorator.js';
+
+function setRefreshCookie(res: Response, refreshToken: string) {
+  res.cookie('refreshToken', refreshToken, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    path: '/api/v1/auth/refresh',
+    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+  });
+}
+
+/** The login payload: tokens stay in the cookie, never in the body. */
+function loginBody({ refreshToken, ...result }: Awaited<ReturnType<AuthService['login']>>) {
+  return { message: 'Login successful', ...result };
+}
 
 @ApiTags('Authentication')
 @Controller('auth')
@@ -41,9 +61,16 @@ export class AuthController {
 
   @Post('login')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Login and receive access token + refresh cookie' })
-  @ApiResponse({ status: 200, description: 'Login successful' })
+  @ApiOperation({
+    summary: 'Campus login (Student, Faculty, Placement Officer, Placement Head, Administrator)',
+  })
+  @ApiResponse({
+    status: 200,
+    description:
+      'Login successful: { accessToken, user, roles, activeRole, requiresRoleSelection }',
+  })
   @ApiResponse({ status: 401, description: 'Invalid credentials' })
+  @ApiResponse({ status: 403, description: 'Recruiter account: use /recruiter/auth/login' })
   async login(
     @Body() loginDto: LoginDto,
     @Req() req: Request,
@@ -53,21 +80,31 @@ export class AuthController {
       loginDto,
       req.ip,
       req.headers['user-agent'],
+      'CAMPUS',
     );
+    setRefreshCookie(res, result.refreshToken);
+    return loginBody(result);
+  }
 
-    // Set httpOnly cookie for refresh token
-    res.cookie('refreshToken', result.refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      path: '/api/v1/auth/refresh',
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-    });
-
-    return {
-      message: 'Login successful',
-      accessToken: result.accessToken,
-    };
+  @Post('active-role')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Switch the session to another of your own role assignments' })
+  @ApiResponse({ status: 200, description: 'New tokens issued for the chosen role' })
+  @ApiResponse({ status: 403, description: 'Role not assigned to this user' })
+  async setActiveRole(
+    @CurrentUser() user: any,
+    @Body() dto: SetActiveRoleDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const result = await this.authService.setActiveRole(
+      user.userId,
+      user.sessionId,
+      dto.role,
+    );
+    setRefreshCookie(res, result.refreshToken);
+    return { accessToken: result.accessToken, activeRole: dto.role };
   }
 
   @Post('refresh')
@@ -82,14 +119,7 @@ export class AuthController {
   ) {
     const refreshToken = req.cookies?.refreshToken;
     const result = await this.authService.refresh(refreshToken);
-
-    res.cookie('refreshToken', result.refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      path: '/api/v1/auth/refresh',
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-    });
+    setRefreshCookie(res, result.refreshToken);
 
     return {
       accessToken: result.accessToken,
@@ -135,8 +165,42 @@ export class AuthController {
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   async getProfile(@CurrentUser() user: any) {
     const fullUser = await this.usersService.findById(user.userId);
+    if (!fullUser) return { user: null };
+    const access = this.authService.describeRoles(fullUser, user.role);
     return {
-      user: fullUser ? this.usersService.sanitize(fullUser) : null,
+      // `role` is the role this session acts as, so portal guards keep working.
+      user: {
+        ...this.usersService.sanitize(fullUser),
+        role: access.activeRole ?? fullUser.role,
+        ...access,
+      },
     };
+  }
+}
+
+@ApiTags('Authentication')
+@Controller('recruiter/auth')
+export class RecruiterAuthController {
+  constructor(private authService: AuthService) {}
+
+  @Post('login')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Recruiter login (separate from campus login)' })
+  @ApiResponse({ status: 200, description: 'Login successful' })
+  @ApiResponse({ status: 401, description: 'Invalid credentials' })
+  @ApiResponse({ status: 403, description: 'Campus account: use /auth/login' })
+  async login(
+    @Body() loginDto: LoginDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const result = await this.authService.login(
+      loginDto,
+      req.ip,
+      req.headers['user-agent'],
+      'RECRUITER',
+    );
+    setRefreshCookie(res, result.refreshToken);
+    return loginBody(result);
   }
 }

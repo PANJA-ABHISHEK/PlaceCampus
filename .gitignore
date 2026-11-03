@@ -41,3 +41,7 @@ redis-data/
 # Misc
 *.tsbuildinfo
 .turbo/
+
+# Local runtime data and tool caches
+uploads/
+.corepack-cache/

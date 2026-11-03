@@ -44,9 +44,25 @@ export interface UserReference {
   id: string;
   email: string;
   fullName: string;
+  /** The role the current session acts as. */
   role: UserRole;
   isActive: boolean;
   lastLoginAt?: Date;
+  /** Every role assignment the user holds (from `/auth/me`). */
+  roles?: UserRole[];
+  activeRole?: UserRole | null;
+  /** True until a multi-role user picks an active role. */
+  requiresRoleSelection?: boolean;
+}
+
+/** Response of `POST /auth/login` and `POST /recruiter/auth/login`. */
+export interface LoginResponse {
+  message: string;
+  accessToken: string;
+  user: UserReference;
+  roles: UserRole[];
+  activeRole: UserRole | null;
+  requiresRoleSelection: boolean;
 }
 
 /** Student Profile fields */
@@ -70,20 +86,13 @@ export interface StudentProfile {
   updatedAt: Date;
 }
 
-/** Payload to update student profile */
+/** Payload to update student profile. `null` clears a field. */
 export interface UpdateStudentProfileDto {
-  phone?: string;
-  bio?: string;
-  university?: string;
-  department?: string;
-  program?: string;
-  batch?: string;
-  graduationYear?: number;
-  cgpa?: number;
-  backlogs?: number;
-  linkedinUrl?: string;
-  githubUrl?: string;
-  portfolioUrl?: string;
+  phone?: string | null;
+  bio?: string | null;
+  linkedinUrl?: string | null;
+  githubUrl?: string | null;
+  portfolioUrl?: string | null;
 }
 
 /** Evidence Types */
@@ -155,7 +164,8 @@ export interface UpdateEvidenceDto {
   type?: EvidenceType;
   issuer?: string;
   issuedDate?: string;
-  externalUrl?: string;
+  /** `null` clears the link. */
+  externalUrl?: string | null;
 }
 
 /** Verification Record */
@@ -305,12 +315,19 @@ export interface AssessmentAttempt {
   percentage?: number;
   passed?: boolean;
   durationSeconds?: number;
+  /** Populated summary, included in attempt history responses. */
+  assessment?: {
+    id: string;
+    title: string;
+    type: AssessmentType;
+    difficulty: number;
+  } | null;
   createdAt: string;
   updatedAt: string;
 }
 
-/** 
- * MOCK INTERVIEWS 
+/**
+ * MOCK INTERVIEWS
  */
 export const MockInterviewStatus = {
   SCHEDULED: 'SCHEDULED',
@@ -328,20 +345,80 @@ export interface InterviewRubric {
   projectDepth?: number;
 }
 
+/** Interview formats faculty can offer. */
+export const INTERVIEW_TYPES = [
+  'Technical',
+  'HR',
+  'System Design',
+  'Behavioral',
+] as const;
+export type InterviewType = (typeof INTERVIEW_TYPES)[number];
+
+/** Public summary of a user attached to an interview or slot. */
+export interface InterviewParticipant {
+  id: string;
+  fullName: string;
+  email?: string;
+}
+
 export interface MockInterview {
   id: string;
   studentId: string;
   interviewerId?: string;
   type: string;
   scheduledAt: string;
+  durationMinutes?: number;
+  meetingUrl?: string;
+  slotId?: string;
   startedAt?: string;
   completedAt?: string;
+  cancelledAt?: string;
+  cancelledBy?: 'STUDENT' | 'FACULTY';
+  cancellationReason?: string;
   status: MockInterviewStatus;
   notes?: string;
   rubricScores?: InterviewRubric;
   feedback?: string;
+  /** Included in list/detail responses. */
+  interviewer?: InterviewParticipant | null;
+  student?: InterviewParticipant | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export const InterviewSlotStatus = {
+  OPEN: 'OPEN',
+  BOOKED: 'BOOKED',
+  CANCELLED: 'CANCELLED',
+} as const;
+export type InterviewSlotStatus =
+  (typeof InterviewSlotStatus)[keyof typeof InterviewSlotStatus];
+
+/** A time faculty make available for a live mock interview. */
+export interface InterviewSlot {
+  id: string;
+  interviewerId: string;
+  type: InterviewType;
+  startsAt: string;
+  durationMinutes: number;
+  /** Only returned to the slot owner and the student who booked it. */
+  meetingUrl?: string;
+  notes?: string;
+  status: InterviewSlotStatus;
+  bookedBy?: string;
+  interviewId?: string;
+  interviewer?: InterviewParticipant | null;
+  student?: InterviewParticipant | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateInterviewSlotDto {
+  type: InterviewType;
+  startsAt: string;
+  durationMinutes: number;
+  meetingUrl: string;
+  notes?: string;
 }
 
 /** 
@@ -741,6 +818,8 @@ export const NotificationType = {
   EVIDENCE_RESUBMISSION_REQUESTED: 'EVIDENCE_RESUBMISSION_REQUESTED',
   ASSESSMENT_EVALUATED: 'ASSESSMENT_EVALUATED',
   INTERVIEW_FEEDBACK: 'INTERVIEW_FEEDBACK',
+  INTERVIEW_SCHEDULED: 'INTERVIEW_SCHEDULED',
+  INTERVIEW_CANCELLED: 'INTERVIEW_CANCELLED',
   APPLICATION_SUBMITTED: 'APPLICATION_SUBMITTED',
   APPLICATION_STATUS_CHANGED: 'APPLICATION_STATUS_CHANGED',
   PREPARATION_PLAN_CREATED: 'PREPARATION_PLAN_CREATED',

@@ -83,6 +83,48 @@ export class NotificationsListener {
     });
   }
 
+  // Times are left out of messages: the server can't know each recipient's
+  // timezone, and the linked page shows the time in local time.
+  @OnEvent('interview.booked', { async: true })
+  async interviewBooked({ interview }: { interview: any }) {
+    const id = idOf(interview);
+    await this.notificationsService.createFromEvent({
+      recipientId: idOf(interview.studentId),
+      type: NotificationType.INTERVIEW_SCHEDULED,
+      title: 'Mock interview booked',
+      message: `Your ${interview.type} mock interview is confirmed. Open Interviews for the time and meeting link.`,
+      actionUrl: '/student/interviews',
+      entityType: 'mock-interview', entityId: id,
+      idempotencyKey: `interview:${id}:booked:student`,
+    });
+    await this.notificationsService.createFromEvent({
+      recipientId: idOf(interview.interviewerId),
+      type: NotificationType.INTERVIEW_SCHEDULED,
+      title: 'New mock interview booking',
+      message: `A student booked your ${interview.type} interview slot.`,
+      actionUrl: `/faculty/interviews/${id}`,
+      entityType: 'mock-interview', entityId: id,
+      idempotencyKey: `interview:${id}:booked:faculty`,
+    });
+  }
+
+  @OnEvent('interview.cancelled', { async: true })
+  async interviewCancelled({ interview, cancelledBy }: { interview: any; cancelledBy: 'STUDENT' | 'FACULTY' }) {
+    const id = idOf(interview);
+    const byStudent = cancelledBy === 'STUDENT';
+    await this.notificationsService.createFromEvent({
+      recipientId: byStudent ? idOf(interview.interviewerId) : idOf(interview.studentId),
+      type: NotificationType.INTERVIEW_CANCELLED,
+      title: 'Mock interview cancelled',
+      message: byStudent
+        ? `A student cancelled their ${interview.type} interview. The slot is open again.`
+        : `Your ${interview.type} mock interview was cancelled by the interviewer${interview.cancellationReason ? `: ${interview.cancellationReason}` : '.'}`,
+      actionUrl: byStudent ? '/faculty/interviews' : '/student/interviews',
+      entityType: 'mock-interview', entityId: id,
+      idempotencyKey: `interview:${id}:cancelled`,
+    });
+  }
+
   @OnEvent('preparation.created', { async: true })
   async preparationCreated({ plan }: { plan: any }) { await this.plan(plan, NotificationType.PREPARATION_PLAN_CREATED, 'Preparation plan created', 'Your preparation plan is ready.', `created`); }
 

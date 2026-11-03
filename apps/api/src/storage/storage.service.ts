@@ -48,14 +48,22 @@ export class StorageService {
       // Ensure directory exists for the namespace
       await fs.mkdir(path.dirname(absolutePath), { recursive: true });
 
-      // Move the file from temp to final location
-      // Using rename if on same partition, or copy+unlink
-      try {
-        await fs.rename(file.path, absolutePath);
-      } catch (err) {
-        // Fallback for cross-device link errors
-        await fs.copyFile(file.path, absolutePath);
-        await fs.unlink(file.path);
+      // Multer's default memory storage supplies a buffer; disk storage supplies
+      // a temporary path. Support both so uploads work with either interceptor.
+      if (file.buffer) {
+        await fs.writeFile(absolutePath, file.buffer, { flag: 'wx' });
+      } else if (file.path) {
+        try {
+          await fs.rename(file.path, absolutePath);
+        } catch (error: any) {
+          // Fall back to copy+unlink when the temp and upload directories are
+          // on different filesystems. Re-throw other errors unchanged.
+          if (error.code !== 'EXDEV') throw error;
+          await fs.copyFile(file.path, absolutePath);
+          await fs.unlink(file.path);
+        }
+      } else {
+        throw new Error('Uploaded file has neither a buffer nor a temporary path');
       }
 
       return {

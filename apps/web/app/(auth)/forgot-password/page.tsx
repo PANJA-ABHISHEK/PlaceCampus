@@ -1,4 +1,3 @@
-import { AuthLayout } from "@/features/auth/components/auth-layout";
 import { ForgotPasswordForm } from "@/features/auth/components/forgot-password-form";
 import { Metadata } from "next";
 
@@ -8,12 +7,5 @@ export const metadata: Metadata = {
 };
 
 export default function ForgotPasswordPage() {
-  return (
-    <AuthLayout
-      title="Secure Your Account."
-      subtitle="Follow the instructions to regain access to your PlaceCampus profile."
-    >
-      <ForgotPasswordForm />
-    </AuthLayout>
-  );
+  return <ForgotPasswordForm />;
 }

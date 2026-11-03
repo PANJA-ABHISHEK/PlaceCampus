@@ -1,66 +1,55 @@
-import Link from "next/link";
-import { Logo } from "@/components/brand";
-import { cn } from "@/lib/utils";
+'use client';
+
+import * as React from 'react';
+import Image from 'next/image';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import { cn } from '@/lib/utils';
+import { AuthStudentPanel } from './auth-student-panel';
+import styles from './auth-motion.module.css';
 
 interface AuthLayoutProps {
   children: React.ReactNode;
-  title: string;
-  subtitle?: string;
-  illustration?: React.ReactNode;
 }
 
-export function AuthLayout({
-  children,
-  title,
-  subtitle,
-  illustration,
-}: AuthLayoutProps) {
-  return (
-    <div className="min-h-screen grid lg:grid-cols-2">
-      {/* Left Panel: Branding / Visual */}
-      <div className="hidden lg:flex relative bg-[hsl(var(--navy-600))] overflow-hidden flex-col justify-between p-12">
-        {/* Background gradient effects */}
-        <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-br from-[hsl(var(--primary)/0.15)] to-transparent" />
-        <div className="absolute -bottom-1/4 -right-1/4 w-[800px] h-[800px] rounded-full bg-[hsl(var(--primary)/0.1)] blur-3xl" />
+/**
+ * Shared full-screen shell for the (auth) route group: the animated student on
+ * the left half, the form centred on the right half. The page fits 100dvh and
+ * never scrolls on desktop; below `lg` only the form is shown.
+ */
+export function AuthLayout({ children }: AuthLayoutProps) {
+  const pathname = usePathname();
 
-        <div className="relative z-10">
-          <Link href="/">
-            <Logo
-              size="lg"
-              className="mb-12 text-white [&_span]:text-white"
-              showWordmark
+  return (
+    <div
+      className={cn(
+        'h-dvh overflow-hidden bg-[hsl(var(--background))] lg:grid lg:grid-cols-2',
+        styles.theme,
+      )}
+    >
+      <aside className={cn('relative isolate hidden overflow-hidden lg:block', styles.panelEnter)}>
+        <AuthStudentPanel />
+      </aside>
+
+      <div className="flex h-full min-w-0 overflow-y-auto bg-[hsl(var(--background))] px-5 sm:px-10 lg:overflow-y-hidden lg:px-14 xl:px-20">
+        <div className="m-auto w-full max-w-[28rem] py-8">
+          <Link
+            href="/"
+            aria-label="PlaceCampus home"
+            className="mb-8 block w-fit rounded-md transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))] lg:mb-10"
+          >
+            <Image
+              src="/images/placecampus-logo.png"
+              alt="PlaceCampus"
+              width={2137}
+              height={736}
+              priority
+              className="h-auto w-[160px] object-contain sm:w-[176px]"
             />
           </Link>
-          <div className="max-w-md">
-            <h1 className="text-display text-4xl text-white mb-6">{title}</h1>
-            {subtitle && (
-              <p className="text-body text-lg text-white/80">{subtitle}</p>
-            )}
+          <div key={pathname} className={cn('auth-form-content flex flex-col gap-7', styles.formEnter)}>
+            {children}
           </div>
-        </div>
-
-        <div className="relative z-10 flex-1 flex items-end justify-center mt-12 pb-12">
-          {/* Placeholder for student-with-laptop visual */}
-          {illustration || (
-            <div className="relative w-full max-w-sm aspect-square bg-[hsl(var(--card)/0.1)] backdrop-blur-sm rounded-2xl border border-[hsl(var(--border)/0.2)] flex items-center justify-center overflow-hidden">
-              <div className="absolute inset-0 bg-gradient-to-tr from-[hsl(var(--primary)/0.2)] to-transparent" />
-              <p className="text-white/60 font-medium z-10">
-                Illustration Placeholder
-              </p>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Right Panel: Auth Form */}
-      <div className="flex flex-col justify-center px-6 py-12 lg:px-16 xl:px-24 bg-[hsl(var(--background))]">
-        <div className="w-full max-w-sm mx-auto flex flex-col gap-8">
-          <div className="lg:hidden flex justify-center mb-8">
-            <Link href="/">
-              <Logo size="lg" />
-            </Link>
-          </div>
-          {children}
         </div>
       </div>
     </div>

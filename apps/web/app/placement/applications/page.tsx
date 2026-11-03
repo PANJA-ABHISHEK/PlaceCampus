@@ -15,19 +15,15 @@ export default function PlacementApplicationsPage() {
   // or allow the user to select one.
   const publishedDrives =
     drives?.filter((d) => d.status === DriveStatus.PUBLISHED) || [];
-  const [selectedDriveId, setSelectedDriveId] = useState<string>(
-    publishedDrives[0]?.id || "",
-  );
-
-  // If selectedDriveId is empty but we just loaded drives, set it
-  React.useEffect(() => {
-    if (!selectedDriveId && publishedDrives.length > 0) {
-      setSelectedDriveId(publishedDrives[0].id);
-    }
-  }, [publishedDrives, selectedDriveId]);
+  const [selectedDriveId, setSelectedDriveId] = useState("");
+  const activeDriveId = publishedDrives.some(
+    (drive) => drive.id === selectedDriveId,
+  )
+    ? selectedDriveId
+    : (publishedDrives[0]?.id ?? "");
 
   const { data: applications, isLoading: isAppsLoading } =
-    useDriveApplications(selectedDriveId);
+    useDriveApplications(activeDriveId);
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
 
   const filteredApps =
@@ -52,7 +48,7 @@ export default function PlacementApplicationsPage() {
           <div className="relative w-full md:w-64">
             <select
               className="w-full pl-3 pr-8 py-2 border rounded-xl text-sm appearance-none bg-gray-50 font-medium"
-              value={selectedDriveId}
+              value={activeDriveId}
               onChange={(e) => setSelectedDriveId(e.target.value)}
             >
               <option value="" disabled>
@@ -125,7 +121,7 @@ export default function PlacementApplicationsPage() {
         <div className="p-12 text-center text-muted-foreground animate-pulse bg-white rounded-xl border">
           Loading applications...
         </div>
-      ) : !selectedDriveId ? (
+      ) : !activeDriveId ? (
         <div className="p-12 text-center text-muted-foreground bg-gray-50 rounded-xl border-2 border-dashed">
           Please select an active drive to view applications.
         </div>

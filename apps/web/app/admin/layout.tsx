@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { SwitchRoleLink } from "@/features/auth/components/switch-role-link";
 import { useAuth } from "@/features/auth/components/auth-provider";
 import { redirect, usePathname } from "next/navigation";
 import Link from "next/link";
@@ -172,6 +173,7 @@ export default function AdminLayout({
         </div>
 
         <div className="p-4 border-t border-[hsl(var(--border))]">
+          <SwitchRoleLink />
           <button
             onClick={handleLogout}
             className="flex items-center gap-3 px-3 py-2.5 w-full rounded-md text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"

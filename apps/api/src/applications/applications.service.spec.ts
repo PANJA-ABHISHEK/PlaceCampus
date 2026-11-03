@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { ApplicationsService } from './applications.service.js';
+import { ApplicationsService, getApplicationWindow } from './applications.service.js';
 import { getModelToken } from '@nestjs/mongoose';
 import { PlacementApplication } from './schemas/application.schema.js';
 import { DrivesService } from '../drives/drives.service.js';
@@ -24,6 +24,9 @@ describe('ApplicationsService', () => {
     find: vi.fn(),
     findById: vi.fn(),
     create: vi.fn(),
+    distinct: vi.fn(),
+    countDocuments: vi.fn(),
+    db: { collection: vi.fn() },
   };
 
   const mockDrivesService = {
@@ -110,6 +113,41 @@ describe('ApplicationsService', () => {
         }),
       );
       expect(mockEventEmitter.emit).toHaveBeenCalledWith('application.created', expect.anything());
+    });
+
+    it('rejects applications after the deadline', async () => {
+      mockDrivesService.findOnePublished.mockResolvedValue({
+        status: DriveStatus.PUBLISHED,
+        id: 'drive-1',
+        applicationDeadline: new Date(Date.now() - 3 * 86_400_000).toISOString(),
+      });
+
+      await expect(
+        service.applyToDrive('drive-1', 'student-1'),
+      ).rejects.toThrow(/deadline/);
+      expect(mockAppModel.create).not.toHaveBeenCalled();
+    });
+
+    it('rejects applications before the window opens', async () => {
+      mockDrivesService.findOnePublished.mockResolvedValue({
+        status: DriveStatus.PUBLISHED,
+        id: 'drive-1',
+        applicationStart: new Date(Date.now() + 3 * 86_400_000).toISOString(),
+      });
+
+      await expect(
+        service.applyToDrive('drive-1', 'student-1'),
+      ).rejects.toThrow(/not open yet/);
+    });
+
+    it('treats a date-only deadline as open until the end of that day', () => {
+      const today = new Date();
+      today.setUTCHours(0, 0, 0, 0);
+      const { closesAt } = getApplicationWindow({
+        applicationDeadline: today.toISOString(),
+      });
+      expect(closesAt).toBe(today.getTime() + 86_400_000 - 1);
+      expect(closesAt! > Date.now()).toBe(true);
     });
 
     it('2. Ineligible student cannot apply', async () => {
@@ -207,6 +245,54 @@ describe('ApplicationsService', () => {
       await expect(
         service.reviewApplication('app-1', { status: 'SHORTLISTED' }, 'po-1'),
       ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('findAllForDrivePaginated', () => {
+    it('searches candidate names only within the requested drive and status', async () => {
+      const applicantId = '64b64c7a4a11a3a530c5a321';
+      const applicationQuery = {
+        sort: vi.fn().mockReturnThis(),
+        skip: vi.fn().mockReturnThis(),
+        limit: vi.fn().mockReturnThis(),
+        exec: vi.fn().mockResolvedValue([{ studentId: applicantId }]),
+      };
+      mockAppModel.distinct.mockReturnValue({
+        exec: vi.fn().mockResolvedValue([applicantId]),
+      });
+      const userCursor = {
+        toArray: vi.fn().mockResolvedValue([{ _id: { toString: () => applicantId } }]),
+      };
+      mockAppModel.db.collection.mockReturnValue({
+        find: vi.fn(() => userCursor),
+      });
+      mockAppModel.find.mockReturnValue(applicationQuery);
+      mockAppModel.countDocuments.mockReturnValue({
+        exec: vi.fn().mockResolvedValue(1),
+      });
+
+      const result = await service.findAllForDrivePaginated(
+        'drive-1',
+        1,
+        10,
+        'APPLIED',
+        '  Alex.  ',
+      );
+
+      expect(mockAppModel.distinct).toHaveBeenCalledWith('studentId', {
+        driveId: 'drive-1',
+        status: 'APPLIED',
+      });
+      expect(mockAppModel.db.collection).toHaveBeenCalledWith('users');
+      expect(mockAppModel.find).toHaveBeenCalledWith({
+        driveId: 'drive-1',
+        status: 'APPLIED',
+        studentId: { $in: [applicantId] },
+      });
+      expect(result).toEqual({
+        applications: [{ studentId: applicantId }],
+        total: 1,
+      });
     });
   });
 });

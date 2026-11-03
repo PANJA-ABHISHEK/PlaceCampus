@@ -1,220 +1,496 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
-import { useMyEvidence } from "@/features/evidence/hooks/use-evidence";
-import { EvidenceCard } from "@/features/evidence/components/evidence-card";
-import { EvidenceStatus, EvidenceType } from "@placecampus/shared-types";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
+  ArrowDownUp,
+  ChevronDown,
+  CircleAlert,
+  FilterX,
+  LayoutGrid,
   Plus,
+  RotateCcw,
   Search,
-  FileCheck,
-  AlertCircle,
-  Clock,
-  CheckCircle2,
+  SearchX,
+  X,
 } from "lucide-react";
+import { toast } from "sonner";
+import {
+  EvidenceItem,
+  EvidenceStatus,
+  EvidenceType,
+} from "@placecampus/shared-types";
+import {
+  openEvidenceDocument,
+  useDeleteEvidence,
+  useMyEvidence,
+} from "@/features/evidence/hooks/use-evidence";
+import {
+  CATEGORY_TYPES,
+  STATUS_GROUPS,
+  TYPE_META,
+  getPortfolioStrength,
+  type StatusGroup,
+} from "@/features/evidence/lib/evidence-meta";
+import { EvidenceHero } from "@/features/evidence/components/evidence-hero";
+import { EvidenceStats } from "@/features/evidence/components/evidence-stats";
+import { EvidencePortfolioCard } from "@/features/evidence/components/evidence-portfolio-card";
+import {
+  EvidenceWizard,
+  type WizardMode,
+} from "@/features/evidence/components/evidence-wizard";
+import { EvidenceDrawer } from "@/features/evidence/components/evidence-drawer";
+import { DeleteEvidenceDialog } from "@/features/evidence/components/delete-evidence-dialog";
+import { Skeleton } from "@/components/ui/skeleton";
+import { ApiError } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
 
+type SortOrder = "NEWEST" | "OLDEST" | "AZ";
+
+const controlClassName =
+  "h-11 w-full appearance-none rounded-xl border border-[hsl(var(--input))] bg-white pl-3.5 pr-9 text-sm font-medium text-[hsl(var(--foreground))] shadow-[var(--shadow-xs)] transition-[border-color,box-shadow] duration-200 hover:border-[hsl(var(--muted-foreground)/0.4)] focus:border-[hsl(var(--primary))] focus:outline-none focus:ring-4 focus:ring-[hsl(var(--primary)/0.12)]";
+
+function SelectControl({
+  label,
+  value,
+  onChange,
+  icon: Icon,
+  children,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  icon?: React.ElementType;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="relative">
+      {Icon && (
+        <Icon
+          aria-hidden="true"
+          className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[hsl(var(--muted-foreground))]"
+        />
+      )}
+      <select
+        aria-label={label}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className={cn(controlClassName, Icon && "pl-10")}
+      >
+        {children}
+      </select>
+      <ChevronDown
+        aria-hidden="true"
+        className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[hsl(var(--muted-foreground))]"
+      />
+    </div>
+  );
+}
+
+function EvidenceSkeleton() {
+  return (
+    <div className="space-y-6" aria-busy="true">
+      <span className="sr-only">Loading evidence…</span>
+      <Skeleton className="h-[180px] w-full rounded-[20px]" />
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4 xl:grid-cols-[repeat(4,minmax(0,1fr))_minmax(0,1.9fr)]">
+        {Array.from({ length: 4 }, (_, i) => (
+          <Skeleton key={i} className="h-[118px] rounded-2xl" />
+        ))}
+        <Skeleton className="col-span-2 h-[118px] rounded-2xl lg:col-span-4 xl:col-span-1" />
+      </div>
+      <Skeleton className="h-14 w-full rounded-2xl" />
+      <Skeleton className="h-[76px] w-full rounded-2xl" />
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
+        {Array.from({ length: 4 }, (_, i) => (
+          <Skeleton key={i} className="h-[260px] rounded-2xl" />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function EvidenceDashboard() {
-  const { data: evidence, isLoading } = useMyEvidence();
+  const { data: evidence, isLoading, isError, error, refetch } =
+    useMyEvidence();
+  const deleteMutation = useDeleteEvidence();
+
   const [searchQuery, setSearchQuery] = React.useState("");
-  const [statusFilter, setStatusFilter] = React.useState<
-    EvidenceStatus | "ALL"
-  >("ALL");
+  const [statusGroup, setStatusGroup] = React.useState<StatusGroup | "ALL">(
+    "ALL",
+  );
   const [typeFilter, setTypeFilter] = React.useState<EvidenceType | "ALL">(
     "ALL",
   );
+  const [sortOrder, setSortOrder] = React.useState<SortOrder>("NEWEST");
+
+  const [wizardMode, setWizardMode] = React.useState<WizardMode | null>(null);
+  const [drawerItem, setDrawerItem] = React.useState<EvidenceItem | null>(
+    null,
+  );
+  const [deleteTarget, setDeleteTarget] = React.useState<EvidenceItem | null>(
+    null,
+  );
+  const [openingDocId, setOpeningDocId] = React.useState<string | null>(null);
+
+  const items = React.useMemo(() => evidence ?? [], [evidence]);
 
   const filteredEvidence = React.useMemo(() => {
-    if (!evidence) return [];
-    return evidence.filter((item) => {
+    const query = searchQuery.trim().toLowerCase();
+    const groupStatuses: EvidenceStatus[] | null =
+      statusGroup === "ALL" ? null : STATUS_GROUPS[statusGroup];
+    const result = items.filter((item) => {
       const matchesSearch =
-        item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (item.issuer &&
-          item.issuer.toLowerCase().includes(searchQuery.toLowerCase()));
+        !query ||
+        item.title.toLowerCase().includes(query) ||
+        (item.issuer?.toLowerCase().includes(query) ?? false);
       const matchesStatus =
-        statusFilter === "ALL" || item.status === statusFilter;
+        !groupStatuses || groupStatuses.includes(item.status);
       const matchesType = typeFilter === "ALL" || item.type === typeFilter;
       return matchesSearch && matchesStatus && matchesType;
     });
-  }, [evidence, searchQuery, statusFilter, typeFilter]);
+    return [...result].sort((a, b) => {
+      if (sortOrder === "AZ") return a.title.localeCompare(b.title);
+      const diff =
+        new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      return sortOrder === "OLDEST" ? diff : -diff;
+    });
+  }, [items, searchQuery, statusGroup, typeFilter, sortOrder]);
 
-  const stats = React.useMemo(() => {
-    if (!evidence) return { total: 0, verified: 0, pending: 0, needsAction: 0 };
-    return {
-      total: evidence.length,
-      verified: evidence.filter((e) => e.status === EvidenceStatus.VERIFIED)
+  const stats = React.useMemo(
+    () => ({
+      total: items.length,
+      verified: items.filter((e) => STATUS_GROUPS.VERIFIED.includes(e.status))
         .length,
-      pending: evidence.filter(
-        (e) =>
-          e.status === EvidenceStatus.UNVERIFIED ||
-          e.status === EvidenceStatus.PROCESSING,
+      pending: items.filter((e) => STATUS_GROUPS.PENDING.includes(e.status))
+        .length,
+      needsAction: items.filter((e) =>
+        STATUS_GROUPS.NEEDS_ACTION.includes(e.status),
       ).length,
-      needsAction: evidence.filter(
-        (e) =>
-          e.status === EvidenceStatus.REJECTED ||
-          e.status === EvidenceStatus.RESUBMISSION_REQUESTED ||
-          e.status === EvidenceStatus.NEEDS_REVIEW,
-      ).length,
-    };
-  }, [evidence]);
+    }),
+    [items],
+  );
 
-  if (isLoading) {
-    return (
-      <div className="flex-1 flex items-center justify-center p-8">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[hsl(var(--primary))]"></div>
-      </div>
-    );
-  }
+  const typeCounts = React.useMemo(() => {
+    const counts = {} as Record<EvidenceType, number>;
+    for (const item of items) counts[item.type] = (counts[item.type] ?? 0) + 1;
+    return counts;
+  }, [items]);
+
+  const strength = React.useMemo(() => getPortfolioStrength(items), [items]);
+
+  const hasActiveFilters =
+    searchQuery.trim() !== "" ||
+    statusGroup !== "ALL" ||
+    typeFilter !== "ALL" ||
+    sortOrder !== "NEWEST";
+
+  const clearFilters = () => {
+    setSearchQuery("");
+    setStatusGroup("ALL");
+    setTypeFilter("ALL");
+    setSortOrder("NEWEST");
+  };
+
+  const openDocument = async (item: EvidenceItem) => {
+    setOpeningDocId(item.id);
+    try {
+      await openEvidenceDocument(item.id);
+    } catch (err) {
+      toast.error("Couldn't open the document", {
+        description: err instanceof ApiError ? err.message : undefined,
+      });
+    } finally {
+      setOpeningDocId(null);
+    }
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    try {
+      await deleteMutation.mutateAsync(deleteTarget.id);
+      toast.success("Evidence deleted", { description: deleteTarget.title });
+      if (drawerItem?.id === deleteTarget.id) setDrawerItem(null);
+      setDeleteTarget(null);
+    } catch (err) {
+      toast.error("Couldn't delete evidence", {
+        description: err instanceof Error ? err.message : undefined,
+      });
+    }
+  };
+
+  const openCreate = (initialType?: EvidenceType) =>
+    setWizardMode({ kind: "create", initialType });
+
+  if (isLoading) return <EvidenceSkeleton />;
+
+  const categories: {
+    value: EvidenceType | "ALL";
+    label: string;
+    icon: React.ElementType;
+    count: number;
+  }[] = [
+    { value: "ALL", label: "All Evidence", icon: LayoutGrid, count: items.length },
+    ...CATEGORY_TYPES.map((type) => ({
+      value: type,
+      label: TYPE_META[type].plural,
+      icon: TYPE_META[type].icon,
+      count: typeCounts[type] ?? 0,
+    })),
+  ];
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight text-heading">
-            My Evidence
-          </h1>
-          <p className="text-[hsl(var(--muted-foreground))] mt-1">
-            Build your verified skill profile by uploading certifications,
-            projects, and achievements.
-          </p>
-        </div>
-        <Button
-          asChild
-          className="shrink-0 shadow-md shadow-[hsl(var(--primary)/0.2)]"
-        >
-          <Link href="/student/evidence/new">
-            <Plus className="mr-2 h-4 w-4" /> Add Evidence
-          </Link>
-        </Button>
-      </div>
+    <div className="mx-auto w-full max-w-[1400px] space-y-6">
+      <EvidenceHero onAdd={() => openCreate()} />
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white rounded-xl p-5 border border-[hsl(var(--border))] shadow-sm">
-          <div className="flex items-center gap-3 text-[hsl(var(--muted-foreground))] mb-2">
-            <FileCheck className="w-5 h-5 text-blue-500" />
-            <h3 className="font-medium text-sm">Total Evidence</h3>
+      {isError ? (
+        <div className="flex flex-col items-center gap-3 rounded-2xl border border-red-200 bg-red-50/60 px-6 py-12 text-center">
+          <CircleAlert className="h-8 w-8 text-red-600" aria-hidden="true" />
+          <div>
+            <p className="font-semibold text-red-900">
+              We couldn&apos;t load your evidence
+            </p>
+            <p className="mt-1 text-sm text-red-800/80">
+              {error instanceof Error ? error.message : "Please try again."}
+            </p>
           </div>
-          <p className="text-3xl font-bold text-heading">{stats.total}</p>
-        </div>
-        <div className="bg-white rounded-xl p-5 border border-[hsl(var(--border))] shadow-sm">
-          <div className="flex items-center gap-3 text-[hsl(var(--muted-foreground))] mb-2">
-            <CheckCircle2 className="w-5 h-5 text-green-500" />
-            <h3 className="font-medium text-sm">Verified</h3>
-          </div>
-          <p className="text-3xl font-bold text-heading">{stats.verified}</p>
-        </div>
-        <div className="bg-white rounded-xl p-5 border border-[hsl(var(--border))] shadow-sm">
-          <div className="flex items-center gap-3 text-[hsl(var(--muted-foreground))] mb-2">
-            <Clock className="w-5 h-5 text-slate-500" />
-            <h3 className="font-medium text-sm">Pending</h3>
-          </div>
-          <p className="text-3xl font-bold text-heading">{stats.pending}</p>
-        </div>
-        <div className="bg-white rounded-xl p-5 border border-[hsl(var(--border))] shadow-sm">
-          <div className="flex items-center gap-3 text-[hsl(var(--muted-foreground))] mb-2">
-            <AlertCircle className="w-5 h-5 text-orange-500" />
-            <h3 className="font-medium text-sm">Needs Action</h3>
-          </div>
-          <p className="text-3xl font-bold text-heading">{stats.needsAction}</p>
-        </div>
-      </div>
-
-      {evidence && evidence.length > 0 ? (
-        <div className="space-y-6">
-          {/* Filters Bar */}
-          <div className="flex flex-col sm:flex-row gap-4 bg-white p-4 rounded-xl border border-[hsl(var(--border))] shadow-sm">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[hsl(var(--muted-foreground))]" />
-              <Input
-                placeholder="Search by title or issuer..."
-                className="pl-9 bg-[hsl(var(--background))]"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-            </div>
-            <div className="flex gap-2 overflow-x-auto pb-1 sm:pb-0 hide-scrollbar">
-              <select
-                className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-[hsl(var(--background))] px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 min-w-[140px]"
-                value={statusFilter}
-                onChange={(e) =>
-                  setStatusFilter(e.target.value as EvidenceStatus | "ALL")
-                }
-              >
-                <option value="ALL">All Statuses</option>
-                <option value={EvidenceStatus.VERIFIED}>Verified</option>
-                <option value={EvidenceStatus.UNVERIFIED}>Pending</option>
-                <option value={EvidenceStatus.PROCESSING}>Processing</option>
-                <option value={EvidenceStatus.REJECTED}>Rejected</option>
-                <option value={EvidenceStatus.NEEDS_REVIEW}>
-                  Needs Review
-                </option>
-              </select>
-              <select
-                className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-[hsl(var(--background))] px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 min-w-[140px]"
-                value={typeFilter}
-                onChange={(e) =>
-                  setTypeFilter(e.target.value as EvidenceType | "ALL")
-                }
-              >
-                <option value="ALL">All Types</option>
-                {Object.values(EvidenceType).map((type) => (
-                  <option key={type} value={type}>
-                    {type.replace(/_/g, " ")}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {/* Grid */}
-          {filteredEvidence.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredEvidence.map((item) => (
-                <EvidenceCard key={item.id} evidence={item} />
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-12 bg-white rounded-xl border border-dashed border-[hsl(var(--border))]">
-              <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-[hsl(var(--muted))] mb-4">
-                <Search className="w-6 h-6 text-[hsl(var(--muted-foreground))]" />
-              </div>
-              <h3 className="text-lg font-medium text-heading">
-                No matching evidence
-              </h3>
-              <p className="text-[hsl(var(--muted-foreground))] mt-1">
-                Try adjusting your filters or search query.
-              </p>
-            </div>
-          )}
+          <button
+            type="button"
+            onClick={() => refetch()}
+            className="inline-flex h-10 items-center gap-2 rounded-xl bg-white px-4 text-sm font-semibold text-red-700 ring-1 ring-red-200 transition-colors hover:bg-red-50"
+          >
+            <RotateCcw className="h-4 w-4" aria-hidden="true" />
+            Retry
+          </button>
         </div>
       ) : (
-        /* Empty State */
-        <div className="text-center py-20 bg-white rounded-2xl border border-dashed border-[hsl(var(--primary)/0.3)] shadow-sm">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-[hsl(var(--primary)/0.1)] mb-6">
-            <FileCheck className="w-8 h-8 text-[hsl(var(--primary))]" />
-          </div>
-          <h2 className="text-2xl font-bold text-heading mb-2">
-            Build Your Verified Profile
-          </h2>
-          <p className="text-[hsl(var(--muted-foreground))] max-w-md mx-auto mb-8">
-            Upload your certifications, hackathon wins, and key projects. We
-            will verify them to build trust with top recruiters.
-          </p>
-          <Button
-            asChild
-            size="lg"
-            className="shadow-md shadow-[hsl(var(--primary)/0.2)]"
+        <>
+          <EvidenceStats
+            stats={stats}
+            strength={strength}
+            activeGroup={statusGroup}
+            onSelectGroup={(group) => {
+              setStatusGroup(group);
+              if (group === "ALL") setTypeFilter("ALL");
+            }}
+            onImprove={() => openCreate(strength.missing[0])}
+          />
+
+          {/* Category navigation */}
+          <nav
+            aria-label="Evidence categories"
+            style={{ "--pc-delay": "220ms" } as React.CSSProperties}
+            className="pc-enter rounded-2xl border border-[hsl(var(--border)/0.8)] bg-white p-1.5 shadow-[var(--shadow-card)]"
           >
-            <Link href="/student/evidence/new">
-              <Plus className="mr-2 h-5 w-5" /> Add Your First Evidence
-            </Link>
-          </Button>
-        </div>
+            <div className="flex gap-1 overflow-x-auto [scrollbar-width:none]">
+              {categories.map(({ value, label, icon: Icon, count }) => {
+                const active = typeFilter === value;
+                return (
+                  <button
+                    key={value}
+                    type="button"
+                    aria-pressed={active}
+                    onClick={() => setTypeFilter(value)}
+                    className={cn(
+                      "relative flex shrink-0 items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--primary)/0.5)] xl:flex-1 xl:justify-center",
+                      active
+                        ? "bg-[hsl(var(--primary)/0.1)] text-[hsl(var(--primary))]"
+                        : "text-[hsl(var(--foreground)/0.75)] hover:bg-[hsl(var(--muted)/0.6)] hover:text-[hsl(var(--foreground))]",
+                    )}
+                  >
+                    <Icon className="h-[18px] w-[18px]" aria-hidden="true" />
+                    {label}
+                    <span
+                      className={cn(
+                        "min-w-6 rounded-md px-1.5 py-0.5 text-center text-xs font-bold tabular-nums transition-colors",
+                        active
+                          ? "bg-[hsl(var(--primary))] text-white"
+                          : "bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]",
+                      )}
+                    >
+                      {count}
+                    </span>
+                    <span
+                      aria-hidden="true"
+                      className={cn(
+                        "absolute inset-x-3 -bottom-1.5 h-[3px] rounded-full bg-[hsl(var(--primary))] transition-transform duration-300",
+                        active ? "scale-x-100" : "scale-x-0",
+                      )}
+                    />
+                  </button>
+                );
+              })}
+            </div>
+          </nav>
+
+          {/* Search & filters */}
+          <div
+            style={{ "--pc-delay": "260ms" } as React.CSSProperties}
+            className="pc-enter grid grid-cols-1 gap-3 rounded-2xl border border-[hsl(var(--border)/0.8)] bg-white p-3 shadow-[var(--shadow-card)] sm:grid-cols-2 sm:p-4 xl:grid-cols-[minmax(0,1fr)_170px_170px_160px_auto]"
+          >
+            <div className="relative sm:col-span-2 xl:col-span-1">
+              <Search
+                aria-hidden="true"
+                className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[hsl(var(--muted-foreground))]"
+              />
+              <input
+                type="search"
+                aria-label="Search evidence"
+                placeholder="Search by evidence title or issuer…"
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                className={cn(controlClassName, "pl-10 pr-10 font-normal")}
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  aria-label="Clear search"
+                  onClick={() => setSearchQuery("")}
+                  className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-lg text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))]"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+            <SelectControl
+              label="Filter by status"
+              value={statusGroup}
+              onChange={(value) => setStatusGroup(value as StatusGroup | "ALL")}
+            >
+              <option value="ALL">All Statuses</option>
+              <option value="VERIFIED">Verified</option>
+              <option value="PENDING">Pending</option>
+              <option value="NEEDS_ACTION">Needs Action</option>
+            </SelectControl>
+            <SelectControl
+              label="Filter by type"
+              value={typeFilter}
+              onChange={(value) => setTypeFilter(value as EvidenceType | "ALL")}
+            >
+              <option value="ALL">All Types</option>
+              {Object.values(EvidenceType).map((type) => (
+                <option key={type} value={type}>
+                  {TYPE_META[type].label}
+                </option>
+              ))}
+            </SelectControl>
+            <SelectControl
+              label="Sort evidence"
+              value={sortOrder}
+              onChange={(value) => setSortOrder(value as SortOrder)}
+              icon={ArrowDownUp}
+            >
+              <option value="NEWEST">Newest</option>
+              <option value="OLDEST">Oldest</option>
+              <option value="AZ">A–Z</option>
+            </SelectControl>
+            <button
+              type="button"
+              onClick={clearFilters}
+              disabled={!hasActiveFilters}
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-[hsl(var(--primary)/0.45)] bg-white px-4 text-sm font-semibold text-[hsl(var(--primary))] transition-colors hover:bg-[hsl(var(--primary)/0.06)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--primary)/0.5)] disabled:cursor-not-allowed disabled:border-[hsl(var(--border))] disabled:text-[hsl(var(--muted-foreground))] disabled:hover:bg-white"
+            >
+              <FilterX className="h-4 w-4" aria-hidden="true" />
+              Clear Filters
+            </button>
+          </div>
+
+          {/* Results */}
+          {items.length === 0 ? (
+            <div className="pc-enter flex flex-col items-center rounded-2xl border border-dashed border-[hsl(var(--primary)/0.3)] bg-white px-6 py-16 text-center">
+              <span className="mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-[hsl(var(--primary)/0.1)] text-[hsl(var(--primary))]">
+                <Plus className="h-8 w-8" aria-hidden="true" />
+              </span>
+              <h2 className="text-xl font-bold text-[hsl(var(--foreground))]">
+                Build your verified profile
+              </h2>
+              <p className="mt-2 max-w-[28rem] text-sm leading-relaxed text-[hsl(var(--muted-foreground))]">
+                Upload your certifications, hackathon wins and key projects.
+                Verified evidence builds trust with recruiters.
+              </p>
+              <button
+                type="button"
+                onClick={() => openCreate()}
+                className="mt-6 inline-flex items-center gap-2 rounded-xl bg-[hsl(var(--primary))] px-5 py-3 text-sm font-semibold text-white shadow-[0_8px_20px_-8px_hsl(var(--primary)/0.8)] transition-all hover:bg-[hsl(var(--color-primary-600))] active:scale-[0.98]"
+              >
+                <Plus className="h-4 w-4" aria-hidden="true" />
+                Add your first evidence
+              </button>
+            </div>
+          ) : filteredEvidence.length === 0 ? (
+            <div className="pc-enter flex flex-col items-center rounded-2xl border border-dashed border-[hsl(var(--border))] bg-white px-6 py-14 text-center">
+              <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]">
+                <SearchX className="h-6 w-6" aria-hidden="true" />
+              </span>
+              <h2 className="text-lg font-bold text-[hsl(var(--foreground))]">
+                No matching evidence
+              </h2>
+              <p className="mt-1 text-sm text-[hsl(var(--muted-foreground))]">
+                Try a different search, category or status.
+              </p>
+              <button
+                type="button"
+                onClick={clearFilters}
+                className="mt-5 inline-flex items-center gap-2 rounded-xl border border-[hsl(var(--border))] px-4 py-2 text-sm font-semibold transition-colors hover:bg-[hsl(var(--muted))]"
+              >
+                <FilterX className="h-4 w-4" aria-hidden="true" />
+                Clear filters
+              </button>
+            </div>
+          ) : (
+            <>
+              <p
+                aria-live="polite"
+                className="text-sm text-[hsl(var(--muted-foreground))]"
+              >
+                Showing{" "}
+                <span className="font-semibold text-[hsl(var(--foreground))]">
+                  {filteredEvidence.length}
+                </span>{" "}
+                of {items.length} evidence {items.length === 1 ? "item" : "items"}
+              </p>
+              <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
+                {filteredEvidence.map((item, index) => (
+                  <EvidencePortfolioCard
+                    key={item.id}
+                    evidence={item}
+                    style={
+                      {
+                        "--pc-delay": `${Math.min(index, 6) * 50}ms`,
+                      } as React.CSSProperties
+                    }
+                    onView={() => setDrawerItem(item)}
+                    onEdit={() =>
+                      setWizardMode({ kind: "edit", evidence: item })
+                    }
+                    onDelete={() => setDeleteTarget(item)}
+                    onOpenDocument={() => openDocument(item)}
+                    isOpeningDocument={openingDocId === item.id}
+                  />
+                ))}
+              </div>
+            </>
+          )}
+        </>
       )}
+
+      <EvidenceWizard
+        mode={wizardMode}
+        onOpenChange={(open) => !open && setWizardMode(null)}
+      />
+      <EvidenceDrawer
+        evidence={drawerItem}
+        onOpenChange={(open) => !open && setDrawerItem(null)}
+        onEdit={(item) => {
+          setDrawerItem(null);
+          setWizardMode({ kind: "edit", evidence: item });
+        }}
+        onDelete={(item) => setDeleteTarget(item)}
+      />
+      <DeleteEvidenceDialog
+        evidence={deleteTarget}
+        isDeleting={deleteMutation.isPending}
+        onConfirm={confirmDelete}
+        onOpenChange={(open) => !open && setDeleteTarget(null)}
+      />
     </div>
   );
 }
