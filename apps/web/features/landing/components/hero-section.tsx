@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { ArrowRight, Play } from "lucide-react";
+import { ArrowRight, CheckCircle2, Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useGSAP } from "@/hooks/use-gsap";
 
@@ -100,26 +100,35 @@ export function HeroSection() {
   return (
     <section
       ref={container}
-      className="relative pt-32 pb-20 md:pt-40 md:pb-32 overflow-hidden min-h-[90vh] flex items-center"
+      className="relative overflow-hidden pt-24 md:pt-28 lg:pt-24"
     >
-      {/* Background */}
-      <div className="absolute inset-0 bg-gradient-to-b from-[hsl(var(--background))] via-[hsl(var(--background-secondary))] to-[hsl(var(--background))]" />
+      {/* Background: warm base, orange glows and a faded dot grid */}
+      <div aria-hidden className="pointer-events-none absolute inset-0">
+        <div className="absolute inset-0 bg-gradient-to-b from-[hsl(var(--color-primary-50))] via-[hsl(var(--background))] to-[hsl(var(--background))]" />
+        <div className="absolute -top-40 right-[-10%] h-[640px] w-[640px] rounded-full bg-[hsl(var(--primary)/0.22)] blur-[120px]" />
+        <div className="absolute top-1/3 -left-40 h-[420px] w-[420px] rounded-full bg-[hsl(var(--color-primary-300)/0.18)] blur-[110px]" />
+        <div className="absolute inset-0 bg-[radial-gradient(hsl(var(--primary)/0.16)_1px,transparent_1px)] [background-size:22px_22px] [mask-image:radial-gradient(ellipse_70%_60%_at_70%_40%,black,transparent)]" />
+      </div>
 
-      <div className="container-app relative z-10 grid lg:grid-cols-2 gap-4 lg:gap-8 items-center">
+      <div className="container-app relative z-10 grid lg:grid-cols-2 gap-4 lg:gap-8 items-end">
         {/* Left: Content */}
-        <div className="max-w-2xl mx-auto lg:mx-0 text-center lg:text-left">
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[hsl(var(--primary)/0.1)] border border-[hsl(var(--primary)/0.2)] text-[hsl(var(--color-primary-dark))] font-medium text-sm mb-8 hero-title">
-            <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[hsl(var(--primary))] opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-[hsl(var(--primary))]"></span>
-            </span>
-            Platform 2.0 Now Live
-          </div>
+        <div className="max-w-2xl mx-auto lg:mx-0 text-center lg:text-left lg:self-center lg:pb-10">
 
           <h1 className="text-display text-5xl md:text-6xl lg:text-7xl mb-6 text-[hsl(var(--foreground))]">
             <span className="hero-title block">
               Build Your{" "}
-              <span className="text-[hsl(var(--primary))]">Readiness.</span>
+              <span className="relative inline-block text-[hsl(var(--primary))]">
+                Readiness.
+                {/* Hand-drawn underline accent */}
+                <svg
+                  aria-hidden
+                  viewBox="0 0 300 20"
+                  preserveAspectRatio="none"
+                  className="absolute -bottom-2 left-0 h-3 w-full text-[hsl(var(--primary)/0.45)] md:h-4"
+                >
+                  <path d="M4 14 C 70 4, 160 2, 296 10" fill="none" stroke="currentColor" strokeWidth="6" strokeLinecap="round" />
+                </svg>
+              </span>
             </span>
             <span className="hero-title block">Build Your Future.</span>
           </h1>
@@ -153,20 +162,36 @@ export function HeroSection() {
               </Link>
             </Button>
           </div>
+
+          <ul className="hero-cta mt-8 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm font-medium text-[hsl(var(--muted-foreground))] lg:justify-start">
+            {["AI + faculty verified skills", "Explainable readiness", "Smart company matching"].map((item) => (
+              <li key={item} className="flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 text-[hsl(var(--primary))]" />
+                {item}
+              </li>
+            ))}
+          </ul>
         </div>
 
         {/* Right: Visual */}
-        <div className="relative h-[430px] md:h-[560px] lg:h-[600px] w-full mt-4 md:mt-8 lg:mt-0">
-          {/* Background Shape */}
+        <div className="relative h-[430px] md:h-[560px] lg:h-[620px] w-full mt-4 md:mt-8 lg:mt-0">
+          {/* Orange backdrop: glow, solid disc and outline rings behind the student */}
           <div
             ref={shapeRef}
-            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[80%] aspect-square rounded-full bg-gradient-to-br from-[hsl(var(--primary-200))] to-[hsl(var(--primary-100))] blur-3xl opacity-60"
-          />
+            aria-hidden
+            className="absolute bottom-0 left-1/2 aspect-square w-[86%] max-w-[560px] -translate-x-1/2 translate-y-[12%]"
+          >
+            <div className="absolute inset-[-12%] rounded-full bg-[hsl(var(--primary)/0.35)] blur-[70px]" />
+            <div className="absolute inset-[-9%] rounded-full border border-dashed border-[hsl(var(--primary)/0.35)] animate-[spin_60s_linear_infinite]" />
+            <div className="absolute inset-[-4%] rounded-full border border-[hsl(var(--primary)/0.2)]" />
+            <div className="absolute inset-0 rounded-full bg-gradient-to-br from-[hsl(var(--color-primary-300))] via-[hsl(var(--primary))] to-[hsl(var(--color-primary-700))] shadow-[0_30px_80px_-20px_hsl(var(--primary)/0.6)]" />
+            <div className="absolute inset-[8%] rounded-full bg-[radial-gradient(circle_at_30%_25%,hsl(0_0%_100%/0.35),transparent_55%)]" />
+          </div>
 
           {/* Student image stays proportional and aligned to the visual baseline. */}
           <div
             ref={studentRef}
-            className="absolute inset-x-0 bottom-0 z-10 h-[78%] md:h-[86%] lg:h-[94%]"
+            className="absolute inset-x-0 bottom-0 z-10 h-[86%] md:h-[92%] lg:h-[96%]"
           >
             <Image
               src="/images/hero/student-professional.png"

@@ -4,6 +4,7 @@ import * as React from "react";
 import { useAOS } from "@/hooks/use-aos";
 import { preparationPlan } from "@/config/marketing-data";
 import { cn } from "@/lib/utils";
+import { SectionEyebrow } from "./section-eyebrow";
 import { CheckCircle2, Circle } from "lucide-react";
 
 export function PreparationJourneySection() {
@@ -14,11 +15,12 @@ export function PreparationJourneySection() {
   );
 
   return (
-    <section className="border-t border-[hsl(var(--border))] bg-[hsl(var(--background-secondary))] py-20 md:py-24">
+    <section className="border-t border-[hsl(var(--border))] bg-[hsl(var(--background-secondary))] py-14 md:py-16">
       <div className="container-app">
-        <div className="max-w-3xl mx-auto text-center mb-16" data-aos="fade-up">
+        <div className="max-w-3xl mx-auto text-center mb-10 md:mb-12" data-aos="fade-up">
+          <SectionEyebrow>Personalised preparation</SectionEyebrow>
           <h2 className="text-heading text-3xl md:text-4xl lg:text-5xl mb-6 text-[hsl(var(--foreground))]">
-            From Gap to Readiness
+            From Gap to <span className="text-[hsl(var(--primary))]">Readiness</span>
           </h2>
           <p className="text-body text-lg text-[hsl(var(--muted-foreground))]">
             PlaceCampus doesn&apos;t just point out weaknesses. It generates

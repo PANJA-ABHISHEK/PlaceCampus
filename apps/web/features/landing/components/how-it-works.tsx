@@ -19,6 +19,7 @@ import {
   workflowSteps,
 } from "@/config/marketing-data";
 import { cn } from "@/lib/utils";
+import { SectionEyebrow } from "./section-eyebrow";
 
 function WorkflowPreview({ activeStep }: { activeStep: number }) {
   const active = workflowSteps[activeStep];
@@ -194,12 +195,13 @@ export function HowItWorksSection() {
   return (
     <section
       id="how-it-works"
-      className="scroll-mt-24 border-t border-[hsl(var(--border))] bg-[hsl(var(--background-secondary))] py-20 md:py-24"
+      className="scroll-mt-24 border-t border-[hsl(var(--border))] bg-[hsl(var(--background-secondary))] py-14 md:py-16"
     >
       <div className="container-app">
-        <div className="mb-10 max-w-3xl md:mb-14" data-aos="fade-up">
+        <div className="mb-10 max-w-3xl md:mb-12" data-aos="fade-up">
+          <SectionEyebrow>The student journey</SectionEyebrow>
           <h2 className="text-heading mb-5 text-3xl text-[hsl(var(--foreground))] md:text-4xl lg:text-5xl">
-            How PlaceCampus Works
+            How PlaceCampus <span className="text-[hsl(var(--primary))]">Works</span>
           </h2>
           <p className="text-body text-lg text-[hsl(var(--muted-foreground))]">
             Follow the student journey from building a profile to creating a

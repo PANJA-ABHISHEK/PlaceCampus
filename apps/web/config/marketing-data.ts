@@ -20,10 +20,11 @@ export const navigationLinks = {
       { title: "How It Works", href: "/#how-it-works" },
       { title: "Explore Opportunities", href: "/#recruiters" },
     ],
-    support: [
-      { title: "Log in", href: "/login" },
-      { title: "Get Started", href: "/register" },
-      { title: "Back to top", href: "/#top" },
+    portals: [
+      { title: "Student Login", href: "/login" },
+      { title: "Faculty Login", href: "/faculty-login" },
+      { title: "Recruiter Login", href: "/recruiter/login" },
+      { title: "Create Account", href: "/register" },
     ],
   },
 };

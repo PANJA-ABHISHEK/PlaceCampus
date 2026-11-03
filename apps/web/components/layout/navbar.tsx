@@ -46,27 +46,25 @@ export function Navbar({ className }: NavbarProps) {
       className={cn(
         "fixed top-0 z-[var(--z-sticky)] w-full transition-all duration-[var(--duration-normal)]",
         isScrolled
-          ? "bg-[hsl(var(--card)/0.95)] backdrop-blur-md border-b border-[hsl(var(--border))] shadow-sm py-3"
-          : "bg-transparent py-5",
+          ? "bg-[hsl(var(--card)/0.96)] backdrop-blur-md border-b border-[hsl(var(--border))] shadow-[0_8px_30px_-12px_rgb(0_0_0/0.12)]"
+          : "bg-[hsl(var(--card))] border-b border-[hsl(var(--border))]",
         className,
       )}
     >
-      <div className="container-app flex items-center justify-between">
+      {/* Fixed bar height: the logo grows without making the navbar taller. */}
+      <div className="container-app flex h-16 items-center justify-between lg:h-[72px]">
         <Link
           href="/"
           aria-label="PlaceCampus home"
           className="z-50 flex shrink-0 items-center transition-opacity hover:opacity-80"
         >
           <Image
-            src="/images/placecampus-logo.png"
+            src="/images/placecampus-logo-trimmed.png"
             alt="PlaceCampus"
-            width={2137}
-            height={736}
+            width={1200}
+            height={269}
             priority
-            className={cn(
-              "h-auto object-contain",
-              isScrolled ? "w-[124px] sm:w-[140px]" : "w-[140px] sm:w-[158px]",
-            )}
+            className="h-10 w-auto object-contain sm:h-11 lg:h-10 xl:h-12"
           />
         </Link>
 
@@ -85,7 +83,11 @@ export function Navbar({ className }: NavbarProps) {
 
         {/* Desktop Actions */}
         <div className="hidden items-center gap-3 lg:flex xl:gap-4">
-          <Button variant="ghost" asChild className="font-medium">
+          <Button
+            variant="outline"
+            asChild
+            className="border-[hsl(var(--primary)/0.7)] bg-transparent font-medium text-[hsl(var(--foreground))] hover:border-[hsl(var(--primary))] hover:bg-[hsl(var(--primary)/0.06)] hover:text-[hsl(var(--primary))]"
+          >
             <Link href="/login">Log in</Link>
           </Button>
           <Button
