@@ -210,12 +210,6 @@
   animation: auth-student-in 900ms cubic-bezier(0.22, 1, 0.36, 1) 150ms both;
 }
 
-/* Gentle 2.5° side-to-side tilt plus a slow float, pivoting at her feet. */
-.studentSway {
-  transform-origin: 50% 100%;
-  animation: auth-sway 9s ease-in-out 1s infinite;
-}
-
 .bubbleFloat {
   animation: auth-bubble 6s ease-in-out var(--float-delay, 0s) infinite;
 }
@@ -224,13 +218,9 @@
   animation: auth-glow 6s ease-in-out infinite;
 }
 
-/* Floating badges: fade + slide up in, then each drifts on its own rhythm. */
+/* Badges: fade + slide up in, then stay put. */
 .badgeIn {
   animation: auth-badge-in 700ms cubic-bezier(0.22, 1, 0.36, 1) var(--badge-delay, 0.5s) both;
-}
-
-.badgeFloat {
-  animation: auth-badge-float var(--badge-duration, 6s) ease-in-out var(--badge-float-delay, 1s) infinite;
 }
 
 @keyframes auth-student-in {
@@ -241,22 +231,6 @@
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
-  }
-}
-
-@keyframes auth-sway {
-  0%,
-  100% {
-    transform: translateY(0) rotate(0deg);
-  }
-  25% {
-    transform: translateY(-8px) rotate(1.25deg);
-  }
-  50% {
-    transform: translateY(-14px) rotate(0deg);
-  }
-  75% {
-    transform: translateY(-8px) rotate(-1.25deg);
   }
 }
 
@@ -293,23 +267,12 @@
   }
 }
 
-@keyframes auth-badge-float {
-  0%,
-  100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-9px);
-  }
-}
 
 @media (prefers-reduced-motion: reduce) {
   .studentIn,
-  .studentSway,
   .bubbleFloat,
   .glowPulse,
   .badgeIn,
-  .badgeFloat,
   .feedback,
   .formEnter,
   .reveal,

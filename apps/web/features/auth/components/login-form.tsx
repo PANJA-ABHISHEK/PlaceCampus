@@ -74,9 +74,11 @@ export function LoginForm({ portal = 'campus' }: { portal?: keyof typeof PORTALS
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-2">
-        <h2 {...reveal(0, 'text-heading text-3xl font-bold tracking-tight')}>Welcome Back!</h2>
-        <p {...reveal(1, 'text-body text-sm text-[hsl(var(--muted-foreground))]')}>
+      <div className="flex flex-col gap-2 text-center">
+        <h2 {...reveal(0, 'text-heading text-3xl font-bold tracking-tight')}>
+          Welcome <span className="text-[hsl(var(--primary))]">Back!</span>
+        </h2>
+        <p {...reveal(1, 'text-body text-[15px] text-[hsl(var(--muted-foreground))]')}>
           {PORTALS[portal].subtitle}
         </p>
       </div>
@@ -133,7 +135,7 @@ export function LoginForm({ portal = 'campus' }: { portal?: keyof typeof PORTALS
         </AuthSubmitButton>
       </form>
 
-      <div {...reveal(6, 'mt-2 text-center text-sm text-[hsl(var(--muted-foreground))]')}>
+      <div {...reveal(6, 'border-t border-[hsl(var(--border))] pt-5 text-center text-sm text-[hsl(var(--muted-foreground))]')}>
         {portal === 'campus' ? (
           <>
             Recruiter?{' '}
