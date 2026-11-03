@@ -148,7 +148,9 @@ export class EligibilityEngine {
         // Find matching skill in student's verified profile
         const studentSkill = skillProfile?.skills.find(
           (s) =>
-            s.skillId === req.skillId && s.verificationStatus === 'VERIFIED',
+            // skillId is an ObjectId on lean profiles but a string on drives.
+            String(s.skillId) === String(req.skillId) &&
+            s.verificationStatus === 'VERIFIED',
         );
 
         if (!studentSkill) {

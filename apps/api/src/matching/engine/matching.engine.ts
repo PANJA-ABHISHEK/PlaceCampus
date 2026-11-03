@@ -26,7 +26,7 @@ export class MatchingEngine {
 
     for (const req of drive.requirements.skills) {
       // Resolve canonical name from taxonomy
-      const canonicalSkill = taxonomy.find((t) => t.id === req.skillId);
+      const canonicalSkill = taxonomy.find((t) => String(t.id) === String(req.skillId));
       const skillName = canonicalSkill?.name || req.skillName || req.skillId;
 
       if (!req.isOptional) {
@@ -35,7 +35,10 @@ export class MatchingEngine {
 
       // Check if student has the skill verified
       const studentSkill = skillProfile?.skills.find(
-        (s) => s.skillId === req.skillId && s.verificationStatus === 'VERIFIED',
+        // skillId is an ObjectId on lean profiles but a string on drives.
+        (s) =>
+          String(s.skillId) === String(req.skillId) &&
+          s.verificationStatus === 'VERIFIED',
       );
 
       let status: SkillMatchStatus;

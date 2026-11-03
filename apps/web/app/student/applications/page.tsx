@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { useMyApplications } from "@/features/applications/hooks/use-applications";
+import { useDrives } from "@/features/drives/hooks/use-drives";
 import { ApplicationStatus } from "@placecampus/shared-types";
 import {
   Building2,
@@ -18,6 +19,8 @@ import { Button } from "@/components/ui/button";
 
 export default function StudentApplicationsPage() {
   const { data: applications, isLoading } = useMyApplications();
+  const { data: drives } = useDrives();
+  const driveById = new Map((drives ?? []).map((d) => [d.id, d]));
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [searchTerm, setSearchTerm] = useState("");
 
@@ -39,7 +42,11 @@ export default function StudentApplicationsPage() {
       // We'll just display it as is or handle it.
       if (
         searchTerm &&
-        !app.driveId.toLowerCase().includes(searchTerm.toLowerCase())
+        ![
+          app.driveId,
+          driveById.get(app.driveId)?.companyName ?? "",
+          driveById.get(app.driveId)?.roleTitle ?? "",
+        ].some((v) => v.toLowerCase().includes(searchTerm.toLowerCase()))
       )
         return false;
       return true;
@@ -47,11 +54,13 @@ export default function StudentApplicationsPage() {
 
   return (
     <div className="max-w-6xl mx-auto space-y-8">
-      <div className="bg-navy-900 rounded-3xl p-8 md:p-12 text-white relative overflow-hidden shadow-xl">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-orange-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 transform translate-x-1/2 -translate-y-1/2"></div>
+      <div className="relative overflow-hidden rounded-3xl border border-[hsl(var(--primary)/0.15)] bg-gradient-to-br from-white via-[hsl(var(--color-primary-50))] to-[hsl(var(--color-primary-100))] p-8 shadow-[var(--shadow-card)] md:p-10">
+        <div className="absolute top-0 right-0 h-64 w-64 translate-x-1/3 -translate-y-1/3 rounded-full bg-[hsl(var(--primary)/0.15)] blur-3xl"></div>
         <div className="relative z-10 max-w-2xl">
-          <h1 className="text-4xl font-bold mb-4">My Applications</h1>
-          <p className="text-navy-100 text-lg font-light leading-relaxed">
+          <h1 className="mb-3 text-4xl font-bold text-[hsl(var(--foreground))]">
+            My <span className="text-[hsl(var(--primary))]">Applications</span>
+          </h1>
+          <p className="text-lg leading-relaxed text-[hsl(var(--muted-foreground))]">
             Track your placement applications, review snapshots, and manage your
             progress.
           </p>
@@ -168,10 +177,10 @@ export default function StudentApplicationsPage() {
                 </div>
 
                 <h3 className="text-lg font-bold text-heading mb-1 group-hover:text-orange-600 transition-colors">
-                  Drive {app.driveId.slice(-6)}
+                  {driveById.get(app.driveId)?.companyName ?? `Drive ${app.driveId.slice(-6)}`}
                 </h3>
                 <p className="text-sm text-muted-foreground mb-4">
-                  Application ID: {app.id.slice(-6)}
+                  {driveById.get(app.driveId)?.roleTitle ?? `Application ID: ${app.id.slice(-6)}`}
                 </p>
 
                 <div className="mt-auto space-y-3">

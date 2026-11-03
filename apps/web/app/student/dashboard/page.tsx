@@ -4,6 +4,10 @@ import * as React from "react";
 import { useAuth } from "@/features/auth/components/auth-provider";
 import { useStudentProfile } from "@/features/student/hooks/use-student-profile";
 import { useStudentReadiness } from "@/features/readiness/hooks/use-readiness";
+import { useMySkills } from "@/features/skills/hooks/use-skills";
+import { useMyApplications } from "@/features/applications/hooks/use-applications";
+import { usePreparationPlans } from "@/features/preparation/hooks/use-preparation";
+import { useNotifications } from "@/features/notifications/hooks/use-notifications";
 import { getProfileCompletion } from "@/features/student/lib/profile-completion";
 import { Progress } from "@/components/ui/progress";
 import {
@@ -74,6 +78,27 @@ export default function StudentDashboardPage() {
   const { data: profile, isLoading: isProfileLoading } = useStudentProfile();
   const { data: readiness, isLoading: isReadinessLoading } =
     useStudentReadiness();
+  const { data: skillProfile } = useMySkills();
+  const { data: applications } = useMyApplications();
+  const { data: plans } = usePreparationPlans();
+  const { data: activity } = useNotifications({ limit: 5 });
+
+  const verifiedSkills = (skillProfile?.skills ?? [])
+    .filter((s) => s.verificationStatus === "VERIFIED")
+    .sort((a, b) => b.level - a.level);
+  const activeApplications = (applications ?? []).filter(
+    (a) => a.status !== "WITHDRAWN" && a.status !== "REJECTED",
+  );
+  const shortlisted = activeApplications.filter(
+    (a) => a.status === "SHORTLISTED",
+  ).length;
+  const topGaps = (plans ?? [])
+    .filter((p) => p.status === "ACTIVE")
+    .flatMap((p) => p.items)
+    .filter((i) => i.status !== "COMPLETED" && i.status !== "SKIPPED")
+    .sort((a, b) => b.gapAmount - a.gapAmount)
+    .slice(0, 3);
+  const recent = activity?.items ?? [];
 
   if (isProfileLoading || isReadinessLoading) {
     return (
@@ -221,7 +246,7 @@ export default function StudentDashboardPage() {
       </div>
 
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-        {/* Verified Skills Placeholder */}
+        {/* Verified Skills */}
         <section
           className={cn(
             cardClassName,
@@ -237,16 +262,47 @@ export default function StudentDashboardPage() {
               Verified Skills
             </h3>
           </div>
-          <p className="relative mt-4 max-w-[85%] pb-10 text-sm leading-relaxed text-[hsl(var(--muted-foreground))]">
-            Your verified skills will appear after evidence review.
-          </p>
+          {verifiedSkills.length > 0 ? (
+            <div className="relative mt-4 pb-2">
+              <p className="text-sm text-[hsl(var(--muted-foreground))]">
+                <span className="text-2xl font-bold text-[hsl(var(--foreground))]">
+                  {verifiedSkills.length}
+                </span>{" "}
+                skills verified from your evidence
+              </p>
+              <ul className="mt-3 flex flex-wrap gap-1.5">
+                {verifiedSkills.slice(0, 6).map((s) => (
+                  <li
+                    key={s.skillId}
+                    className="rounded-full border border-[hsl(var(--primary)/0.2)] bg-white px-2.5 py-1 text-xs font-semibold text-[hsl(var(--foreground))]"
+                  >
+                    {s.canonicalName}
+                    <span className="ml-1 text-[hsl(var(--primary))]">
+                      L{s.level}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              <Link
+                href="/student/skills"
+                className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-[hsl(var(--primary))] hover:underline"
+              >
+                View all skills
+                <ArrowRight className="h-4 w-4" aria-hidden="true" />
+              </Link>
+            </div>
+          ) : (
+            <p className="relative mt-4 max-w-[85%] pb-10 text-sm leading-relaxed text-[hsl(var(--muted-foreground))]">
+              Your verified skills will appear after evidence review.
+            </p>
+          )}
           <CornerIcon
             icon={BadgeCheck}
             className="text-[hsl(var(--primary)/0.12)]"
           />
         </section>
 
-        {/* Placement Drives Placeholder */}
+        {/* Placement Drives */}
         <section
           className={cn(
             cardClassName,
@@ -263,10 +319,31 @@ export default function StudentDashboardPage() {
                 Placement Drives
               </h3>
             </div>
-            <p className="mt-4 max-w-[85%] text-sm leading-relaxed text-[hsl(var(--muted-foreground))]">
-              Explore active placement drives and apply for roles that match
-              your skills.
-            </p>
+            {activeApplications.length > 0 ? (
+              <div className="mt-4 flex gap-6">
+                <div>
+                  <p className="text-2xl font-bold text-[hsl(var(--foreground))]">
+                    {activeApplications.length}
+                  </p>
+                  <p className="text-xs font-medium text-[hsl(var(--muted-foreground))]">
+                    Active applications
+                  </p>
+                </div>
+                <div>
+                  <p className="text-2xl font-bold text-[hsl(var(--color-success))]">
+                    {shortlisted}
+                  </p>
+                  <p className="text-xs font-medium text-[hsl(var(--muted-foreground))]">
+                    Shortlisted
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <p className="mt-4 max-w-[85%] text-sm leading-relaxed text-[hsl(var(--muted-foreground))]">
+                Explore active placement drives and apply for roles that match
+                your skills.
+              </p>
+            )}
           </div>
           <Link
             href="/student/drives"
@@ -280,7 +357,7 @@ export default function StudentDashboardPage() {
           />
         </section>
 
-        {/* Skill Gaps Placeholder */}
+        {/* Top Skill Gaps */}
         <section
           className={cn(
             cardClassName,
@@ -293,9 +370,46 @@ export default function StudentDashboardPage() {
               Top Skill Gaps
             </h3>
           </div>
-          <p className="relative mt-4 max-w-[85%] pb-10 text-sm leading-relaxed text-[hsl(var(--muted-foreground))]">
-            Analysis will appear once your verified skill profile is available.
-          </p>
+          {topGaps.length > 0 ? (
+            <ul className="relative mt-4 space-y-2.5 pb-2">
+              {topGaps.map((gap) => (
+                <li
+                  key={gap.itemId}
+                  className="flex items-center justify-between gap-3 text-sm"
+                >
+                  <span className="font-semibold text-[hsl(var(--foreground))]">
+                    {gap.skillName}
+                  </span>
+                  <span className="shrink-0 text-xs text-[hsl(var(--muted-foreground))]">
+                    Level {gap.currentLevel} to {gap.requiredLevel}
+                    <span
+                      className={cn(
+                        "ml-2 rounded px-1.5 py-0.5 font-bold",
+                        gap.priority === "HIGH"
+                          ? "bg-red-100 text-red-700"
+                          : "bg-amber-100 text-amber-700",
+                      )}
+                    >
+                      {gap.priority}
+                    </span>
+                  </span>
+                </li>
+              ))}
+              <li>
+                <Link
+                  href="/student/preparation"
+                  className="inline-flex items-center gap-1 text-sm font-semibold text-red-600 hover:underline"
+                >
+                  Open preparation plan
+                  <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                </Link>
+              </li>
+            </ul>
+          ) : (
+            <p className="relative mt-4 max-w-[85%] pb-10 text-sm leading-relaxed text-[hsl(var(--muted-foreground))]">
+              Analysis will appear once your verified skill profile is available.
+            </p>
+          )}
           <CornerIcon icon={Target} className="text-red-500/10" />
         </section>
       </div>
@@ -323,14 +437,51 @@ export default function StudentDashboardPage() {
             />
           </Link>
         </div>
-        <div className="flex flex-col items-center gap-3 border-t border-[hsl(var(--border)/0.7)] bg-[hsl(var(--muted)/0.4)] px-6 py-10 text-center">
-          <div className="flex h-11 w-11 items-center justify-center rounded-full bg-white text-[hsl(var(--muted-foreground))] shadow-[var(--shadow-xs)]">
-            <History className="h-5 w-5" aria-hidden="true" />
+        {recent.length > 0 ? (
+          <ul className="divide-y divide-[hsl(var(--border)/0.7)] border-t border-[hsl(var(--border)/0.7)]">
+            {recent.map((item) => (
+              <li key={item.id}>
+                <Link
+                  href={item.actionUrl}
+                  className="flex items-start gap-3 px-6 py-3.5 transition-colors hover:bg-[hsl(var(--muted)/0.4)]"
+                >
+                  <span
+                    aria-hidden="true"
+                    className={cn(
+                      "mt-1.5 h-2 w-2 shrink-0 rounded-full",
+                      item.readAt
+                        ? "bg-[hsl(var(--border))]"
+                        : "bg-[hsl(var(--primary))]",
+                    )}
+                  />
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-semibold text-[hsl(var(--foreground))]">
+                      {item.title}
+                    </span>
+                    <span className="block truncate text-sm text-[hsl(var(--muted-foreground))]">
+                      {item.message}
+                    </span>
+                  </span>
+                  <span className="shrink-0 text-xs text-[hsl(var(--muted-foreground))]">
+                    {new Date(item.createdAt).toLocaleDateString(undefined, {
+                      day: "numeric",
+                      month: "short",
+                    })}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <div className="flex flex-col items-center gap-3 border-t border-[hsl(var(--border)/0.7)] bg-[hsl(var(--muted)/0.4)] px-6 py-10 text-center">
+            <div className="flex h-11 w-11 items-center justify-center rounded-full bg-white text-[hsl(var(--muted-foreground))] shadow-[var(--shadow-xs)]">
+              <History className="h-5 w-5" aria-hidden="true" />
+            </div>
+            <p className="text-sm text-[hsl(var(--muted-foreground))]">
+              No recent activity yet.
+            </p>
           </div>
-          <p className="text-sm text-[hsl(var(--muted-foreground))]">
-            No recent activity yet.
-          </p>
-        </div>
+        )}
       </section>
     </div>
   );
