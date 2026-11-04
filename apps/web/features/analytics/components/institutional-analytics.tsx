@@ -44,8 +44,8 @@ export function InstitutionalAnalytics({ roleLabel }: { roleLabel: string }) {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <ChartCard title="Readiness by department"><ResponsiveContainer width="100%" height={260}><BarChart data={readiness.byDepartment}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="group" /><YAxis /><Tooltip /><Bar dataKey="average" fill="hsl(var(--primary))" name="Average" /></BarChart></ResponsiveContainer></ChartCard>
-        <ChartCard title="Application status"><ResponsiveContainer width="100%" height={260}><BarChart data={placements.byStatus}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="status" /><YAxis allowDecimals={false} /><Tooltip /><Bar dataKey="count" fill="hsl(var(--color-info))" /></BarChart></ResponsiveContainer></ChartCard>
+        <ChartCard title="Readiness by department">{readiness.byDepartment.length ? <ResponsiveContainer width="100%" height={260}><BarChart data={readiness.byDepartment}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="group" /><YAxis /><Tooltip /><Bar dataKey="average" fill="hsl(var(--primary))" name="Average" /></BarChart></ResponsiveContainer> : <EmptyState description="No readiness data by department in this scope." className="py-10" />}</ChartCard>
+        <ChartCard title="Application status">{placements.byStatus.length ? <ResponsiveContainer width="100%" height={260}><BarChart data={placements.byStatus}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="status" /><YAxis allowDecimals={false} /><Tooltip /><Bar dataKey="count" fill="hsl(var(--color-info))" /></BarChart></ResponsiveContainer> : <EmptyState description="No applications in this scope." className="py-10" />}</ChartCard>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
