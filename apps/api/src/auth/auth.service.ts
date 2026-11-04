@@ -2,6 +2,7 @@ import {
   Injectable,
   UnauthorizedException,
   ForbiddenException,
+  BadRequestException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
@@ -93,6 +94,7 @@ export class AuthService {
     const tokens = await this.generateAuthResponse(user.id, {
       audience,
       activeRole,
+      mustChangePassword: !!user.mustChangePassword,
     });
 
     return {
@@ -101,6 +103,7 @@ export class AuthService {
       roles,
       activeRole: activeRole ?? null,
       requiresRoleSelection: !activeRole,
+      mustChangePassword: !!user.mustChangePassword,
     };
   }
 
@@ -141,6 +144,7 @@ export class AuthService {
       audience: session.audience ?? 'CAMPUS',
       activeRole: this.resolveActiveRole(user, session.activeRole),
       rotatedFrom: session.id,
+      mustChangePassword: !!user.mustChangePassword,
     });
   }
 
@@ -186,6 +190,45 @@ export class AuthService {
       audience: session.audience ?? 'CAMPUS',
       activeRole: role,
       rotatedFrom: session.id,
+      mustChangePassword: !!user.mustChangePassword,
+    });
+  }
+
+  /**
+   * Replaces the caller's password (required after a temporary password).
+   * Other sessions are revoked; the current one is rotated with fresh tokens.
+   */
+  async changePassword(userId: string, sessionId: string | undefined, currentPassword: string, newPassword: string) {
+    const user = await this.usersService.findById(userId);
+    if (!user || !user.isActive) throw new UnauthorizedException('User no longer active');
+    const matches = await bcrypt.compare(currentPassword, user.passwordHash).catch(() => false);
+    if (!matches) throw new BadRequestException('Your current password is incorrect.');
+    if (newPassword.length < 12 || newPassword.length > 128) {
+      throw new BadRequestException('Choose a password of 12 to 128 characters.');
+    }
+    if (newPassword === currentPassword) throw new BadRequestException('Choose a password different from the temporary one.');
+    if (newPassword.toLowerCase().includes(user.email.split('@')[0].toLowerCase())) {
+      throw new BadRequestException('Your password must not contain your email name.');
+    }
+
+    user.passwordHash = await bcrypt.hash(newPassword, await bcrypt.genSalt());
+    user.mustChangePassword = false;
+    user.temporaryPasswordIssuedAt = undefined;
+    await user.save();
+
+    const session = sessionId && Types.ObjectId.isValid(sessionId) ? await this.refreshSessionModel.findById(sessionId) : null;
+    await this.refreshSessionModel.updateMany(
+      { userId: new Types.ObjectId(userId), revokedAt: { $exists: false } },
+      { $set: { revokedAt: new Date() } },
+    );
+    await this.auditService.logAction({
+      actorId: userId, actorRole: user.role, action: 'AUTH_PASSWORD_CHANGED', resourceType: 'USER', resourceId: userId,
+    });
+    return this.generateAuthResponse(userId, {
+      audience: session?.audience ?? 'CAMPUS',
+      activeRole: this.resolveActiveRole(user, session?.activeRole),
+      rotatedFrom: session?.id,
+      mustChangePassword: false,
     });
   }
 
@@ -226,6 +269,7 @@ export class AuthService {
       audience: AuthAudience;
       activeRole?: UserRole;
       rotatedFrom?: string;
+      mustChangePassword?: boolean;
     },
   ) {
     // Generate random refresh token
@@ -256,6 +300,8 @@ export class AuthService {
     // No role claim until a multi-role user picks one, so RBAC denies everything.
     const payload: Record<string, unknown> = { sub: userId, sid: newSession.id };
     if (options.activeRole) payload.role = options.activeRole;
+    // Temporary password: the API refuses everything except changing it.
+    if (options.mustChangePassword) payload.pwc = true;
     const accessToken = this.jwtService.sign(payload);
 
     return {

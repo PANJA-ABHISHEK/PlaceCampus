@@ -54,13 +54,18 @@ export default function RecruiterCandidateDetailPage() {
                 <span className="font-medium">{candidate.cgpa || 'N/A'}</span>
               </div>
               
-              {(candidate.linkedinUrl || candidate.portfolioUrl) && (
+              {(candidate.linkedinUrl || candidate.githubUrl || candidate.portfolioUrl) && (
                 <div className="pt-4 space-y-3">
                   <h4 className="text-sm font-semibold text-navy-500 uppercase tracking-wider">Links</h4>
                   <div className="flex flex-col gap-2">
                     {candidate.linkedinUrl && (
                       <Link href={candidate.linkedinUrl} target="_blank" className="flex items-center text-orange-600 hover:underline">
                         <ExternalLink className="w-4 h-4 mr-2" /> LinkedIn Profile
+                      </Link>
+                    )}
+                    {candidate.githubUrl && (
+                      <Link href={candidate.githubUrl} target="_blank" className="flex items-center text-orange-600 hover:underline">
+                        <ExternalLink className="w-4 h-4 mr-2" /> GitHub Profile
                       </Link>
                     )}
                     {candidate.portfolioUrl && (

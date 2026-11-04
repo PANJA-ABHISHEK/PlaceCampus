@@ -16,6 +16,9 @@ import {
   Menu,
   X,
   Bell,
+  FileSpreadsheet,
+  UserCog,
+  ClipboardCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { UserRole } from "@placecampus/shared-types";
@@ -24,6 +27,9 @@ import { NotificationBell } from "@/features/notifications/components/notificati
 const navigation = [
   { name: "Dashboard", href: "/admin/dashboard", icon: LayoutDashboard },
   { name: "Institutional Analytics", href: "/admin/analytics", icon: LineChart },
+  { name: "Bulk Imports", href: "/admin/imports", icon: FileSpreadsheet },
+  { name: "Faculty Assignments", href: "/admin/assignments", icon: UserCog },
+  { name: "Review Queue", href: "/admin/reviews", icon: ClipboardCheck },
   { name: "Notifications", href: "/admin/notifications", icon: Bell },
   {
     name: "User Management",

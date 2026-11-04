@@ -1,212 +1,175 @@
 "use client";
 
 import * as React from "react";
-import { SwitchRoleLink } from "@/features/auth/components/switch-role-link";
-import { useAuth } from "@/features/auth/components/auth-provider";
-import { redirect, usePathname } from "next/navigation";
+import Image from "next/image";
 import Link from "next/link";
+import { redirect, usePathname } from "next/navigation";
 import {
-  LayoutDashboard,
-  FileCheck,
   Bell,
-  Settings,
+  FileCheck2,
+  LayoutDashboard,
   LogOut,
   Menu,
-  X,
+  Settings,
   Users,
   Video,
+  X,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { UserRole } from "@placecampus/shared-types";
+import { useAuth } from "@/features/auth/components/auth-provider";
+import { SwitchRoleLink } from "@/features/auth/components/switch-role-link";
 import { NotificationBell } from "@/features/notifications/components/notification-bell";
+import { useUnreadNotificationCount } from "@/features/notifications/hooks/use-notifications";
+import { UserMenu } from "@/components/layout/user-menu";
+import { initials } from "@/features/faculty/lib/faculty-meta";
+import { cn } from "@/lib/utils";
 
 const navigation = [
   { name: "Dashboard", href: "/faculty/dashboard", icon: LayoutDashboard },
-  { name: "Evidence Review", href: "/faculty/reviews", icon: FileCheck },
+  { name: "Evidence Review", href: "/faculty/reviews", icon: FileCheck2 },
   { name: "Interviews", href: "/faculty/interviews", icon: Video },
-  {
-    name: "Students",
-    href: "/faculty/students",
-    icon: Users,
-    comingSoon: true,
-  },
-  {
-    name: "Notifications",
-    href: "/faculty/notifications",
-    icon: Bell,
-  },
-  {
-    name: "Settings",
-    href: "/faculty/settings",
-    icon: Settings,
-    comingSoon: true,
-  },
+  { name: "My Students", href: "/faculty/students", icon: Users },
+  { name: "Notifications", href: "/faculty/notifications", icon: Bell, badge: "unread" as const },
+  { name: "Settings", href: "/faculty/settings", icon: Settings },
 ];
 
-export default function FacultyLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+const PAGE_TITLES: [string, string][] = [
+  ["/faculty/dashboard", "Faculty Dashboard"],
+  ["/faculty/reviews", "Evidence Review"],
+  ["/faculty/interviews", "Interviews"],
+  ["/faculty/students", "My Students"],
+  ["/faculty/notifications", "Notifications"],
+  ["/faculty/settings", "Settings"],
+];
+
+export default function FacultyLayout({ children }: { children: React.ReactNode }) {
   const { user, authenticated, loading, clearAuth } = useAuth();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
   const pathname = usePathname();
+  const unread = useUnreadNotificationCount().data?.count ?? 0;
 
-  // Route Protection
+  // Route protection
   React.useEffect(() => {
-    if (!loading && !authenticated) {
-      redirect("/login");
-    }
-    if (
-      !loading &&
-      authenticated &&
-      user?.role !== UserRole.FACULTY &&
-      user?.role !== UserRole.ADMIN
-    ) {
-      redirect("/"); // Redirect non-faculty
+    if (!loading && !authenticated) redirect("/login");
+    if (!loading && authenticated && user?.role !== UserRole.FACULTY && user?.role !== UserRole.ADMIN) {
+      redirect("/");
     }
   }, [loading, authenticated, user]);
 
   if (loading || !authenticated) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[hsl(var(--background))]">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[hsl(var(--primary))]"></div>
+      <div className="flex min-h-screen items-center justify-center bg-[#F8FAFC]">
+        <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-[#FF6B1A]" />
       </div>
     );
   }
 
-  const handleLogout = () => {
-    clearAuth();
-  };
-
-  const getInitials = (name: string) => {
-    return name
-      .split(" ")
-      .map((n) => n[0])
-      .join("")
-      .toUpperCase()
-      .substring(0, 2);
-  };
+  const name = user?.fullName || "Faculty";
+  const subtitle = [user?.designation, user?.department && `${user.department} Department`].filter(Boolean);
+  const title = pathname === "/faculty/dashboard"
+    ? null
+    : PAGE_TITLES.find(([prefix]) => pathname === prefix || pathname.startsWith(`${prefix}/`))?.[1] ?? "Faculty Portal";
+  const closeMenu = () => setIsMobileMenuOpen(false);
 
   return (
-    <div className="min-h-screen bg-[hsl(var(--background))] flex flex-col md:flex-row">
-      {/* Mobile Header */}
-      <div className="md:hidden flex items-center justify-between p-4 border-b border-[hsl(var(--border))] bg-white/50 backdrop-blur-md sticky top-0 z-30">
-        <Link
-          href="/faculty/reviews"
-          className="text-xl font-bold tracking-tighter text-heading"
-        >
-          Place<span className="text-[hsl(var(--primary))]">Campus</span>
-        </Link>
-        <button
-          onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-          className="text-[hsl(var(--muted-foreground))] hover:text-heading"
-        >
-          {isMobileMenuOpen ? (
-            <X className="h-6 w-6" />
-          ) : (
-            <Menu className="h-6 w-6" />
-          )}
-        </button>
-      </div>
-
-      {/* Sidebar Navigation */}
-      <nav
+    <div className="flex min-h-screen bg-[#F8FAFC]">
+      {/* Sidebar */}
+      <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-40 w-64 bg-white border-r border-[hsl(var(--border))] transform transition-transform duration-300 ease-in-out md:relative md:translate-x-0 flex flex-col",
+          "fixed inset-y-0 left-0 z-40 flex w-[264px] flex-col border-r border-[#E5E7EB] bg-white transition-transform duration-300 ease-in-out lg:sticky lg:top-0 lg:h-screen lg:translate-x-0",
           isMobileMenuOpen ? "translate-x-0" : "-translate-x-full",
         )}
       >
-        <div className="p-6 hidden md:block border-b border-[hsl(var(--border))]">
-          <Link
-            href="/faculty/reviews"
-            className="text-2xl font-bold tracking-tighter text-heading"
-          >
-            Place<span className="text-[hsl(var(--primary))]">Campus</span>
+        <div className="flex h-[72px] shrink-0 items-center justify-between border-b border-[#E5E7EB] px-5">
+          <Link href="/faculty/dashboard" aria-label="PlaceCampus faculty home" onClick={closeMenu}>
+            <Image src="/images/placecampus-logo-trimmed.png" alt="PlaceCampus" width={1200} height={269} priority className="h-auto w-[150px]" />
           </Link>
+          <button type="button" onClick={closeMenu} aria-label="Close menu" className="rounded-lg p-1.5 text-[#64748B] hover:bg-slate-100 lg:hidden">
+            <X className="h-5 w-5" />
+          </button>
         </div>
 
-        <div className="p-4 border-b border-[hsl(var(--border))] flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-[hsl(var(--primary)/0.1)] text-[hsl(var(--primary))] flex items-center justify-center font-bold">
-            {getInitials(user?.fullName || "Faculty")}
-          </div>
-          <div className="flex flex-col">
-            <span className="text-sm font-bold text-heading truncate">
-              {user?.fullName}
-            </span>
-            <span className="text-xs text-[hsl(var(--muted-foreground))]">
-              Faculty Portal
-            </span>
-          </div>
-        </div>
-
-        <div className="flex-1 overflow-y-auto py-4 px-3 space-y-1">
+        <nav aria-label="Faculty navigation" className="min-h-0 flex-1 space-y-1 overflow-y-auto px-3 py-4">
           {navigation.map((item) => {
-            const isActive =
-              pathname === item.href || pathname.startsWith(`${item.href}/`);
+            const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
             return (
               <Link
                 key={item.name}
-                href={item.comingSoon ? "#" : item.href}
+                href={item.href}
+                onClick={closeMenu}
+                aria-current={active ? "page" : undefined}
                 className={cn(
-                  "flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-colors relative group",
-                  isActive
-                    ? "bg-[hsl(var(--primary)/0.1)] text-[hsl(var(--primary))]"
-                    : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted)/0.5)] hover:text-heading",
-                  item.comingSoon && "opacity-60 cursor-not-allowed",
+                  "flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-[15px] font-medium transition-colors",
+                  active ? "bg-[#FF6B1A] text-white shadow-[0_8px_18px_-10px_rgba(255,107,26,0.9)]" : "text-[#0B1F44]/80 hover:bg-orange-50 hover:text-[#0B1F44]",
                 )}
-                onClick={(e) => {
-                  if (item.comingSoon) e.preventDefault();
-                  if (isMobileMenuOpen) setIsMobileMenuOpen(false);
-                }}
               >
-                <item.icon className="h-4 w-4" />
+                <item.icon className="h-5 w-5" aria-hidden="true" />
                 {item.name}
-                {item.comingSoon && (
-                  <span className="absolute right-2 text-[10px] bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))] px-1.5 py-0.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
-                    Soon
+                {item.badge === "unread" && unread > 0 && (
+                  <span className={cn("ml-auto flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[11px] font-bold", active ? "bg-white text-[#FF6B1A]" : "bg-[#FF6B1A] text-white")}>
+                    {unread > 99 ? "99+" : unread}
                   </span>
                 )}
               </Link>
             );
           })}
-        </div>
+        </nav>
 
-        <div className="p-4 border-t border-[hsl(var(--border))]">
+        <div className="border-t border-[#E5E7EB] p-3">
           <SwitchRoleLink />
+          <div aria-hidden="true" className="my-3 border-t border-[#E5E7EB]" />
+          <div className="flex items-center gap-3 px-1 py-2">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#FF6B1A]/12 text-base font-bold text-[#FF6B1A]">
+              {initials(name)}
+            </span>
+            <div className="min-w-0">
+              <p className="truncate text-sm font-bold text-[#0B1F44]">{name}</p>
+              {subtitle.length ? (
+                subtitle.map((line) => (
+                  <p key={line} className="truncate text-xs leading-snug text-[#64748B]">{line}</p>
+                ))
+              ) : (
+                <p className="text-xs text-[#64748B]">Faculty</p>
+              )}
+            </div>
+          </div>
           <button
-            onClick={handleLogout}
-            className="flex items-center gap-3 px-3 py-2.5 w-full rounded-md text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
+            type="button"
+            onClick={() => clearAuth()}
+            className="flex w-full items-center gap-3 rounded-xl px-3.5 py-2.5 text-[15px] font-medium text-[#0B1F44]/80 transition-colors hover:bg-red-50 hover:text-red-600"
           >
-            <LogOut className="h-4 w-4" />
+            <LogOut className="h-5 w-5" aria-hidden="true" />
             Logout
           </button>
         </div>
-      </nav>
+      </aside>
 
-      {/* Main Content Area */}
-      <main className="flex-1 flex flex-col min-w-0 bg-[#f8f9fa]">
-        {/* Top Header (Desktop) */}
-        <header className="hidden md:flex items-center justify-between p-6 border-b border-[hsl(var(--border))] bg-white/50 backdrop-blur-md sticky top-0 z-30">
-          <div className="flex-1">
-            <h1 className="text-xl font-bold text-heading">Faculty Review</h1>
-          </div>
-          <div className="flex items-center gap-4">
-            <NotificationBell inboxHref="/faculty/notifications" />
-          </div>
+      {isMobileMenuOpen && <div className="fixed inset-0 z-30 bg-[#0B1F44]/25 lg:hidden" onClick={closeMenu} aria-hidden="true" />}
+
+      {/* Main column */}
+      <div className="flex min-w-0 flex-1 flex-col">
+        <header className="sticky top-0 z-20 flex h-14 items-center gap-3 border-b border-[#E5E7EB] bg-white/90 px-4 backdrop-blur-md sm:px-6 lg:px-8">
+          <button type="button" onClick={() => setIsMobileMenuOpen(true)} aria-label="Open menu" className="-ml-1 rounded-lg p-2 text-[#0B1F44] hover:bg-slate-100 lg:hidden">
+            <Menu className="h-5 w-5" />
+          </button>
+          {title ? (
+            <h1 className="min-w-0 flex-1 truncate text-lg font-bold text-[#0B1F44] sm:text-2xl">{title}</h1>
+          ) : (
+            <span className="min-w-0 flex-1" aria-hidden="true" />
+          )}
+          <NotificationBell inboxHref="/faculty/notifications" variant="link" />
+          <span aria-hidden="true" className="hidden h-8 w-px bg-[#E5E7EB] sm:block" />
+          <UserMenu
+            name={name}
+            roleLabel={user?.designation || "Faculty"}
+            compact
+            switchRoleHref={(user?.roles?.length ?? 0) > 1 ? "/select-role" : undefined}
+            onLogout={() => clearAuth()}
+          />
         </header>
 
-        {/* Content Wrapper */}
-        <div className="flex-1 p-4 md:p-8 overflow-y-auto">{children}</div>
-      </main>
-
-      {/* Mobile Overlay */}
-      {isMobileMenuOpen && (
-        <div
-          className="fixed inset-0 bg-black/20 z-30 md:hidden"
-          onClick={() => setIsMobileMenuOpen(false)}
-        />
-      )}
+        <div className="min-w-0 flex-1 p-4 sm:p-6 lg:p-8">{children}</div>
+      </div>
     </div>
   );
 }

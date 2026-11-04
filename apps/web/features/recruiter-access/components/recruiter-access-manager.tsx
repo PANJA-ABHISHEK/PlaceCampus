@@ -21,6 +21,7 @@ const AVAILABLE_FIELDS = [
   { id: 'skillMatchCoverage', label: 'Skill Match Coverage' },
   { id: 'applicationStatus', label: 'Application Status' },
   { id: 'linkedinUrl', label: 'LinkedIn URL' },
+  { id: 'githubUrl', label: 'GitHub URL' },
   { id: 'portfolioUrl', label: 'Portfolio URL' },
 ];
 

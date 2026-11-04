@@ -10,6 +10,13 @@ import { UserRole } from '@placecampus/shared-types';
 export class MatchingController {
   constructor(private readonly matchingService: MatchingService) {}
 
+  @Get('student/skill-gaps')
+  @Roles(UserRole.STUDENT)
+  getSkillGaps(@Request() req: any) {
+    // Scoped to the caller: the student id always comes from the JWT.
+    return this.matchingService.getSkillGapAnalysis(req.user.id);
+  }
+
   @Get('student/drives/:id/match')
   @Roles(UserRole.STUDENT)
   getSkillMatch(@Param('id') id: string, @Request() req: any) {

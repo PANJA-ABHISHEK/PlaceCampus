@@ -4,7 +4,8 @@ import { getModelToken } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { User } from '../../users/schemas/user.schema.js';
 import { StudentProfile } from '../../students/schemas/student-profile.schema.js';
-import { UserRole } from '@placecampus/shared-types';
+import { FacultyAssignment } from '../../assignments/schemas/faculty-assignment.schema.js';
+import { FacultyAssignmentPurpose, UserRole } from '@placecampus/shared-types';
 import * as bcrypt from 'bcrypt';
 import * as dotenv from 'dotenv';
 import { resolve } from 'path';
@@ -32,6 +33,9 @@ async function runSeed() {
   const studentProfileModel = app.get<Model<any>>(
     getModelToken(StudentProfile.name),
   );
+  const assignmentModel = app.get<Model<any>>(
+    getModelToken(FacultyAssignment.name),
+  );
 
   const password = process.env.DEMO_ACCOUNT_PASSWORD || 'PlaceCampus@Demo123';
   const salt = await bcrypt.genSalt();
@@ -47,6 +51,8 @@ async function runSeed() {
       role: UserRole.FACULTY,
       email: 'faculty.demo@placecampus.local',
       fullName: 'Demo Faculty',
+      designation: 'Assistant Professor',
+      department: 'CSE',
     },
     {
       role: UserRole.PLACEMENT_OFFICER,
@@ -71,6 +77,7 @@ async function runSeed() {
   ];
 
   console.log('Seeding demo accounts...');
+  const seeded = new Map<string, any>();
 
   for (const account of demoAccounts) {
     let user = await userModel.findOne({ email: account.email });
@@ -83,6 +90,8 @@ async function runSeed() {
       user.role = account.role;
       user.fullName = account.fullName;
       user.isActive = true;
+      if ('designation' in account) user.designation = account.designation;
+      if ('department' in account) user.department = account.department;
       await user.save();
     } else {
       console.log(`Creating account ${account.email}...`);
@@ -92,9 +101,13 @@ async function runSeed() {
         fullName: account.fullName,
         role: account.role,
         isActive: true,
+        ...('designation' in account ? { designation: account.designation } : {}),
+        ...('department' in account ? { department: account.department } : {}),
       });
       await user.save();
     }
+
+    seeded.set(account.role, user);
 
     // Special logic for Student profile creation
     if (account.role === UserRole.STUDENT) {
@@ -103,9 +116,37 @@ async function runSeed() {
         console.log(`Creating student profile for ${account.email}...`);
         await studentProfileModel.create({
           userId: user._id,
+          registrationNumber: '22CS001',
+          department: 'CSE',
         });
+      } else {
+        // Fill institution fields without overwriting anything already set.
+        if (!profile.registrationNumber) profile.registrationNumber = '22CS001';
+        if (!profile.department) profile.department = 'CSE';
+        await profile.save();
       }
     }
+  }
+
+  // The demo faculty member mentors, reviews and interviews the demo student.
+  const faculty = seeded.get(UserRole.FACULTY);
+  const student = seeded.get(UserRole.STUDENT);
+  if (faculty && student) {
+    await assignmentModel.updateOne(
+      { facultyUserId: String(faculty._id), studentId: String(student._id) },
+      {
+        $setOnInsert: { validFrom: new Date(), conflictOfInterest: false },
+        $set: {
+          purposes: [
+            FacultyAssignmentPurpose.MENTOR,
+            FacultyAssignmentPurpose.EVIDENCE_REVIEWER,
+            FacultyAssignmentPurpose.INTERVIEWER,
+          ],
+        },
+      },
+      { upsert: true },
+    );
+    console.log('Assigned the demo student to the demo faculty member.');
   }
 
   console.log('====================================');

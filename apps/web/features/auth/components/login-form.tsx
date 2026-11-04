@@ -64,6 +64,9 @@ export function LoginForm({ portal = 'campus' }: { portal?: keyof typeof PORTALS
       setIsRedirecting(false);
       if (error instanceof ApiError) {
         setServerError(error.message);
+      } else if (error instanceof TypeError) {
+        // fetch() rejects with a TypeError when the API can't be reached.
+        setServerError('Cannot reach the server. Please check your connection or try again shortly.');
       } else {
         setServerError('An unexpected error occurred. Please try again.');
       }

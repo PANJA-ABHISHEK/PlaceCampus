@@ -7,6 +7,7 @@ import {
 } from '@nestjs/swagger';
 import { StudentsService } from './students.service.js';
 import { UpdateStudentProfileDto } from './dto/update-student-profile.dto.js';
+import { UpdateStudentPreferencesDto } from './dto/update-student-preferences.dto.js';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
 import { RolesGuard } from '../auth/guards/roles.guard.js';
 import { Roles } from '../auth/decorators/roles.decorator.js';
@@ -48,5 +49,20 @@ export class StudentsController {
       updateDto,
     );
     return { success: true, data: profile };
+  }
+
+  @Get('me/settings')
+  @ApiOperation({ summary: 'Get account details and preferences for the current student' })
+  getMySettings(@CurrentUser() user: UserReference) {
+    return this.studentsService.getSettings(user.id);
+  }
+
+  @Patch('me/preferences')
+  @ApiOperation({ summary: 'Update notification, privacy and appearance preferences' })
+  updateMyPreferences(
+    @CurrentUser() user: UserReference,
+    @Body() dto: UpdateStudentPreferencesDto,
+  ) {
+    return this.studentsService.updatePreferences(user.id, dto);
   }
 }

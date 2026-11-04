@@ -1,4 +1,11 @@
-import { IsEmail, IsIn, IsNotEmpty, IsString, MinLength } from 'class-validator';
+import {
+  IsEmail,
+  IsIn,
+  IsNotEmpty,
+  IsString,
+  MaxLength,
+  MinLength,
+} from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { UserRole } from '@placecampus/shared-types';
 
@@ -33,6 +40,23 @@ export class LoginDto {
   @IsString()
   @IsNotEmpty()
   password: string;
+}
+
+export class ChangePasswordDto {
+  @ApiProperty({ description: 'The current account password' })
+  @IsString()
+  @IsNotEmpty()
+  currentPassword: string;
+
+  @ApiProperty({
+    description: 'New password (12–128 characters)',
+    minLength: 12,
+    maxLength: 128,
+  })
+  @IsString()
+  @MinLength(12)
+  @MaxLength(128)
+  newPassword: string;
 }
 
 export class SetActiveRoleDto {

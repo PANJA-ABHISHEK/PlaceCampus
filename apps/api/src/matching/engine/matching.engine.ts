@@ -33,9 +33,9 @@ export class MatchingEngine {
         requiredCount++;
       }
 
-      // Check if student has the skill verified
+      // Check if student has the skill verified. Profile skill ids are stored as
+      // ObjectIds while drive requirements hold strings, so compare as strings.
       const studentSkill = skillProfile?.skills.find(
-        // skillId is an ObjectId on lean profiles but a string on drives.
         (s) =>
           String(s.skillId) === String(req.skillId) &&
           s.verificationStatus === 'VERIFIED',
