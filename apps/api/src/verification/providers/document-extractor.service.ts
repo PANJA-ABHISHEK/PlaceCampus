@@ -2,8 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import * as fs from 'fs';
 import { createReadStream } from 'fs';
 import * as path from 'path';
-import * as _pdf from 'pdf-parse';
-const pdf = (_pdf as any).default || _pdf;
+import { PDFParse } from 'pdf-parse';
 import Tesseract from 'tesseract.js';
 
 export interface ExtractionResult {
@@ -42,9 +41,15 @@ export class DocumentExtractorService {
 
   private async extractFromPdf(filePath: string): Promise<ExtractionResult> {
     const dataBuffer = fs.readFileSync(filePath);
-    const data = await pdf(dataBuffer);
+    // pdf-parse v2 exposes a class instead of the v1 default function.
+    const parser = new PDFParse({ data: dataBuffer });
+    let text: string;
+    try {
+      text = (await parser.getText()).text.trim();
+    } finally {
+      await parser.destroy();
+    }
 
-    const text = data.text.trim();
     return {
       text,
       method: 'PDF_TEXT',

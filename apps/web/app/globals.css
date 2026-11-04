@@ -299,10 +299,13 @@
    Base Styles
    ============================================ */
 
-*,
-*::before,
-*::after {
-  border-color: hsl(var(--border));
+/* Layered so Tailwind border-color utilities can override it. */
+@layer base {
+  *,
+  *::before,
+  *::after {
+    border-color: hsl(var(--border));
+  }
 }
 
 html {

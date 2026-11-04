@@ -13,6 +13,7 @@
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",
     "seed:demo": "nest build && node dist/database/seed/demo-accounts.seed.js",
+    "seed:showcase": "nest build && node dist/database/seed/showcase-student.seed.js",
     "lint": "oxlint src/ test/",
     "typecheck": "tsc --noEmit",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",

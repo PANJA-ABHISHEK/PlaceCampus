@@ -18,12 +18,12 @@ export class SkillNormalizationService {
   ) {}
 
   /**
-   * Normalize an input string.
-   * - Trim whitespace
-   * - Convert to lowercase
+   * Normalize an input string the same way skill `normalizedName`s are stored
+   * (see skills.seed.ts): lowercase, keeping only letters and digits, so
+   * "Node.js", "Tailwind CSS" and "REST API" resolve to their canonical skills.
    */
   private normalizeString(input: string): string {
-    return input.trim().toLowerCase();
+    return input.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
   }
 
   /**

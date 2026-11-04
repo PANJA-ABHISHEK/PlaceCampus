@@ -103,23 +103,23 @@ export function ReadinessMatchingSection() {
       case "high":
         return "text-[hsl(var(--destructive))] border-[hsl(var(--destructive)/0.3)] bg-[hsl(var(--destructive)/0.1)]";
       case "medium":
-        return "text-[hsl(var(--warning))] border-[hsl(var(--warning)/0.3)] bg-[hsl(var(--warning)/0.1)]";
+        return "text-[hsl(var(--color-warning))] border-[hsl(var(--color-warning)/0.3)] bg-[hsl(var(--color-warning)/0.1)]";
       default:
         return "text-[hsl(var(--info))] border-[hsl(var(--info)/0.3)] bg-[hsl(var(--info)/0.1)]";
     }
   };
 
   return (
-    <section id="students" className="scroll-mt-24 border-t border-[hsl(var(--border))] bg-[hsl(var(--background-secondary))] py-20 md:py-24 overflow-hidden">
+    <section id="students" className="scroll-mt-24 border-t border-[hsl(var(--border))] bg-[hsl(var(--background-secondary))] py-14 md:py-16 overflow-hidden">
       <div className="container-app">
-        <div className="text-center max-w-3xl mx-auto mb-16" data-aos="fade-up">
+        <div className="text-center max-w-3xl mx-auto mb-10 md:mb-12" data-aos="fade-up">
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[hsl(var(--primary)/0.1)] text-[hsl(var(--color-primary-dark))] font-medium text-sm mb-6 border border-[hsl(var(--primary)/0.2)]">
             Explainable Intelligence
           </div>
           <h2 className="text-heading text-3xl md:text-4xl lg:text-5xl mb-6 text-[hsl(var(--foreground))]">
             Know where you stand.
             <br />
-            Know where you fit.
+            Know where you <span className="text-[hsl(var(--primary))]">fit.</span>
           </h2>
           <p className="text-body text-lg text-[hsl(var(--muted-foreground))]">
             Readiness reflects verified profile evidence. Eligibility is a

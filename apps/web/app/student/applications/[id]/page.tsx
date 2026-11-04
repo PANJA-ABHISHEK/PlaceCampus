@@ -7,6 +7,7 @@ import {
   useMyApplication,
   useWithdrawApplication,
 } from "@/features/applications/hooks/use-applications";
+import { useDrive } from "@/features/drives/hooks/use-drives";
 import {
   ApplicationStatus,
   EligibilityCheckStatus,
@@ -26,6 +27,7 @@ import { Button } from "@/components/ui/button";
 export default function StudentApplicationDetailPage() {
   const { id } = useParams() as { id: string };
   const { data: application, isLoading } = useMyApplication(id);
+  const { data: drive } = useDrive(application?.driveId ?? "");
   const withdrawMutation = useWithdrawApplication();
 
   if (isLoading) {
@@ -122,10 +124,10 @@ export default function StudentApplicationDetailPage() {
             </div>
             <div>
               <h1 className="text-2xl font-bold text-heading">
-                Drive {application.driveId.slice(-6)}
+                {drive?.companyName ?? `Drive ${application.driveId.slice(-6)}`}
               </h1>
               <p className="text-muted-foreground">
-                Application #{application.id.slice(-6)}
+                {drive ? `${drive.roleTitle} · ` : ""}Application #{application.id.slice(-6)}
               </p>
             </div>
           </div>
