@@ -18,6 +18,7 @@ export const ALLOWED_RELEASE_FIELDS = [
   'applicationStatus',
   'projects',
   'linkedinUrl',
+  'githubUrl',
   'portfolioUrl',
 ];
 

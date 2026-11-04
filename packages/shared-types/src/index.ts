@@ -53,6 +53,9 @@ export interface UserReference {
   activeRole?: UserRole | null;
   /** True until a multi-role user picks an active role. */
   requiresRoleSelection?: boolean;
+  /** Staff designation and department (faculty and other staff). */
+  designation?: string;
+  department?: string;
 }
 
 /** Response of `POST /auth/login` and `POST /recruiter/auth/login`. */
@@ -144,6 +147,14 @@ export interface EvidenceItem {
   document?: EvidenceDocument;
   rejectionReason?: string;
   verifiedAt?: string;
+  /** Faculty member this item is routed to for review. */
+  reviewerId?: string;
+  reviewAssignedAt?: string;
+  /** Review service level: 3 working days from assignment. */
+  reviewDueAt?: string;
+  reviewClaimedBy?: string;
+  /** Renewable 30-minute soft lock while a reviewer works on the item. */
+  reviewLockExpiresAt?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -596,6 +607,110 @@ export interface SkillMatchResult {
   calculatedAt: string;
 }
 
+/**
+ * SKILL GAP ANALYSIS (student-wide, aggregated over all published drives)
+ */
+
+/** MISSING: not verified at all; BELOW_LEVEL: verified under the required level; OPTIONAL: only optional drives ask for more. */
+export type SkillGapStatus = 'MISSING' | 'BELOW_LEVEL' | 'OPTIONAL';
+
+export interface SkillGapDriveRef {
+  driveId: string;
+  companyName: string;
+  roleTitle: string;
+  requiredLevel: number;
+  isOptional: boolean;
+  applicationDeadline?: string;
+}
+
+export interface SkillGapItem {
+  skillId: string;
+  skillName: string;
+  /** Skill cluster name from the taxonomy, when the skill belongs to one. */
+  category?: string;
+  status: SkillGapStatus;
+  priority: GapPriority;
+  /** Verified level, absent when the skill is not verified. */
+  currentLevel?: number;
+  /** Highest level any drive asks for. */
+  requiredLevel: number;
+  gapLevel: number;
+  drives: SkillGapDriveRef[];
+}
+
+export interface SkillGapDriveCoverage {
+  driveId: string;
+  companyName: string;
+  roleTitle: string;
+  requiredSkillCoverage: number;
+  requiredCount: number;
+  satisfiedCount: number;
+}
+
+export interface SkillGapAnalysis {
+  /** False when the student has no verified skills yet: gaps would just be every requirement. */
+  sufficientData: boolean;
+  verifiedSkillCount: number;
+  drivesAnalyzed: number;
+  /** Required skill requirements across drives, and how many are met. */
+  requirementsTotal: number;
+  requirementsMet: number;
+  gaps: SkillGapItem[];
+  driveCoverage: SkillGapDriveCoverage[];
+  calculatedAt: string;
+}
+
+/**
+ * STUDENT SETTINGS
+ */
+export interface StudentNotificationPreferences {
+  email: boolean;
+  driveAnnouncements: boolean;
+  applicationUpdates: boolean;
+  assessmentUpdates: boolean;
+  interviewUpdates: boolean;
+}
+
+export interface StudentPrivacyPreferences {
+  /** Master switch: when off, no personal links are shared with recruiters. */
+  shareProfileLinks: boolean;
+  showLinkedin: boolean;
+  showGithub: boolean;
+  showPortfolio: boolean;
+}
+
+export type ThemePreference = 'light' | 'dark' | 'system';
+
+export interface StudentPreferences {
+  notifications: StudentNotificationPreferences;
+  privacy: StudentPrivacyPreferences;
+  theme: ThemePreference;
+}
+
+export interface StudentSettings {
+  account: {
+    fullName: string;
+    email: string;
+    registrationNumber?: string;
+    university?: string;
+    department?: string;
+    program?: string;
+    batch?: string;
+    graduationYear?: number;
+    lastLoginAt?: string;
+    createdAt?: string;
+  };
+  preferences: StudentPreferences;
+  /** Email delivery is not configured on the server; the email preference is stored for when it is. */
+  emailDeliveryAvailable: boolean;
+}
+
+export interface UpdateStudentPreferencesDto {
+  notifications?: Partial<StudentNotificationPreferences>;
+  privacy?: Partial<StudentPrivacyPreferences>;
+  theme?: ThemePreference;
+}
+
 /** 
  * APPLICATIONS 
  */
@@ -824,6 +939,9 @@ export const NotificationType = {
   APPLICATION_STATUS_CHANGED: 'APPLICATION_STATUS_CHANGED',
   PREPARATION_PLAN_CREATED: 'PREPARATION_PLAN_CREATED',
   PREPARATION_PLAN_COMPLETED: 'PREPARATION_PLAN_COMPLETED',
+  REVIEW_ASSIGNED: 'REVIEW_ASSIGNED',
+  MENTOR_ASSIGNED: 'MENTOR_ASSIGNED',
+  DRIVE_PUBLISHED: 'DRIVE_PUBLISHED',
 } as const;
 export type NotificationType = typeof NotificationType[keyof typeof NotificationType];
 
@@ -850,4 +968,81 @@ export interface NotificationListResponse {
 
 export interface NotificationUnreadCountResponse {
   count: number;
+}
+
+/* ------------------------------------------------------------------ */
+/* Faculty assignments and faculty portal                              */
+/* ------------------------------------------------------------------ */
+
+export const FacultyAssignmentPurpose = {
+  MENTOR: 'MENTOR',
+  EVIDENCE_REVIEWER: 'EVIDENCE_REVIEWER',
+  INTERVIEWER: 'INTERVIEWER',
+  PROJECT_GUIDE: 'PROJECT_GUIDE',
+} as const;
+export type FacultyAssignmentPurpose = typeof FacultyAssignmentPurpose[keyof typeof FacultyAssignmentPurpose];
+
+/** ASSIGNED until the reviewer opens it; CLAIMED while their 30-minute lock is active. */
+export type ReviewState = 'ASSIGNED' | 'CLAIMED';
+
+export interface FacultyStudentRef {
+  id: string;
+  fullName: string;
+  registrationNumber?: string;
+}
+
+export interface FacultyReviewQueueItem {
+  id: string;
+  title: string;
+  type: EvidenceType;
+  status: EvidenceStatus;
+  student: FacultyStudentRef | null;
+  reviewDueAt?: string;
+  reviewState: ReviewState;
+  overdue: boolean;
+  createdAt: string;
+}
+
+export interface FacultyUpcomingInterview {
+  id: string;
+  type: string;
+  status: MockInterviewStatus;
+  scheduledAt: string;
+  durationMinutes?: number;
+  meetingUrl?: string;
+  student: FacultyStudentRef | null;
+}
+
+export interface FacultyStudentSummary extends FacultyStudentRef {
+  email?: string;
+  department?: string;
+  program?: string;
+  batch?: string;
+  purposes: FacultyAssignmentPurpose[];
+  /** Latest readiness score (0–100), or null when not calculated yet. */
+  readinessScore: number | null;
+  verifiedSkills: number;
+  pendingReviews: number;
+  assignedAt: string;
+}
+
+export interface FacultyDashboard {
+  faculty: { id: string; fullName: string; designation?: string; department?: string };
+  stats: {
+    assignedStudents: number;
+    pendingReviews: number;
+    upcomingInterviews: number;
+    overdueReviews: number;
+  };
+  reviewQueue: FacultyReviewQueueItem[];
+  upcomingInterviews: FacultyUpcomingInterview[];
+  students: FacultyStudentSummary[];
+}
+
+export interface FacultyStudentDetail {
+  student: FacultyStudentSummary & { cgpa?: number; phone?: string };
+  readiness: { overallScore: number; calculatedAt?: string; strengths: string[]; areasToImprove: string[] } | null;
+  skills: { name: string; level: number }[];
+  evidence: { id: string; title: string; type: EvidenceType; status: EvidenceStatus; createdAt: string; reviewedByMe: boolean }[];
+  interviews: { id: string; type: string; status: MockInterviewStatus; scheduledAt: string }[];
 }

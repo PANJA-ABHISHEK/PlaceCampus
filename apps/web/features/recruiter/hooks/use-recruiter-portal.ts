@@ -18,6 +18,7 @@ export interface RecruiterCandidate {
   skillMatchCoverage?: number;
   applicationStatus?: string;
   linkedinUrl?: string;
+  githubUrl?: string;
   portfolioUrl?: string;
   expiresAt?: string;
   skills?: RecruiterCandidateSkill[];

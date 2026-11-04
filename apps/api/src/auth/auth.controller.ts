@@ -23,6 +23,7 @@ import {
   RegisterDto,
   LoginDto,
   ForgotPasswordDto,
+  ChangePasswordDto,
   SetActiveRoleDto,
 } from './dto/auth.dto.js';
 import { JwtAuthGuard } from './guards/jwt-auth.guard.js';
@@ -105,6 +106,28 @@ export class AuthController {
     );
     setRefreshCookie(res, result.refreshToken);
     return { accessToken: result.accessToken, activeRole: dto.role };
+  }
+
+  @Post('change-password')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Change the current user password' })
+  @ApiResponse({ status: 200, description: 'Password changed successfully' })
+  @ApiResponse({ status: 400, description: 'Current password or new password is invalid' })
+  async changePassword(
+    @CurrentUser() user: any,
+    @Body() dto: ChangePasswordDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const result = await this.authService.changePassword(
+      user.userId,
+      user.sessionId,
+      dto.currentPassword,
+      dto.newPassword,
+    );
+    setRefreshCookie(res, result.refreshToken);
+    return { accessToken: result.accessToken };
   }
 
   @Post('refresh')

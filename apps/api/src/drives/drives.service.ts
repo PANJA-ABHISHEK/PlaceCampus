@@ -3,7 +3,9 @@ import {
   NotFoundException,
   ForbiddenException,
   BadRequestException,
+  Optional,
 } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import {
@@ -21,6 +23,7 @@ export class DrivesService {
   constructor(
     @InjectModel(PlacementDrive.name)
     private readonly placementDriveModel: Model<PlacementDriveDocument>,
+    @Optional() private readonly eventEmitter?: EventEmitter2,
   ) {}
 
   async create(
@@ -100,7 +103,10 @@ export class DrivesService {
     }
 
     drive.status = DriveStatus.PUBLISHED;
-    return drive.save();
+    const saved = await drive.save();
+    // Announces the drive to students (each one's notification preferences apply).
+    this.eventEmitter?.emit('drive.published', { drive: saved });
+    return saved;
   }
 
   async close(id: string): Promise<PlacementDriveDocument> {

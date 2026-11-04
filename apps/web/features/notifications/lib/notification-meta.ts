@@ -42,6 +42,9 @@ const TYPE_CATEGORY: Partial<Record<NotificationType, NotificationCategory>> = {
   APPLICATION_STATUS_CHANGED: "APPLICATIONS",
   PREPARATION_PLAN_CREATED: "PREPARATION",
   PREPARATION_PLAN_COMPLETED: "PREPARATION",
+  REVIEW_ASSIGNED: "SKILLS",
+  MENTOR_ASSIGNED: "SYSTEM",
+  DRIVE_PUBLISHED: "APPLICATIONS",
 };
 
 export function getCategory(type: NotificationType): NotificationCategory {

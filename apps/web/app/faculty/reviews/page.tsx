@@ -2,227 +2,140 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useFacultyReviews } from "@/features/faculty/hooks/use-faculty-reviews";
-import { EvidenceStatus } from "@placecampus/shared-types";
+import { useRouter, useSearchParams } from "next/navigation";
 import { format } from "date-fns";
-import { Badge } from "@/components/ui/badge";
-import {
-  AlertCircle,
-  Clock,
-  CheckCircle2,
-  ChevronRight,
-  FileText,
-  Search,
-} from "lucide-react";
-import {
-  getStatusConfig,
-  getTypeLabel,
-} from "@/features/evidence/components/evidence-card";
+import { AlertTriangle, CheckCheck, ChevronRight, CircleAlert, FileCheck2, RotateCcw } from "lucide-react";
+import { EvidenceStatus, type FacultyReviewQueueItem } from "@placecampus/shared-types";
+import { useFacultyReviews } from "@/features/faculty/hooks/use-faculty-reviews";
+import { useFacultyDashboard } from "@/features/faculty/hooks/use-faculty-portal";
+import { REVIEW_STATE_BADGE } from "@/features/faculty/lib/faculty-meta";
+import { StudentCell, facultyCard } from "@/features/faculty/components/faculty-ui";
+import { TYPE_META } from "@/features/evidence/lib/evidence-meta";
+import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 
-export default function FacultyReviewsPage() {
-  const [statusFilter, setStatusFilter] = React.useState<string>(
-    EvidenceStatus.NEEDS_REVIEW,
+type Tab = "NEEDS_REVIEW" | "OVERDUE" | "RESUBMISSION_REQUESTED";
+
+const TABS: { key: Tab; label: string }[] = [
+  { key: "NEEDS_REVIEW", label: "Needs Review" },
+  { key: "OVERDUE", label: "Overdue" },
+  { key: "RESUBMISSION_REQUESTED", label: "Awaiting Resubmission" },
+];
+
+function FacultyReviewsContent() {
+  const router = useRouter();
+  const params = useSearchParams();
+  const tab: Tab = params.get("filter") === "overdue" ? "OVERDUE" : params.get("status") === EvidenceStatus.RESUBMISSION_REQUESTED ? "RESUBMISSION_REQUESTED" : "NEEDS_REVIEW";
+  const stats = useFacultyDashboard().data?.stats;
+  const { data: reviews, isLoading, isError, refetch } = useFacultyReviews(
+    tab === "OVERDUE" ? undefined : tab,
+    undefined,
+    tab === "OVERDUE" ? "overdue" : undefined,
   );
-  const {
-    data: reviews,
-    isLoading,
-    isError,
-    refetch,
-  } = useFacultyReviews(statusFilter);
+
+  const setTab = (next: Tab) => {
+    const query = next === "OVERDUE" ? "?filter=overdue" : next === "RESUBMISSION_REQUESTED" ? `?status=${next}` : "";
+    router.replace(`/faculty/reviews${query}`, { scroll: false });
+  };
+
+  const items = (reviews ?? []) as unknown as FacultyReviewQueueItem[];
 
   return (
-    <div className="max-w-6xl mx-auto space-y-8 animate-in fade-in duration-500">
-      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight text-heading">
-            Evidence Review Queue
-          </h1>
-          <p className="text-[hsl(var(--muted-foreground))] mt-2">
-            Review evidence flagged by the verification engine and make the
-            final verification decision.
-          </p>
-        </div>
+    <div className="mx-auto w-full max-w-[1280px] space-y-6">
+      <div>
+        <h2 className="text-2xl font-extrabold tracking-tight text-[#0B1F44]">Evidence Review Queue</h2>
+        <p className="mt-1 text-sm text-[#64748B]">
+          Items routed to you for verification, most urgent first. Opening an item claims it for 30 minutes so nobody else works on it.
+        </p>
       </div>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white p-6 rounded-2xl border border-[hsl(var(--border))] shadow-sm flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-orange-50 text-orange-600 flex items-center justify-center shrink-0">
-            <AlertCircle className="w-6 h-6" />
-          </div>
-          <div>
-            <p className="text-sm text-[hsl(var(--muted-foreground))] font-medium">
-              Needs Review
-            </p>
-            <p className="text-2xl font-bold text-heading">
-              {isError
-                ? "--"
-                : reviews?.filter(
-                    (r) => r.status === EvidenceStatus.NEEDS_REVIEW,
-                  ).length || 0}
-            </p>
-          </div>
-        </div>
-        <div className="bg-white p-6 rounded-2xl border border-[hsl(var(--border))] shadow-sm flex items-center gap-4 opacity-50">
-          <div className="w-12 h-12 rounded-xl bg-green-50 text-green-600 flex items-center justify-center shrink-0">
-            <CheckCircle2 className="w-6 h-6" />
-          </div>
-          <div>
-            <p className="text-sm text-[hsl(var(--muted-foreground))] font-medium">
-              Recently Approved
-            </p>
-            <p className="text-2xl font-bold text-heading">--</p>
-          </div>
-        </div>
-        <div className="bg-white p-6 rounded-2xl border border-[hsl(var(--border))] shadow-sm flex items-center gap-4 opacity-50">
-          <div className="w-12 h-12 rounded-xl bg-red-50 text-red-600 flex items-center justify-center shrink-0">
-            <Clock className="w-6 h-6" />
-          </div>
-          <div>
-            <p className="text-sm text-[hsl(var(--muted-foreground))] font-medium">
-              Avg Review Time
-            </p>
-            <p className="text-2xl font-bold text-heading">--</p>
-          </div>
-        </div>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <button type="button" onClick={() => setTab("NEEDS_REVIEW")} className={cn(facultyCard, "flex items-center gap-4 p-5 text-left transition-all hover:-translate-y-0.5", tab === "NEEDS_REVIEW" && "border-[#FF6B1A]/40")}>
+          <span className="flex h-12 w-12 items-center justify-center rounded-full bg-orange-50 text-[#FF6B1A]"><FileCheck2 className="h-6 w-6" aria-hidden="true" /></span>
+          <span><span className="block text-2xl font-extrabold tabular-nums text-[#0B1F44]">{stats?.pendingReviews ?? "–"}</span><span className="text-sm text-[#64748B]">Pending reviews</span></span>
+        </button>
+        <button type="button" onClick={() => setTab("OVERDUE")} className={cn(facultyCard, "flex items-center gap-4 p-5 text-left transition-all hover:-translate-y-0.5", tab === "OVERDUE" && "border-red-300")}>
+          <span className="flex h-12 w-12 items-center justify-center rounded-full bg-red-50 text-red-600"><AlertTriangle className="h-6 w-6" aria-hidden="true" /></span>
+          <span><span className="block text-2xl font-extrabold tabular-nums text-[#0B1F44]">{stats?.overdueReviews ?? "–"}</span><span className="text-sm text-[#64748B]">Overdue (past 3 working days)</span></span>
+        </button>
       </div>
 
-      <div className="bg-white rounded-2xl border border-[hsl(var(--border))] shadow-sm overflow-hidden flex flex-col">
-        {/* Filters */}
-        <div className="p-4 border-b border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.3)] flex items-center gap-4">
-          <div className="flex bg-[hsl(var(--muted))] p-1 rounded-lg">
+      <section className={cn(facultyCard, "overflow-hidden")}>
+        <div role="tablist" aria-label="Review filter" className="flex flex-wrap gap-1 border-b border-[#E5E7EB] bg-slate-50/60 p-2">
+          {TABS.map((t) => (
             <button
-              onClick={() => setStatusFilter(EvidenceStatus.NEEDS_REVIEW)}
-              className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${statusFilter === EvidenceStatus.NEEDS_REVIEW ? "bg-white text-heading shadow-sm" : "text-[hsl(var(--muted-foreground))] hover:text-heading"}`}
+              key={t.key}
+              type="button"
+              role="tab"
+              aria-selected={tab === t.key}
+              onClick={() => setTab(t.key)}
+              className={cn("rounded-lg px-4 py-2 text-sm font-semibold transition-colors", tab === t.key ? "bg-white text-[#0B1F44] shadow-sm ring-1 ring-[#E5E7EB]" : "text-[#64748B] hover:text-[#0B1F44]")}
             >
-              Needs Review
+              {t.label}
             </button>
-            <button
-              onClick={() =>
-                setStatusFilter(EvidenceStatus.RESUBMISSION_REQUESTED)
-              }
-              className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${statusFilter === EvidenceStatus.RESUBMISSION_REQUESTED ? "bg-white text-heading shadow-sm" : "text-[hsl(var(--muted-foreground))] hover:text-heading"}`}
-            >
-              Resubmitted
-            </button>
-            <button
-              onClick={() => setStatusFilter("ALL")}
-              className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${statusFilter === "ALL" ? "bg-white text-heading shadow-sm" : "text-[hsl(var(--muted-foreground))] hover:text-heading"}`}
-            >
-              All Pending
-            </button>
-          </div>
+          ))}
         </div>
 
-        {/* List */}
-        <div className="divide-y divide-[hsl(var(--border))]">
-          {isLoading && (
-            <div className="p-12 flex justify-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[hsl(var(--primary))]"></div>
-            </div>
-          )}
-
-          {isError && (
-            <div className="p-12 text-center" role="alert">
-              <AlertCircle className="w-8 h-8 text-red-500 mx-auto mb-3" />
-              <h3 className="text-lg font-bold text-heading">
-                Could not load the review queue
-              </h3>
-              <p className="text-[hsl(var(--muted-foreground))] mt-2">
-                Check that the API and database are available, then try again.
-              </p>
-              <button
-                type="button"
-                onClick={() => refetch()}
-                className="mt-4 rounded-md bg-[hsl(var(--primary))] px-4 py-2 text-sm font-semibold text-white hover:opacity-90"
-              >
-                Retry
-              </button>
-            </div>
-          )}
-
-          {!isLoading && !isError && (!reviews || reviews.length === 0) && (
-            <div className="p-16 text-center">
-              <div className="w-16 h-16 bg-[hsl(var(--muted))] rounded-full flex items-center justify-center mx-auto mb-4">
-                <CheckCircle2 className="w-8 h-8 text-[hsl(var(--muted-foreground))]" />
-              </div>
-              <h3 className="text-lg font-bold text-heading">All caught up!</h3>
-              <p className="text-[hsl(var(--muted-foreground))] mt-2">
-                There is no evidence pending your review at the moment.
-              </p>
-            </div>
-          )}
-
-          {!isLoading &&
-            reviews &&
-            reviews.map((item) => {
-              const statusConf = getStatusConfig(item.status);
-              const StatusIcon = statusConf.icon;
-
+        {isLoading ? (
+          <div className="space-y-3 p-5" aria-busy="true">{Array.from({ length: 4 }, (_, i) => <Skeleton key={i} className="h-16 rounded-xl" />)}</div>
+        ) : isError ? (
+          <div className="flex flex-col items-center gap-3 px-6 py-12 text-center" role="alert">
+            <CircleAlert className="h-8 w-8 text-red-600" aria-hidden="true" />
+            <p className="font-semibold text-red-900">Could not load the review queue</p>
+            <button type="button" onClick={() => refetch()} className="inline-flex h-10 items-center gap-2 rounded-xl bg-white px-4 text-sm font-semibold text-red-700 ring-1 ring-red-200"><RotateCcw className="h-4 w-4" aria-hidden="true" /> Retry</button>
+          </div>
+        ) : items.length === 0 ? (
+          <div className="flex flex-col items-center gap-2 px-6 py-14 text-center">
+            <span className="flex h-11 w-11 items-center justify-center rounded-full bg-emerald-50 text-emerald-600"><CheckCheck className="h-5 w-5" aria-hidden="true" /></span>
+            <p className="text-sm text-[#64748B]">
+              {tab === "OVERDUE" ? "Nothing is overdue. Nice work!" : tab === "RESUBMISSION_REQUESTED" ? "No items are waiting on a student resubmission." : "You're all caught up! No evidence reviews require your attention."}
+            </p>
+          </div>
+        ) : (
+          <ul className="divide-y divide-[#E5E7EB]">
+            {items.map((item) => {
+              const type = TYPE_META[item.type];
+              const state = REVIEW_STATE_BADGE[item.reviewState];
+              const waiting = item.status === EvidenceStatus.RESUBMISSION_REQUESTED;
               return (
-                <Link
-                  key={item.id}
-                  href={`/faculty/reviews/${item.id}`}
-                  className="group flex flex-col md:flex-row md:items-center p-4 md:p-6 hover:bg-[hsl(var(--muted)/0.2)] transition-colors gap-4"
-                >
-                  <div className="w-12 h-12 rounded-xl bg-[hsl(var(--muted))] flex items-center justify-center shrink-0">
-                    <FileText className="w-6 h-6 text-[hsl(var(--muted-foreground))]" />
-                  </div>
-
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <h4 className="font-semibold text-heading truncate group-hover:text-[hsl(var(--primary))] transition-colors">
-                        {item.title}
-                      </h4>
-                      <Badge
-                        variant={statusConf.variant}
-                        className={`text-[10px] py-0 h-5 ${statusConf.className}`}
-                      >
-                        <StatusIcon className="w-3 h-3 mr-1" />
-                        {statusConf.label}
-                      </Badge>
+                <li key={item.id}>
+                  <Link href={`/faculty/reviews/${item.id}`} className="group grid grid-cols-1 items-center gap-3 px-5 py-4 transition-colors hover:bg-slate-50/70 md:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_auto]">
+                    <StudentCell student={item.student} full />
+                    <div className="flex min-w-0 items-center gap-2.5">
+                      <type.icon className="h-4 w-4 shrink-0 text-[#FF6B1A]" aria-hidden="true" />
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-[#0B1F44] group-hover:text-[#FF6B1A]">{item.title}</p>
+                        <p className="text-xs text-[#64748B]">{type.label} · submitted {format(new Date(item.createdAt), "MMM d, yyyy")}</p>
+                      </div>
                     </div>
-
-                    <div className="flex flex-wrap items-center gap-3 text-xs text-[hsl(var(--muted-foreground))]">
-                      <span className="font-medium bg-[hsl(var(--primary)/0.1)] text-[hsl(var(--primary))] px-2 py-0.5 rounded-full">
-                        {getTypeLabel(item.type)}
-                      </span>
-                      <span>•</span>
-                      <span className="truncate max-w-[200px]">
-                        Issuer: {item.issuer || "Unknown"}
-                      </span>
-                      <span>•</span>
-                      <span>
-                        Submitted{" "}
-                        {format(new Date(item.createdAt), "MMM d, yyyy")}
-                      </span>
+                    <div className="flex flex-wrap items-center gap-2 md:justify-end">
+                      {item.reviewDueAt && !waiting && (
+                        <span className={cn("text-xs", item.overdue ? "font-semibold text-red-600" : "text-[#64748B]")}>
+                          {item.overdue ? "Overdue" : "Due"}: {format(new Date(item.reviewDueAt), "MMM d, yyyy")}
+                        </span>
+                      )}
+                      {waiting ? (
+                        <span className="rounded-md bg-slate-100 px-2 py-0.5 text-xs font-semibold text-[#64748B] ring-1 ring-slate-200">Awaiting student</span>
+                      ) : (
+                        <span className={cn("rounded-md px-2 py-0.5 text-xs font-semibold ring-1", state.className)}>{state.label}</span>
+                      )}
+                      <ChevronRight className="h-5 w-5 text-[#64748B] group-hover:text-[#FF6B1A]" aria-hidden="true" />
                     </div>
-                  </div>
-
-                  <div className="shrink-0 flex items-center gap-4">
-                    <div className="hidden md:block text-right">
-                      <p className="text-sm font-medium text-heading">
-                        {item.status === EvidenceStatus.PROCESSING
-                          ? "Verification"
-                          : item.status === EvidenceStatus.UNVERIFIED
-                            ? "Submission"
-                            : "Faculty Review"}
-                      </p>
-                      <p className="text-xs text-[hsl(var(--muted-foreground))]">
-                        {item.status === EvidenceStatus.PROCESSING
-                          ? "In progress"
-                          : item.status === EvidenceStatus.UNVERIFIED
-                            ? "Awaiting verification"
-                            : "Needs Action"}
-                      </p>
-                    </div>
-                    <ChevronRight className="w-5 h-5 text-[hsl(var(--muted-foreground))] group-hover:text-[hsl(var(--primary))] transition-colors" />
-                  </div>
-                </Link>
+                  </Link>
+                </li>
               );
             })}
-        </div>
-      </div>
+          </ul>
+        )}
+      </section>
     </div>
+  );
+}
+
+export default function FacultyReviewsPage() {
+  return (
+    <React.Suspense fallback={<Skeleton className="mx-auto h-[400px] max-w-[1280px] rounded-2xl" />}>
+      <FacultyReviewsContent />
+    </React.Suspense>
   );
 }

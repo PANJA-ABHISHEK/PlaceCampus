@@ -6,11 +6,13 @@ import {
   StudentProfile,
   StudentProfileSchema,
 } from './schemas/student-profile.schema.js';
+import { User, UserSchema } from '../users/schemas/user.schema.js';
 
 @Module({
   imports: [
     MongooseModule.forFeature([
       { name: StudentProfile.name, schema: StudentProfileSchema },
+      { name: User.name, schema: UserSchema },
     ]),
   ],
   controllers: [StudentsController],

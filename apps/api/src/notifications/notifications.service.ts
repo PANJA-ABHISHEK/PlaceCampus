@@ -1,8 +1,10 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { NotificationType } from '@placecampus/shared-types';
 import { Notification, NotificationDocument } from './schemas/notification.schema.js';
+import { StudentsService } from '../students/students.service.js';
+import { preferenceForType } from '../students/student-preferences.js';
 
 type NotificationEvent = {
   recipientId?: string;
@@ -19,10 +21,45 @@ type NotificationEvent = {
 export class NotificationsService {
   private readonly logger = new Logger(NotificationsService.name);
 
-  constructor(@InjectModel(Notification.name) private readonly notificationModel: Model<NotificationDocument>) {}
+  constructor(
+    @InjectModel(Notification.name) private readonly notificationModel: Model<NotificationDocument>,
+    @Optional() private readonly studentsService?: StudentsService,
+  ) {}
+
+  /** True when the recipient is a student who switched this notification category off. */
+  private async isMuted(recipientId: string, type: NotificationType) {
+    const key = preferenceForType(type);
+    if (!key || !this.studentsService) return false;
+    const prefs = await this.studentsService.getPreferencesIfStudent(recipientId).catch(() => null);
+    return prefs ? prefs.notifications[key] === false : false;
+  }
+
+  /**
+   * One notification per recipient (e.g. a drive announcement), skipping those
+   * who opted out. Duplicate idempotency keys are ignored.
+   */
+  async createForRecipients(recipientIds: string[], event: Omit<NotificationEvent, 'recipientId' | 'idempotencyKey'> & { idempotencyKeyPrefix: string }) {
+    if (!recipientIds.length || !this.isSafeRoute(event.actionUrl)) return 0;
+    const key = preferenceForType(event.type);
+    const prefs = key && this.studentsService ? await this.studentsService.getPreferencesForUsers(recipientIds) : new Map();
+    const { idempotencyKeyPrefix, ...rest } = event;
+    const docs = recipientIds
+      .filter((id) => !key || prefs.get(id)?.notifications[key] !== false)
+      .map((recipientId) => ({ ...rest, recipientId, idempotencyKey: `${idempotencyKeyPrefix}:${recipientId}` }));
+    if (!docs.length) return 0;
+    try {
+      const inserted = await this.notificationModel.insertMany(docs, { ordered: false });
+      return inserted.length;
+    } catch (error: any) {
+      if (error?.code === 11000 || error?.writeErrors) return error?.insertedDocs?.length ?? 0;
+      this.logger.warn(`Bulk notification delivery failed: ${error?.message || 'unknown error'}`);
+      return 0;
+    }
+  }
 
   async createFromEvent(event: NotificationEvent) {
     if (!event.recipientId || !this.isSafeRoute(event.actionUrl)) return null;
+    if (await this.isMuted(event.recipientId, event.type)) return null;
     try {
       return await this.notificationModel.findOneAndUpdate(
         { idempotencyKey: event.idempotencyKey },

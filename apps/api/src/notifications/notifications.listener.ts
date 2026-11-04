@@ -1,4 +1,5 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
+import { UsersService } from '../users/users.service.js';
 import { OnEvent } from '@nestjs/event-emitter';
 import { NotificationType } from '@placecampus/shared-types';
 import { NotificationsService } from './notifications.service.js';
@@ -7,7 +8,47 @@ const idOf = (value: any) => String(value?.id ?? value?._id ?? value ?? '');
 
 @Injectable()
 export class NotificationsListener {
-  constructor(private readonly notificationsService: NotificationsService) {}
+  constructor(
+    private readonly notificationsService: NotificationsService,
+    @Optional() private readonly usersService?: UsersService,
+  ) {}
+
+  @OnEvent('assignment.changed', { async: true })
+  async assignmentChanged(e: { studentId: string; studentName: string; newFacultyId: string; newFacultyName: string; previousFacultyId?: string; previousFacultyName?: string; purposes: string[] }) {
+    const role = e.purposes.includes('MENTOR') ? 'mentor' : 'assigned faculty member';
+    const stamp = Date.now();
+    await this.notificationsService.createFromEvent({
+      recipientId: e.studentId, type: NotificationType.MENTOR_ASSIGNED, title: `Your ${role} has changed`,
+      message: `${e.newFacultyName} is now your ${role}.`, actionUrl: '/student/dashboard',
+      entityType: 'faculty-assignment', entityId: e.studentId, idempotencyKey: `assignment:${e.studentId}:${e.newFacultyId}:${stamp}`,
+    });
+    await this.notificationsService.createFromEvent({
+      recipientId: e.newFacultyId, type: NotificationType.MENTOR_ASSIGNED, title: 'New student assigned',
+      message: `${e.studentName} has been assigned to you as ${role}.`, actionUrl: `/faculty/students/${e.studentId}`,
+      entityType: 'faculty-assignment', entityId: e.studentId, idempotencyKey: `assignment:new:${e.studentId}:${e.newFacultyId}:${stamp}`,
+    });
+    if (e.previousFacultyId) {
+      await this.notificationsService.createFromEvent({
+        recipientId: e.previousFacultyId, type: NotificationType.MENTOR_ASSIGNED, title: 'Student reassigned',
+        message: `${e.studentName} has been reassigned to ${e.newFacultyName}.`, actionUrl: '/faculty/students',
+        entityType: 'faculty-assignment', entityId: e.studentId, idempotencyKey: `assignment:old:${e.studentId}:${e.previousFacultyId}:${stamp}`,
+      });
+    }
+  }
+
+  @OnEvent('review.assigned', { async: true })
+  async reviewAssigned({ evidenceId, reviewerId, title, dueAt }: { evidenceId: string; reviewerId: string; title: string; dueAt: Date }) {
+    await this.notificationsService.createFromEvent({
+      recipientId: reviewerId,
+      type: NotificationType.REVIEW_ASSIGNED,
+      title: 'Verification requested',
+      message: `“${title}” is waiting for your review (due ${new Date(dueAt).toDateString()}).`,
+      actionUrl: `/faculty/reviews/${evidenceId}`,
+      entityType: 'evidence',
+      entityId: evidenceId,
+      idempotencyKey: `review:${evidenceId}:${reviewerId}:${new Date(dueAt).getTime()}`,
+    });
+  }
 
   @OnEvent('evidence.decision', { async: true })
   async evidenceDecision({ evidence }: { evidence: any }) {
@@ -122,6 +163,21 @@ export class NotificationsListener {
       actionUrl: byStudent ? '/faculty/interviews' : '/student/interviews',
       entityType: 'mock-interview', entityId: id,
       idempotencyKey: `interview:${id}:cancelled`,
+    });
+  }
+
+  @OnEvent('drive.published', { async: true })
+  async drivePublished({ drive }: { drive: any }) {
+    if (!this.usersService) return;
+    const studentIds = await this.usersService.findActiveStudentIds();
+    await this.notificationsService.createForRecipients(studentIds, {
+      type: NotificationType.DRIVE_PUBLISHED,
+      title: `New placement drive: ${drive.companyName}`,
+      message: `${drive.companyName} is hiring for ${drive.roleTitle}. Check your eligibility and skill match.`,
+      actionUrl: `/student/drives/${idOf(drive)}`,
+      entityType: 'placement-drive',
+      entityId: idOf(drive),
+      idempotencyKeyPrefix: `drive:${idOf(drive)}:published`,
     });
   }
 

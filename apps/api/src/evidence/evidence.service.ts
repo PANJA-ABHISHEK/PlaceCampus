@@ -1,5 +1,6 @@
 import {
   Injectable,
+  Optional,
   NotFoundException,
   ForbiddenException,
   BadRequestException,
@@ -8,6 +9,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { InjectQueue } from '@nestjs/bull';
 import type { Queue } from 'bull';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Evidence } from './schemas/evidence.schema.js';
 import { CreateEvidenceDto, UpdateEvidenceDto } from './dto/evidence.dto.js';
 import { EvidenceStatus } from '@placecampus/shared-types';
@@ -20,6 +22,7 @@ export class EvidenceService {
   constructor(
     @InjectModel(Evidence.name) private evidenceModel: Model<Evidence>,
     @InjectQueue('verification') private verificationQueue: Queue,
+    @Optional() private eventEmitter?: EventEmitter2,
   ) {}
 
   sanitize(evidence: any) {
@@ -228,6 +231,10 @@ export class EvidenceService {
     }
 
     const updated = await evidence.save();
+    // Hand the item to the reviewer router (assignments module).
+    if (status === EvidenceStatus.NEEDS_REVIEW) {
+      this.eventEmitter?.emit('evidence.review_needed', { evidenceId: id });
+    }
     return this.sanitize(updated);
   }
 }

@@ -6,7 +6,17 @@ import { VerificationRecord } from '../verification/schemas/verification-record.
 import { StorageService } from '../storage/storage.service.js';
 import { EvidenceStatus } from '@placecampus/shared-types';
 import { ReviewAction } from './dto/review-decision.dto.js';
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
+import { User } from '../users/schemas/user.schema.js';
+import { StudentProfile } from '../students/schemas/student-profile.schema.js';
+import { FacultyAssignment } from '../assignments/schemas/faculty-assignment.schema.js';
+import { AssignmentsService } from '../assignments/assignments.service.js';
+import { AuditService } from '../audit/audit.service.js';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 
 describe('FacultyService', () => {
@@ -14,6 +24,14 @@ describe('FacultyService', () => {
   let mockEvidenceModel: any;
   let mockRecordModel: any;
   let mockEventEmitter: any;
+  const reviewer = { userId: 'faculty123', role: 'faculty' };
+  const lookup = () => ({
+    find: vi.fn().mockReturnValue({
+      select: vi.fn().mockReturnThis(),
+      lean: vi.fn().mockReturnThis(),
+      exec: vi.fn().mockResolvedValue([]),
+    }),
+  });
 
   beforeEach(async () => {
     mockEvidenceModel = {
@@ -41,6 +59,11 @@ describe('FacultyService', () => {
           provide: getModelToken(VerificationRecord.name),
           useValue: mockRecordModel,
         },
+        { provide: getModelToken(User.name), useValue: lookup() },
+        { provide: getModelToken(StudentProfile.name), useValue: lookup() },
+        { provide: getModelToken(FacultyAssignment.name), useValue: { exists: vi.fn() } },
+        { provide: AssignmentsService, useValue: { assignReviewer: vi.fn() } },
+        { provide: AuditService, useValue: { logAction: vi.fn() } },
         { provide: StorageService, useValue: {} },
         { provide: EventEmitter2, useValue: mockEventEmitter },
       ],
@@ -60,7 +83,7 @@ describe('FacultyService', () => {
       });
 
       await expect(
-        service.makeDecision('evidence123', 'faculty123', {
+        service.makeDecision('evidence123', reviewer, {
           action: ReviewAction.APPROVE,
         }),
       ).rejects.toThrow(NotFoundException);
@@ -68,11 +91,11 @@ describe('FacultyService', () => {
 
     it('should throw if evidence is not in review state', async () => {
       mockEvidenceModel.findById.mockReturnValue({
-        exec: vi.fn().mockResolvedValue({ status: EvidenceStatus.VERIFIED }),
+        exec: vi.fn().mockResolvedValue({ status: EvidenceStatus.VERIFIED, reviewerId: 'faculty123' }),
       });
 
       await expect(
-        service.makeDecision('evidence123', 'faculty123', {
+        service.makeDecision('evidence123', reviewer, {
           action: ReviewAction.APPROVE,
         }),
       ).rejects.toThrow(BadRequestException);
@@ -81,6 +104,9 @@ describe('FacultyService', () => {
     it('should approve evidence and update record correctly', async () => {
       const mockEvidence = {
         _id: 'evidence123',
+        studentId: 'student1',
+        reviewerId: 'faculty123',
+        createdAt: new Date(),
         status: EvidenceStatus.NEEDS_REVIEW,
         save: vi.fn(),
       };
@@ -105,7 +131,7 @@ describe('FacultyService', () => {
         lean: vi.fn().mockReturnThis(),
       });
 
-      const result = await service.makeDecision('evidence123', 'faculty123', {
+      const result = await service.makeDecision('evidence123', reviewer, {
         action: ReviewAction.APPROVE,
       });
 
@@ -121,6 +147,9 @@ describe('FacultyService', () => {
     it('should reject evidence and require reason', async () => {
       const mockEvidence = {
         _id: 'evidence123',
+        studentId: 'student1',
+        reviewerId: 'faculty123',
+        createdAt: new Date(),
         status: EvidenceStatus.NEEDS_REVIEW,
         save: vi.fn(),
       };
@@ -130,10 +159,74 @@ describe('FacultyService', () => {
       });
 
       await expect(
-        service.makeDecision('evidence123', 'faculty123', {
+        service.makeDecision('evidence123', reviewer, {
           action: ReviewAction.REJECT,
         }),
       ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('assignment scope and review lock', () => {
+    const item = (extra: Record<string, unknown> = {}) => ({
+      _id: 'evidence123',
+      status: EvidenceStatus.NEEDS_REVIEW,
+      reviewerId: 'faculty123',
+      save: vi.fn(),
+      ...extra,
+    });
+    const found = (doc: unknown) =>
+      mockEvidenceModel.findById.mockReturnValue({ exec: vi.fn().mockResolvedValue(doc) });
+
+    it('refuses decisions from a faculty member the item is not routed to', async () => {
+      found(item({ reviewerId: 'someone-else' }));
+      await expect(
+        service.makeDecision('evidence123', reviewer, { action: ReviewAction.APPROVE }),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('lets an administrator act on any item', async () => {
+      found(item({ reviewerId: 'someone-else', status: EvidenceStatus.VERIFIED }));
+      // Passes the scope check and fails only on the status rule.
+      await expect(
+        service.makeDecision('evidence123', { userId: 'admin1', role: 'admin' }, { action: ReviewAction.APPROVE }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('claims a 30-minute lock and renews it for the same reviewer', async () => {
+      const doc: any = item();
+      found(doc);
+      const before = Date.now();
+      const result = await service.claimReview('evidence123', reviewer);
+      expect(doc.reviewClaimedBy).toBe('faculty123');
+      const expires = doc.reviewLockExpiresAt.getTime();
+      expect(expires - before).toBeGreaterThanOrEqual(30 * 60 * 1000 - 50);
+      expect(expires - before).toBeLessThanOrEqual(30 * 60 * 1000 + 1000);
+      expect(result.reviewState).toBe('CLAIMED');
+      await expect(service.claimReview('evidence123', reviewer)).resolves.toBeTruthy();
+    });
+
+    it('blocks a claim while another holder has an active lock', async () => {
+      found(item({ reviewClaimedBy: 'admin1', reviewLockExpiresAt: new Date(Date.now() + 60_000) }));
+      await expect(service.claimReview('evidence123', reviewer)).rejects.toThrow(ConflictException);
+    });
+
+    it('releases only a lock the caller holds', async () => {
+      const doc: any = item({ reviewClaimedBy: 'faculty123', reviewLockExpiresAt: new Date(Date.now() + 60_000) });
+      found(doc);
+      await service.releaseReview('evidence123', reviewer);
+      expect(doc.reviewClaimedBy).toBeUndefined();
+      expect(doc.save).toHaveBeenCalled();
+    });
+
+    it('lists only items routed to the reviewer, and overdue ones on request', async () => {
+      await service.getPendingReviews(reviewer, { filter: 'overdue' });
+      const filter = mockEvidenceModel.find.mock.calls.at(-1)[0];
+      expect(filter.reviewerId).toBe('faculty123');
+      expect(filter.status).toBe(EvidenceStatus.NEEDS_REVIEW);
+      expect(filter.reviewDueAt.$lt).toBeInstanceOf(Date);
+
+      await service.getPendingReviews({ userId: 'admin1', role: 'admin' });
+      expect(mockEvidenceModel.find.mock.calls.at(-1)[0].reviewerId).toBeUndefined();
     });
   });
 });

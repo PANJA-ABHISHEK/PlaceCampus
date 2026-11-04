@@ -44,6 +44,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setAccessToken(null);
       apiClient.setAccessToken(null);
+      // Drop every cached response so the next account on this browser never sees this one's data.
+      queryClient.removeQueries();
       queryClient.setQueryData(ME_KEY, null);
     }
   }, [queryClient]);

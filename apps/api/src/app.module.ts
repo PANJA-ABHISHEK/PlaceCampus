@@ -31,6 +31,10 @@ import { RecruiterModule } from './recruiter/recruiter.module.js';
 import { PreparationModule } from './preparation/preparation.module.js';
 import { AnalyticsModule } from './analytics/analytics.module.js';
 import { NotificationsModule } from './notifications/notifications.module.js';
+import { OrgModule } from './org/org.module.js';
+import { QueuesModule } from './common/queues/queues.module.js';
+import { AssignmentsModule } from './assignments/assignments.module.js';
+import { ImportsModule } from './imports/imports.module.js';
 @Module({
   imports: [
     // ── Configuration ──
@@ -63,6 +67,7 @@ import { NotificationsModule } from './notifications/notifications.module.js';
 
     // ── Feature Modules ──
     EventEmitterModule.forRoot(),
+    QueuesModule,
     CommonModule,
     AuthModule,
     UsersModule,
@@ -85,6 +90,9 @@ import { NotificationsModule } from './notifications/notifications.module.js';
     PreparationModule,
     AnalyticsModule,
     NotificationsModule,
+    OrgModule,
+    AssignmentsModule,
+    ImportsModule,
   ],
   controllers: [HealthController],
 })

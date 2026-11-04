@@ -2,9 +2,11 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import {
   useFacultyReview,
+  useFacultyDocumentBlob,
+  openFacultyDocument,
   useApproveEvidence,
   useRejectEvidence,
   useRequestResubmission,
@@ -42,14 +44,20 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { ReviewLock } from "@/features/faculty/components/review-lock";
+import { EscalateReview } from "@/features/faculty/components/escalate-review";
+import { getObjectUrl } from "@/lib/object-url";
 
-export default function ReviewDetailPage({
-  params,
-}: {
-  params: { id: string };
-}) {
+export default function ReviewDetailPage() {
+  // Next 16 passes `params` as a Promise; read the id from the router instead.
+  const { id } = useParams() as { id: string };
   const router = useRouter();
-  const { data, isLoading, isError } = useFacultyReview(params.id);
+  const { data, isLoading, isError } = useFacultyReview(id);
+  const documentBlob = useFacultyDocumentBlob(
+    id,
+    !!data?.evidence?.document?.mimeType?.includes("image"),
+  );
+  const documentUrl = getObjectUrl(documentBlob.data);
   const approveMutation = useApproveEvidence();
   const rejectMutation = useRejectEvidence();
   const resubmitMutation = useRequestResubmission();
@@ -59,6 +67,8 @@ export default function ReviewDetailPage({
     "APPROVE" | "REJECT" | "RESUBMIT" | null
   >(null);
   const [reason, setReason] = React.useState("");
+  // Fixed when the workspace opens, so render stays pure.
+  const [reviewOpenedAt] = React.useState(() => Date.now());
 
   if (isLoading) {
     return (
@@ -148,6 +158,14 @@ export default function ReviewDetailPage({
         </div>
       </div>
 
+      {evidence.status === "NEEDS_REVIEW" && (
+        <ReviewLock
+          evidenceId={evidence.id}
+          dueAt={evidence.reviewDueAt}
+          overdue={!!evidence.reviewDueAt && new Date(evidence.reviewDueAt).getTime() < reviewOpenedAt}
+        />
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
         {/* Left Column: Original Submission (2/3 width) */}
         <div className="lg:col-span-2 space-y-6">
@@ -219,14 +237,16 @@ export default function ReviewDetailPage({
                   <FileText className="w-5 h-5 text-[hsl(var(--primary))]" />
                   Document Inspection
                 </h3>
-                <Button variant="outline" size="sm" asChild>
-                  <a
-                    href={`http://localhost:4000/api/v1/faculty/reviews/${evidence.id}/document/download`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    <Download className="w-4 h-4 mr-2" /> Download Original
-                  </a>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    openFacultyDocument(evidence.id).catch(() =>
+                      toast.error("Couldn't open the document."),
+                    )
+                  }
+                >
+                  <Download className="w-4 h-4 mr-2" /> Download Original
                 </Button>
               </div>
               <div className="flex-1 bg-neutral-100 flex items-center justify-center p-4">
@@ -235,11 +255,17 @@ export default function ReviewDetailPage({
                    Because auth tokens are needed, we either use an Object URL via fetch or just show a fallback if the browser can't securely render it.
                  */}
                 {evidence.document.mimeType.includes("image") ? (
+                  documentUrl ? (
                   <img
-                    src={`http://localhost:4000/api/v1/faculty/reviews/${evidence.id}/document/download`}
+                    src={documentUrl}
                     alt="Evidence"
                     className="max-h-full max-w-full object-contain rounded-md shadow-sm border border-neutral-200"
                   />
+                  ) : (
+                    <p className="text-sm text-neutral-500">
+                      {documentBlob.isError ? "Couldn't load the document preview." : "Loading preview…"}
+                    </p>
+                  )
                 ) : (
                   <div className="text-center max-w-md mx-auto space-y-4">
                     <div className="w-20 h-20 bg-white rounded-2xl shadow-sm border border-neutral-200 mx-auto flex items-center justify-center">
@@ -411,6 +437,7 @@ export default function ReviewDetailPage({
               >
                 <XCircle className="w-5 h-5 mr-3" /> Reject Permanently
               </Button>
+              {evidence.status === "NEEDS_REVIEW" && <EscalateReview evidenceId={evidence.id} />}
             </div>
           )}
         </div>

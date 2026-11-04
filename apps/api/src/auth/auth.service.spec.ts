@@ -50,6 +50,7 @@ describe('AuthService', () => {
     refreshModel.findOne = vi.fn();
     refreshModel.findById = vi.fn();
     refreshModel.findOneAndUpdate = vi.fn();
+    refreshModel.updateMany = vi.fn();
     auditService = { logAction: vi.fn() };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -164,6 +165,65 @@ describe('AuthService', () => {
       expect(refreshModel).toHaveBeenCalledWith(expect.objectContaining({ activeRole: 'placement_officer', rotatedFrom: sessionId }));
       expect(auditService.logAction).toHaveBeenCalledWith(expect.objectContaining({ action: 'AUTH_ACTIVE_ROLE_SWITCHED' }));
       expect(result.accessToken).toBe('access-token');
+    });
+  });
+
+  describe('changePassword', () => {
+    const userId = '507f1f77bcf86cd799439011';
+    const sessionId = '507f1f77bcf86cd799439022';
+    const user = {
+      id: userId,
+      email: 'faculty@placecampus.local',
+      isActive: true,
+      role: 'faculty',
+      passwordHash: 'old-hash',
+      save: vi.fn(),
+    };
+
+    beforeEach(() => {
+      vi.spyOn(usersService, 'findById').mockResolvedValue(user as any);
+      vi.spyOn(bcrypt, 'compare').mockResolvedValue(true as never);
+      vi.spyOn(bcrypt, 'genSalt').mockResolvedValue('salt' as never);
+      vi.spyOn(bcrypt, 'hash').mockResolvedValue('new-hash' as never);
+      refreshModel.findById.mockResolvedValue({
+        id: sessionId,
+        audience: 'CAMPUS',
+        activeRole: 'faculty',
+      });
+    });
+
+    it('rejects an incorrect current password', async () => {
+      vi.spyOn(bcrypt, 'compare').mockResolvedValue(false as never);
+      await expect(
+        service.changePassword(userId, sessionId, 'wrong', 'SecurePassword~2026'),
+      ).rejects.toThrow('Your current password is incorrect.');
+    });
+
+    it('updates the password, revokes old sessions, and returns a rotated token', async () => {
+      const result = await service.changePassword(
+        userId,
+        sessionId,
+        'CurrentPassword!2025',
+        'SecurePassword~2026',
+      );
+
+      expect(user.passwordHash).toBe('new-hash');
+      expect(user.save).toHaveBeenCalled();
+      expect(refreshModel.updateMany).toHaveBeenCalledWith(
+        { userId: expect.anything(), revokedAt: { $exists: false } },
+        { $set: { revokedAt: expect.any(Date) } },
+      );
+      expect(refreshModel).toHaveBeenCalledWith(
+        expect.objectContaining({
+          audience: 'CAMPUS',
+          activeRole: 'faculty',
+          rotatedFrom: sessionId,
+        }),
+      );
+      expect(result).toMatchObject({ accessToken: 'access-token' });
+      expect(auditService.logAction).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'AUTH_PASSWORD_CHANGED' }),
+      );
     });
   });
 

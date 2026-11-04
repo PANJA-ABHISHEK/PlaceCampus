@@ -54,6 +54,20 @@ export class UsersService {
     return this.userModel.findById(id);
   }
 
+  /** Ids of active, real (non-demo) student accounts, for announcements. */
+  async findActiveStudentIds(): Promise<string[]> {
+    const users = await this.userModel
+      .find({
+        isActive: true,
+        isDemoData: { $ne: true },
+        $or: [{ role: UserRole.STUDENT }, { roles: UserRole.STUDENT }],
+      })
+      .select('_id')
+      .lean()
+      .exec();
+    return users.map((u: any) => String(u._id));
+  }
+
   async updateLastLogin(id: string): Promise<void> {
     await this.userModel.findByIdAndUpdate(id, { lastLoginAt: new Date() });
   }

@@ -3,6 +3,7 @@ import { RecruiterAccessService } from '../recruiter-access/recruiter-access.ser
 import { DrivesService } from '../drives/drives.service.js';
 import { ApplicationsService } from '../applications/applications.service.js';
 import { StudentsService } from '../students/students.service.js';
+import { resolvePreferences } from '../students/student-preferences.js';
 import { AuditService } from '../audit/audit.service.js';
 import { ApplicationStatus, UserRole } from '@placecampus/shared-types';
 
@@ -118,10 +119,15 @@ export class RecruiterService {
     if (releasedFields.includes('applicationStatus')) {
       mapped.applicationStatus = application.status;
     }
-    if (releasedFields.includes('linkedinUrl')) {
+    // Personal links also need the student's own consent (Settings > Privacy).
+    const privacy = resolvePreferences((student as any).preferences).privacy;
+    if (releasedFields.includes('linkedinUrl') && privacy.shareProfileLinks && privacy.showLinkedin) {
       mapped.linkedinUrl = student.linkedinUrl;
     }
-    if (releasedFields.includes('portfolioUrl')) {
+    if (releasedFields.includes('githubUrl') && privacy.shareProfileLinks && privacy.showGithub) {
+      mapped.githubUrl = student.githubUrl;
+    }
+    if (releasedFields.includes('portfolioUrl') && privacy.shareProfileLinks && privacy.showPortfolio) {
       mapped.portfolioUrl = student.portfolioUrl;
     }
 

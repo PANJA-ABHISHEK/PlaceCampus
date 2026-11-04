@@ -220,13 +220,79 @@
 
   --primary: 24 95% 53%;
   --primary-foreground: 0 0% 100%;
-  --secondary: 220 33% 96%;
-  --secondary-foreground: 222 47% 15%;
+  /* Secondary is the brand navy; it stays navy (slightly lifted) on dark surfaces. */
+  --secondary: 222 45% 20%;
+  --secondary-foreground: 0 0% 100%;
 
   --shadow-card:
     0 2px 8px -2px rgba(0, 0, 0, 0.3), 0 1px 3px -1px rgba(0, 0, 0, 0.25);
   --shadow-card-hover:
     0 8px 24px -4px rgba(0, 0, 0, 0.4), 0 4px 8px -2px rgba(0, 0, 0, 0.3);
+  color-scheme: dark;
+}
+
+/* `dark:` utilities follow the selected theme class, not the OS setting. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+ * Dark theme for the student portal (the only portal the theme applies to).
+ * Many screens use literal light utilities such as `bg-white`; these map them
+ * onto the theme tokens so every page reads correctly without per-page edits.
+ */
+.dark .bg-white,
+.dark .hover\:bg-white:hover,
+.dark .md\:bg-white {
+  background-color: hsl(var(--card));
+}
+.dark .bg-white\/90,
+.dark .bg-white\/80,
+.dark .bg-white\/70 {
+  background-color: hsl(var(--card) / 0.9);
+}
+.dark .bg-slate-50,
+.dark .bg-gray-50,
+.dark .bg-slate-100,
+.dark .bg-gray-100,
+.dark .hover\:bg-slate-50:hover,
+.dark .hover\:bg-gray-50:hover {
+  background-color: hsl(var(--muted));
+}
+.dark .bg-gray-200,
+.dark .bg-slate-200 {
+  background-color: hsl(var(--border));
+}
+.dark .from-white {
+  /* Light-tinted card gradients become a subtle dark wash. */
+  --tw-gradient-from: hsl(var(--card));
+  --tw-gradient-to: hsl(var(--muted) / 0.55);
+}
+.dark .to-white {
+  --tw-gradient-to: hsl(var(--card));
+}
+.dark .text-slate-900,
+.dark .text-gray-900,
+.dark .text-slate-800,
+.dark .text-gray-800,
+.dark .text-\[\#0B1F44\] {
+  color: hsl(var(--foreground));
+}
+.dark .text-slate-700,
+.dark .text-gray-700,
+.dark .text-slate-600,
+.dark .text-gray-600,
+.dark .text-slate-500,
+.dark .text-gray-500,
+.dark .text-\[\#64748B\] {
+  color: hsl(var(--muted-foreground));
+}
+.dark .border-slate-200,
+.dark .border-gray-200,
+.dark .border-gray-100,
+.dark .border-\[\#E5E7EB\],
+.dark .ring-slate-200,
+.dark .ring-slate-100 {
+  border-color: hsl(var(--border));
+  --tw-ring-color: hsl(var(--border));
 }
 
 /* ============================================

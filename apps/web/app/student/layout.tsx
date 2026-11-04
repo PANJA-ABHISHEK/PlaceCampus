@@ -25,6 +25,7 @@ import { cn } from "@/lib/utils";
 import { UserRole } from "@placecampus/shared-types";
 import { NotificationBell } from "@/features/notifications/components/notification-bell";
 import { UserMenu } from "@/components/layout/user-menu";
+import { ThemePreferenceSync } from "@/features/settings/components/theme-preference-sync";
 
 const navigation = [
   { name: "Overview", href: "/student/dashboard", icon: LayoutDashboard },
@@ -34,21 +35,11 @@ const navigation = [
   { name: "Assessments", href: "/student/assessments", icon: ClipboardList },
   { name: "Interviews", href: "/student/interviews", icon: Video },
   { name: "Readiness", href: "/student/readiness", icon: TrendingUp },
-  {
-    name: "Skill Gaps",
-    href: "/student/gaps",
-    icon: AlertCircle,
-    comingSoon: true,
-  },
+  { name: "Skill Gaps", href: "/student/gaps", icon: AlertCircle },
   { name: "Placement Drives", href: "/student/drives", icon: Briefcase },
   { name: "Applications", href: "/student/applications", icon: Send },
   { name: "Preparation", href: "/student/preparation", icon: BookOpen },
-  {
-    name: "Settings",
-    href: "/student/settings",
-    icon: Settings,
-    comingSoon: true,
-  },
+  { name: "Settings", href: "/student/settings", icon: Settings },
 ];
 
 export default function StudentLayout({
@@ -86,6 +77,7 @@ export default function StudentLayout({
 
   return (
     <div className="min-h-screen bg-[hsl(var(--background))]">
+      <ThemePreferenceSync />
       {/* Top Header */}
       <header className="sticky top-0 z-40 flex h-16 items-center justify-between gap-4 bg-white/90 px-4 shadow-[0_1px_12px_-4px_rgba(15,23,42,0.08)] backdrop-blur-md md:h-[72px] md:px-6">
         <div className="flex items-center gap-2">
@@ -105,7 +97,7 @@ export default function StudentLayout({
           <Link
             href="/student/dashboard"
             aria-label="PlaceCampus student dashboard"
-            className="flex shrink-0 items-center transition-opacity hover:opacity-85"
+            className="flex shrink-0 items-center transition-opacity hover:opacity-85 dark:rounded-lg dark:bg-white dark:px-2 dark:py-1"
           >
             <Image
               src="/images/placecampus-logo-trimmed.png"
@@ -128,6 +120,7 @@ export default function StudentLayout({
             name={user?.fullName || "Student"}
             roleLabel="Student"
             profileHref="/student/profile"
+            settingsHref="/student/settings"
             switchRoleHref={(user?.roles?.length ?? 0) > 1 ? "/select-role" : undefined}
             onLogout={handleLogout}
           />
@@ -152,19 +145,15 @@ export default function StudentLayout({
               return (
                 <li key={item.name}>
                   <Link
-                    href={item.comingSoon ? "#" : item.href}
+                    href={item.href}
                     aria-current={isActive ? "page" : undefined}
-                    aria-disabled={item.comingSoon || undefined}
                     className={cn(
                       "group flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-[15px] font-medium transition-colors duration-150",
                       isActive
                         ? "bg-[hsl(var(--primary)/0.1)] font-semibold text-[hsl(var(--primary))]"
                         : "text-[hsl(var(--foreground)/0.75)] hover:bg-white hover:text-[hsl(var(--foreground))] hover:shadow-[var(--shadow-xs)] max-md:hover:bg-[hsl(var(--muted))]",
-                      item.comingSoon &&
-                        "cursor-not-allowed opacity-55 hover:bg-transparent hover:shadow-none",
                     )}
-                    onClick={(e) => {
-                      if (item.comingSoon) e.preventDefault();
+                    onClick={() => {
                       if (isMobileMenuOpen) setIsMobileMenuOpen(false);
                     }}
                   >
@@ -178,11 +167,6 @@ export default function StudentLayout({
                       )}
                     />
                     <span className="truncate">{item.name}</span>
-                    {item.comingSoon && (
-                      <span className="ml-auto rounded-full bg-[hsl(var(--muted))] px-2 py-0.5 text-[10px] font-semibold text-[hsl(var(--muted-foreground))]">
-                        Soon
-                      </span>
-                    )}
                   </Link>
                 </li>
               );

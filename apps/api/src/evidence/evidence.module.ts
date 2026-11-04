@@ -1,6 +1,5 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
-import { BullModule } from '@nestjs/bull';
 import { EvidenceService } from './evidence.service.js';
 import { EvidenceController } from './evidence.controller.js';
 import { Evidence, EvidenceSchema } from './schemas/evidence.schema.js';
@@ -11,9 +10,7 @@ import { StorageModule } from '../storage/storage.module.js';
     MongooseModule.forFeature([
       { name: Evidence.name, schema: EvidenceSchema },
     ]),
-    BullModule.registerQueue({
-      name: 'verification',
-    }),
+    // The 'verification' queue is registered once, globally, in QueuesModule.
     StorageModule,
   ],
   controllers: [EvidenceController],

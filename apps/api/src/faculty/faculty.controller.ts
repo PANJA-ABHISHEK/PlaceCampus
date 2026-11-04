@@ -20,7 +20,13 @@ import { Roles } from '../auth/decorators/roles.decorator.js';
 import { CurrentUser } from '../auth/decorators/current-user.decorator.js';
 import { UserRole } from '@placecampus/shared-types';
 import { FacultyService } from './faculty.service.js';
-import { ReviewDecisionDto, ReviewAction } from './dto/review-decision.dto.js';
+import {
+  EscalateReviewDto,
+  ReassignReviewDto,
+  ReviewAction,
+  ReviewCommentDto,
+  ReviewReasonDto,
+} from './dto/review-decision.dto.js';
 import { StorageService } from '../storage/storage.service.js';
 
 @ApiTags('Faculty Review')
@@ -36,15 +42,42 @@ export class FacultyController {
   @Get()
   @Roles(UserRole.FACULTY, UserRole.ADMIN)
   @ApiOperation({ summary: 'Get list of evidence pending review' })
-  getPendingReviews(@Query() query: any): Promise<any[]> {
-    return this.facultyService.getPendingReviews(query);
+  getPendingReviews(
+    @CurrentUser() user: any,
+    @Query() query: any,
+  ): Promise<any[]> {
+    return this.facultyService.getPendingReviews({ userId: user.userId, role: user.role }, query);
   }
 
   @Get(':id')
   @Roles(UserRole.FACULTY, UserRole.ADMIN)
   @ApiOperation({ summary: 'Get detailed review view for a specific evidence' })
-  getReviewDetail(@Param('id') id: string): Promise<any> {
-    return this.facultyService.getReviewDetail(id);
+  getReviewDetail(
+    @Param('id') id: string,
+    @CurrentUser() user: any,
+  ): Promise<any> {
+    return this.facultyService.getReviewDetail(id, { userId: user.userId, role: user.role });
+  }
+
+  @Post(':id/claim')
+  @Roles(UserRole.FACULTY, UserRole.ADMIN)
+  @ApiOperation({ summary: 'Claim or renew the 30-minute review lock' })
+  claimReview(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.facultyService.claimReview(id, { userId: user.userId, role: user.role });
+  }
+
+  @Post(':id/escalate')
+  @Roles(UserRole.FACULTY, UserRole.ADMIN)
+  @ApiOperation({ summary: 'Escalate to the Review Coordinator with a reason code' })
+  escalate(@Param('id') id: string, @Body() dto: EscalateReviewDto, @CurrentUser() user: any) {
+    return this.facultyService.escalate(id, { userId: user.userId, role: user.role }, dto);
+  }
+
+  @Post(':id/release')
+  @Roles(UserRole.FACULTY, UserRole.ADMIN)
+  @ApiOperation({ summary: 'Release the review lock (the item stays assigned)' })
+  releaseReview(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.facultyService.releaseReview(id, { userId: user.userId, role: user.role });
   }
 
   @Patch(':id/approve')
@@ -53,9 +86,9 @@ export class FacultyController {
   approveEvidence(
     @Param('id') id: string,
     @CurrentUser() user: any,
-    @Body() dto: Partial<ReviewDecisionDto>,
+    @Body() dto: ReviewCommentDto,
   ): Promise<any> {
-    return this.facultyService.makeDecision(id, user.userId, {
+    return this.facultyService.makeDecision(id, { userId: user.userId, role: user.role }, {
       action: ReviewAction.APPROVE,
       reason: dto.reason,
     });
@@ -67,11 +100,11 @@ export class FacultyController {
   rejectEvidence(
     @Param('id') id: string,
     @CurrentUser() user: any,
-    @Body() dto: ReviewDecisionDto,
+    @Body() dto: ReviewReasonDto,
   ): Promise<any> {
     if (!dto.reason)
       throw new BadRequestException('Reason required for rejection');
-    return this.facultyService.makeDecision(id, user.userId, {
+    return this.facultyService.makeDecision(id, { userId: user.userId, role: user.role }, {
       action: ReviewAction.REJECT,
       reason: dto.reason,
     });
@@ -83,11 +116,11 @@ export class FacultyController {
   requestResubmission(
     @Param('id') id: string,
     @CurrentUser() user: any,
-    @Body() dto: ReviewDecisionDto,
+    @Body() dto: ReviewReasonDto,
   ): Promise<any> {
     if (!dto.reason)
       throw new BadRequestException('Reason required for resubmission request');
-    return this.facultyService.makeDecision(id, user.userId, {
+    return this.facultyService.makeDecision(id, { userId: user.userId, role: user.role }, {
       action: ReviewAction.REQUEST_RESUBMISSION,
       reason: dto.reason,
     });
@@ -100,9 +133,10 @@ export class FacultyController {
   })
   async downloadDocument(
     @Param('id') id: string,
+    @CurrentUser() user: any,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const documentMeta = await this.facultyService.getDocumentMeta(id);
+    const documentMeta = await this.facultyService.getDocumentMeta(id, { userId: user.userId, role: user.role });
 
     if (!(documentMeta as any).key) {
       throw new BadRequestException(
@@ -122,5 +156,30 @@ export class FacultyController {
     });
 
     return new StreamableFile(fileStream);
+  }
+}
+
+/**
+ * Review Coordinator queue. No separate coordinator role exists yet, so the
+ * Administrator acts as Review Coordinator (Master Plan ADM-21).
+ */
+@ApiTags('Admin: Review coordination')
+@Controller('admin/reviews')
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(UserRole.ADMIN)
+@ApiBearerAuth()
+export class ReviewCoordinatorController {
+  constructor(private readonly facultyService: FacultyService) {}
+
+  @Get()
+  @ApiOperation({ summary: 'Coordinator queue (unroutable and escalated) or all overdue reviews' })
+  queue(@Query('filter') filter?: 'coordinator' | 'overdue') {
+    return this.facultyService.coordinatorQueue(filter === 'overdue' ? 'overdue' : 'coordinator');
+  }
+
+  @Post(':id/reassign')
+  @ApiOperation({ summary: 'Assign a review to a reviewer (reason required)' })
+  reassign(@Param('id') id: string, @Body() dto: ReassignReviewDto, @CurrentUser() user: any) {
+    return this.facultyService.reassignReview(id, dto.reviewerId, dto.reason, { userId: user.userId, role: user.role });
   }
 }
