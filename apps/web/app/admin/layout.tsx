@@ -1,28 +1,31 @@
 "use client";
 
 import * as React from "react";
-import { SwitchRoleLink } from "@/features/auth/components/switch-role-link";
-import { useAuth } from "@/features/auth/components/auth-provider";
-import { redirect, usePathname } from "next/navigation";
+import Image from "next/image";
 import Link from "next/link";
+import { redirect, usePathname } from "next/navigation";
 import {
+  Bell,
+  ClipboardCheck,
+  FileSpreadsheet,
   LayoutDashboard,
   LineChart,
-  Users,
-  Tags,
-  Settings,
-  ShieldAlert,
   LogOut,
   Menu,
-  X,
-  Bell,
-  FileSpreadsheet,
+  Settings,
+  ShieldAlert,
+  Tags,
   UserCog,
-  ClipboardCheck,
+  Users,
+  X,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { UserRole } from "@placecampus/shared-types";
+import { cn } from "@/lib/utils";
+import { useAuth } from "@/features/auth/components/auth-provider";
+import { SwitchRoleLink } from "@/features/auth/components/switch-role-link";
 import { NotificationBell } from "@/features/notifications/components/notification-bell";
+import { useUnreadNotificationCount } from "@/features/notifications/hooks/use-notifications";
+import { UserMenu } from "@/components/layout/user-menu";
 
 const navigation = [
   { name: "Dashboard", href: "/admin/dashboard", icon: LayoutDashboard },
@@ -30,181 +33,137 @@ const navigation = [
   { name: "Bulk Imports", href: "/admin/imports", icon: FileSpreadsheet },
   { name: "Faculty Assignments", href: "/admin/assignments", icon: UserCog },
   { name: "Review Queue", href: "/admin/reviews", icon: ClipboardCheck },
-  { name: "Notifications", href: "/admin/notifications", icon: Bell },
-  {
-    name: "User Management",
-    href: "/admin/users",
-    icon: Users,
-    comingSoon: true,
-  },
-  {
-    name: "Skills Taxonomy",
-    href: "/admin/taxonomy",
-    icon: Tags,
-    comingSoon: true,
-  },
-  {
-    name: "System Configuration",
-    href: "/admin/settings",
-    icon: Settings,
-    comingSoon: true,
-  },
-  {
-    name: "Audit Logs",
-    href: "/admin/logs",
-    icon: ShieldAlert,
-    comingSoon: true,
-  },
+  { name: "Notifications", href: "/admin/notifications", icon: Bell, badge: "unread" as const },
+  { name: "User Management", href: "/admin/users", icon: Users, comingSoon: true },
+  { name: "Skills Taxonomy", href: "/admin/taxonomy", icon: Tags, comingSoon: true },
+  { name: "System Configuration", href: "/admin/settings", icon: Settings, comingSoon: true },
+  { name: "Audit Logs", href: "/admin/logs", icon: ShieldAlert, comingSoon: true },
 ];
 
-export default function AdminLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+const pageTitles: [string, string][] = [
+  ["/admin/dashboard", "Admin Dashboard"],
+  ["/admin/analytics", "Institutional Analytics"],
+  ["/admin/imports", "Bulk Imports"],
+  ["/admin/assignments", "Faculty Assignments"],
+  ["/admin/reviews", "Review Queue"],
+  ["/admin/notifications", "Notifications"],
+];
+
+export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const { user, authenticated, loading, clearAuth } = useAuth();
+  const unread = useUnreadNotificationCount().data?.count ?? 0;
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
   const pathname = usePathname();
 
   React.useEffect(() => {
-    if (!loading && !authenticated) {
-      redirect("/login");
-    }
-    if (!loading && authenticated && user?.role !== UserRole.ADMIN) {
-      redirect("/");
-    }
+    if (!loading && !authenticated) redirect("/login");
+    if (!loading && authenticated && user?.role !== UserRole.ADMIN) redirect("/");
   }, [loading, authenticated, user]);
 
   if (loading || !authenticated) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[hsl(var(--background))]">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[hsl(var(--primary))]"></div>
+      <div className="flex min-h-screen items-center justify-center bg-[hsl(var(--background))]">
+        <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-[hsl(var(--primary))]" />
       </div>
     );
   }
 
-  const handleLogout = () => {
-    clearAuth();
-  };
-
-  const getInitials = (name: string) => {
-    return name
-      .split(" ")
-      .map((n) => n[0])
-      .join("")
-      .toUpperCase()
-      .substring(0, 2);
-  };
+  const closeMenu = () => setIsMobileMenuOpen(false);
+  const name = user?.fullName || "System Admin";
+  const title = pathname === "/admin/dashboard"
+    ? null
+    : pageTitles.find(([prefix]) => pathname === prefix || pathname.startsWith(`${prefix}/`))?.[1] ?? "Admin Portal";
 
   return (
-    <div className="min-h-screen bg-[hsl(var(--background))] flex flex-col md:flex-row">
-      <div className="md:hidden flex items-center justify-between p-4 border-b border-[hsl(var(--border))] bg-white/50 backdrop-blur-md sticky top-0 z-30">
-        <Link
-          href="/admin/dashboard"
-          className="text-xl font-bold tracking-tighter text-heading"
-        >
-          Place<span className="text-[hsl(var(--primary))]">Campus</span>
-        </Link>
-        <button
-          onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-          className="text-[hsl(var(--muted-foreground))] hover:text-heading"
-        >
-          {isMobileMenuOpen ? (
-            <X className="h-6 w-6" />
-          ) : (
-            <Menu className="h-6 w-6" />
-          )}
-        </button>
-      </div>
-
-      <nav
+    <div className="flex min-h-screen bg-[#F8FAFC]">
+      <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-40 w-64 bg-white border-r border-[hsl(var(--border))] transform transition-transform duration-300 ease-in-out md:relative md:translate-x-0 flex flex-col",
+          "fixed inset-y-0 left-0 z-40 flex w-[264px] flex-col border-r border-[#E5E7EB] bg-white transition-transform duration-300 ease-in-out lg:sticky lg:top-0 lg:h-screen lg:translate-x-0",
           isMobileMenuOpen ? "translate-x-0" : "-translate-x-full",
         )}
       >
-        <div className="p-6 hidden md:block border-b border-[hsl(var(--border))]">
-          <Link
-            href="/admin/dashboard"
-            className="text-2xl font-bold tracking-tighter text-heading"
-          >
-            Place<span className="text-[hsl(var(--primary))]">Campus</span>
+        <div className="flex h-[72px] shrink-0 items-center justify-between border-b border-[hsl(var(--border))] px-5">
+          <Link href="/admin/dashboard" aria-label="PlaceCampus admin home" onClick={closeMenu}>
+            <Image src="/images/placecampus-logo-trimmed.png" alt="PlaceCampus" width={1200} height={269} priority className="h-auto w-[150px]" />
           </Link>
+          <button type="button" onClick={closeMenu} aria-label="Close navigation" className="rounded-lg p-1.5 text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))] lg:hidden">
+            <X className="h-5 w-5" />
+          </button>
         </div>
 
-        <div className="p-4 border-b border-[hsl(var(--border))] flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-[hsl(var(--primary)/0.1)] text-[hsl(var(--primary))] flex items-center justify-center font-bold">
-            {getInitials(user?.fullName || "System Admin")}
-          </div>
-          <div className="flex flex-col">
-            <span className="text-sm font-bold text-heading truncate">
-              {user?.fullName}
-            </span>
-            <span className="text-xs text-[hsl(var(--muted-foreground))]">
-              System Admin
-            </span>
-          </div>
-        </div>
-
-        <div className="flex-1 overflow-y-auto py-4 px-3 space-y-1">
+        <nav aria-label="Admin navigation" className="min-h-0 flex-1 space-y-1 overflow-y-auto px-3 py-4">
           {navigation.map((item) => {
-            const isActive =
-              pathname === item.href || pathname.startsWith(`${item.href}/`);
+            const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+            const classes = cn(
+              "flex w-full items-center gap-3 rounded-xl px-3.5 py-2.5 text-left text-[15px] font-medium transition-colors",
+              active ? "bg-[#FF6B1A] text-white shadow-[0_8px_18px_-10px_rgba(255,107,26,0.9)]" : "text-[#0B1F44]/80 hover:bg-orange-50 hover:text-[#0B1F44]",
+            );
+            if (item.comingSoon) {
+              return (
+                <button key={item.name} type="button" disabled aria-disabled="true" className={cn(classes, "cursor-not-allowed opacity-50")}>
+                  <item.icon className="h-5 w-5 shrink-0" aria-hidden="true" />
+                  <span className="truncate">{item.name}</span>
+                  <span className="ml-auto text-[10px] font-semibold uppercase tracking-wide">Soon</span>
+                </button>
+              );
+            }
             return (
-              <Link
-                key={item.name}
-                href={item.comingSoon ? "#" : item.href}
-                className={cn(
-                  "flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-colors relative group",
-                  isActive
-                    ? "bg-[hsl(var(--primary)/0.1)] text-[hsl(var(--primary))]"
-                    : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted)/0.5)] hover:text-heading",
-                  item.comingSoon && "opacity-60 cursor-not-allowed",
-                )}
-                onClick={(e) => {
-                  if (item.comingSoon) e.preventDefault();
-                  if (isMobileMenuOpen) setIsMobileMenuOpen(false);
-                }}
-              >
-                <item.icon className="h-4 w-4" />
-                {item.name}
-                {item.comingSoon && (
-                  <span className="absolute right-2 text-[10px] bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))] px-1.5 py-0.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
-                    Soon
+              <Link key={item.name} href={item.href} onClick={closeMenu} aria-current={active ? "page" : undefined} className={classes}>
+                <item.icon className="h-5 w-5 shrink-0" aria-hidden="true" />
+                <span className="truncate">{item.name}</span>
+                {item.badge === "unread" && unread > 0 && (
+                  <span className={cn("ml-auto flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[11px] font-bold", active ? "bg-white text-[hsl(var(--primary))]" : "bg-[hsl(var(--primary))] text-white")}>
+                    {unread > 99 ? "99+" : unread}
                   </span>
                 )}
               </Link>
             );
           })}
-        </div>
+        </nav>
 
-        <div className="p-4 border-t border-[hsl(var(--border))]">
+        <div className="border-t border-[#E5E7EB] p-3">
           <SwitchRoleLink />
-          <button
-            onClick={handleLogout}
-            className="flex items-center gap-3 px-3 py-2.5 w-full rounded-md text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
-          >
-            <LogOut className="h-4 w-4" /> Logout
+          <div aria-hidden="true" className="my-3 border-t border-[#E5E7EB]" />
+          <div className="flex items-center gap-3 px-1 py-2">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#FF6B1A]/12 text-base font-bold text-[#FF6B1A]">
+              {getInitials(name)}
+            </span>
+            <div className="min-w-0">
+              <p className="truncate text-sm font-bold text-[#0B1F44]">{name}</p>
+              <p className="text-xs text-[#64748B]">System Admin</p>
+            </div>
+          </div>
+          <button type="button" onClick={() => clearAuth()} className="flex w-full items-center gap-3 rounded-xl px-3.5 py-2.5 text-[15px] font-medium text-[#0B1F44]/80 transition-colors hover:bg-red-50 hover:text-red-600">
+            <LogOut className="h-5 w-5" aria-hidden="true" />
+            Logout
           </button>
         </div>
-      </nav>
+      </aside>
 
-      <main className="flex-1 flex flex-col min-w-0 bg-[#f8f9fa]">
-        <header className="hidden md:flex items-center justify-between p-6 border-b border-[hsl(var(--border))] bg-white/50 backdrop-blur-md sticky top-0 z-30">
-          <div className="flex-1"></div>
-          <div className="flex items-center gap-4">
-            <NotificationBell inboxHref="/admin/notifications" />
-          </div>
+      {isMobileMenuOpen && <div className="fixed inset-0 z-30 bg-[hsl(var(--foreground)/0.2)] lg:hidden" onClick={closeMenu} aria-hidden="true" />}
+
+      <div className="flex min-w-0 flex-1 flex-col">
+        <header className="sticky top-0 z-20 flex h-14 items-center gap-3 border-b border-[#E5E7EB] bg-white/90 px-4 backdrop-blur-md sm:px-6 lg:px-8">
+          <button type="button" onClick={() => setIsMobileMenuOpen(true)} aria-label="Open navigation" aria-expanded={isMobileMenuOpen} className="-ml-1 rounded-lg p-2 text-[#0B1F44] hover:bg-slate-100 lg:hidden">
+            <Menu className="h-5 w-5" />
+          </button>
+          {title ? <h1 className="min-w-0 flex-1 truncate text-lg font-bold text-[#0B1F44] sm:text-2xl">{title}</h1> : <span className="min-w-0 flex-1" aria-hidden="true" />}
+          <NotificationBell inboxHref="/admin/notifications" variant="link" />
+          <span aria-hidden="true" className="hidden h-8 w-px bg-[#E5E7EB] sm:block" />
+          <UserMenu name={name} roleLabel="System Admin" compact switchRoleHref={(user?.roles?.length ?? 0) > 1 ? "/select-role" : undefined} onLogout={() => clearAuth()} />
         </header>
-        <div className="flex-1 p-4 md:p-8 overflow-y-auto">{children}</div>
-      </main>
-
-      {isMobileMenuOpen && (
-        <div
-          className="fixed inset-0 bg-black/20 z-30 md:hidden"
-          onClick={() => setIsMobileMenuOpen(false)}
-        />
-      )}
+        <main className="min-w-0 flex-1 p-4 sm:p-6 lg:p-8">{children}</main>
+      </div>
     </div>
   );
+}
+
+function getInitials(name: string) {
+  return name
+    .split(" ")
+    .filter(Boolean)
+    .map((part) => part[0])
+    .join("")
+    .toUpperCase()
+    .substring(0, 2);
 }

@@ -11,6 +11,7 @@ import { DemoBadge, StatusBadge, adminCard } from "@/features/admin-imports/comp
 import { ApiError } from "@/lib/api-client";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+import { AdminPageHeader, AdminPanelHeader } from "@/features/admin/components/admin-ui";
 
 const field = "h-10 w-full rounded-xl border border-[#E5E7EB] bg-white px-3 text-sm outline-none focus:border-[#FF6B1A]/50 focus:ring-2 focus:ring-[#FF6B1A]/15";
 
@@ -48,23 +49,17 @@ export default function AdminImportsPage() {
 
   return (
     <div className="mx-auto w-full max-w-[1200px] space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-extrabold tracking-tight text-[#0B1F44]">Bulk Imports</h1>
-          <p className="mt-1 max-w-[46rem] text-sm text-[#64748B]">
-            Upload, validate, preview and confirm student and faculty workbooks. Nothing is written until you confirm, imported people are invited (not active), and every step is audited.
-          </p>
-        </div>
-        <div className="flex gap-2">
+      <AdminPageHeader title="Bulk Imports" description="Upload, validate, preview and confirm student and faculty workbooks. Nothing is written until you confirm, imported people are invited (not active), and every step is audited." action={<div className="flex flex-wrap gap-2">
           {(["students", "faculty"] as const).map((k) => (
             <button key={k} type="button" onClick={() => downloadFile(`/admin/imports/templates/${k}`, `placecampus-${k}-template.xlsx`).catch(() => toast.error("Download failed"))} className="inline-flex h-10 items-center gap-2 rounded-xl border border-[#E5E7EB] bg-white px-3 text-sm font-semibold text-[#0B1F44] hover:border-[#FF6B1A]/50">
               <Download className="h-4 w-4" aria-hidden="true" /> {k === "students" ? "Students" : "Faculty"} template
             </button>
           ))}
-        </div>
-      </div>
+        </div>} />
 
-      <form onSubmit={submit} className={cn(adminCard, "grid gap-4 p-5 md:grid-cols-2 lg:grid-cols-4")}>
+      <form onSubmit={submit} className={cn(adminCard, "overflow-hidden")}>
+        <AdminPanelHeader icon={Upload} title="Upload workbook" />
+        <div className="grid gap-4 p-5 md:grid-cols-2 lg:grid-cols-4">
         <label className="space-y-1.5">
           <span className="text-xs font-semibold text-[#64748B]">Import type</span>
           <select value={kind} onChange={(e) => setKind(e.target.value)} className={field}>
@@ -102,10 +97,11 @@ export default function AdminImportsPage() {
             {uploadMutation.isPending ? `Uploading ${progress}%` : "Upload and validate"}
           </button>
         </div>
+        </div>
       </form>
 
       <section className={cn(adminCard, "overflow-hidden")}>
-        <h2 className="border-b border-[#E5E7EB] px-5 py-4 font-bold text-[#0B1F44]">Import history</h2>
+        <AdminPanelHeader icon={FileSpreadsheet} title="Import history" />
         {jobs.isLoading ? (
           <div className="space-y-2 p-5">{Array.from({ length: 3 }, (_, i) => <Skeleton key={i} className="h-12 rounded-xl" />)}</div>
         ) : !jobs.data?.length ? (

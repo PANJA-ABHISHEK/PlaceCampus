@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { format } from "date-fns";
 import { toast } from "sonner";
-import { AlertTriangle, ArrowLeft, CheckCircle2, ChevronDown, Download, Info, Loader2, RefreshCw, Search, XCircle } from "lucide-react";
+import { AlertTriangle, ArrowLeft, CheckCircle2, ChevronDown, Download, FileSpreadsheet, Info, Loader2, RefreshCw, Search, XCircle } from "lucide-react";
 import {
   type ImportJob,
   type MappingState,
@@ -22,6 +22,7 @@ import { ACTION_META, DemoBadge, Stat, StatusBadge, adminCard } from "@/features
 import { ApiError } from "@/lib/api-client";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+import { AdminPanelHeader } from "@/features/admin/components/admin-ui";
 
 const field = "h-9 rounded-lg border border-[#E5E7EB] bg-white px-2.5 text-sm outline-none focus:border-[#FF6B1A]/50 focus:ring-2 focus:ring-[#FF6B1A]/15";
 const btn = "inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-sm font-semibold disabled:opacity-50";
@@ -46,9 +47,23 @@ export default function ImportBatchPage() {
     <div className="mx-auto w-full max-w-[1200px] space-y-6">
       <Link href="/admin/imports" className="inline-flex items-center gap-2 text-sm font-semibold text-[#0B1F44]/75 hover:text-[#FF6B1A]"><ArrowLeft className="h-4 w-4" aria-hidden="true" /> All imports</Link>
 
-      <header className={cn(adminCard, "flex flex-col gap-4 p-5 md:flex-row md:items-start md:justify-between")}>
-        <div className="min-w-0 space-y-2">
-          <h1 className="truncate text-xl font-extrabold text-[#0B1F44]">{job.fileName}</h1>
+      <section className={cn(adminCard, "overflow-hidden")}>
+        <AdminPanelHeader icon={FileSpreadsheet} title={job.fileName}>
+          <div className="flex flex-wrap gap-2">
+            {s && (
+              <button type="button" onClick={() => downloadFile(`/admin/imports/${id}/report`, `import-${id}-report.xlsx`).catch(() => toast.error("Download failed"))} className={cn(btn, "border border-[#E5E7EB] bg-white text-[#0B1F44]")}>
+                <Download className="h-4 w-4" aria-hidden="true" /> Error report
+              </button>
+            )}
+            {(awaiting || job.status === "VALIDATION_FAILED") && (
+              <>
+                <button type="button" onClick={() => run("revalidate", undefined, "Re-validating…")} className={cn(btn, "border border-[#E5E7EB] bg-white text-[#0B1F44]")}><RefreshCw className="h-4 w-4" aria-hidden="true" /> Re-validate</button>
+                <button type="button" onClick={() => run("cancel", undefined, "Batch cancelled")} className={cn(btn, "border border-red-200 bg-white text-red-700")}><XCircle className="h-4 w-4" aria-hidden="true" /> Cancel</button>
+              </>
+            )}
+          </div>
+        </AdminPanelHeader>
+        <div className="flex flex-col gap-4 p-5">
           <div className="flex flex-wrap items-center gap-2 text-xs text-[#64748B]">
             <StatusBadge status={job.status} />
             {job.isDemoData && <DemoBadge />}
@@ -59,20 +74,7 @@ export default function ImportBatchPage() {
           </div>
           <p className="break-all font-mono text-[11px] text-[#64748B]">SHA-256 {job.fileSha256}</p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          {s && (
-            <button type="button" onClick={() => downloadFile(`/admin/imports/${id}/report`, `import-${id}-report.xlsx`).catch(() => toast.error("Download failed"))} className={cn(btn, "border border-[#E5E7EB] bg-white text-[#0B1F44]")}>
-              <Download className="h-4 w-4" aria-hidden="true" /> Error report
-            </button>
-          )}
-          {(awaiting || job.status === "VALIDATION_FAILED") && (
-            <>
-              <button type="button" onClick={() => run("revalidate", undefined, "Re-validating…")} className={cn(btn, "border border-[#E5E7EB] bg-white text-[#0B1F44]")}><RefreshCw className="h-4 w-4" aria-hidden="true" /> Re-validate</button>
-              <button type="button" onClick={() => run("cancel", undefined, "Batch cancelled")} className={cn(btn, "border border-red-200 bg-white text-red-700")}><XCircle className="h-4 w-4" aria-hidden="true" /> Cancel</button>
-            </>
-          )}
-        </div>
-      </header>
+      </section>
 
       {isBusy(job.status) && <Progress job={job} />}
       {job.status === "VALIDATION_FAILED" && (
@@ -130,7 +132,9 @@ function Progress({ job }: { job: ImportJob }) {
 function SourceFacts({ job }: { job: ImportJob }) {
   if (!job.fileWarnings.length && !job.sourceNotes.length && !job.columnMap.length) return null;
   return (
-    <section className={cn(adminCard, "grid gap-6 p-5 lg:grid-cols-2")}>
+    <section className={cn(adminCard, "overflow-hidden")}>
+      <AdminPanelHeader icon={Info} title="Source and column details" />
+      <div className="grid gap-6 p-5 lg:grid-cols-2">
       <div className="space-y-3">
         <h2 className="font-bold text-[#0B1F44]">How this file is treated</h2>
         <ul className="space-y-2 text-sm">
@@ -157,21 +161,24 @@ function SourceFacts({ job }: { job: ImportJob }) {
           </tbody>
         </table>
       </div>
+      </div>
     </section>
   );
 }
 
 function MappingReview({ job }: { job: ImportJob }) {
   return (
-    <section className={cn(adminCard, "space-y-5 p-5")}>
+    <section className={cn(adminCard, "overflow-hidden")}>
+      <AdminPanelHeader icon={Info} title="Department and programme mapping" />
+      <div className="space-y-5 p-5">
       <div>
-        <h2 className="font-bold text-[#0B1F44]">Department and programme mapping</h2>
         <p className="mt-1 text-sm text-[#64748B]">
           Only approved mappings are used. Exact matches to an approved department map automatically; everything else needs your decision. Suggestions are hints only. Unmapped students are still imported but stay in the exception queue (no mentor) until approved.
         </p>
       </div>
       <MappingTable title="Departments (School)" type="DEPARTMENT" rows={job.mappings!.departments} jobStatus={job.status} jobId={job.id} />
       {job.kind === "STUDENTS" && <MappingTable title="Programmes" type="PROGRAMME" rows={job.mappings!.programmes} jobStatus={job.status} jobId={job.id} />}
+      </div>
     </section>
   );
 }

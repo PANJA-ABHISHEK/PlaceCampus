@@ -22,6 +22,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Skeleton } from "@/components/ui/skeleton";
 import { ApiError } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
+import { AdminPageHeader, AdminPanelHeader } from "@/features/admin/components/admin-ui";
 
 const field = "h-9 rounded-lg border border-[#E5E7EB] bg-white px-2.5 text-sm outline-none focus:border-[#FF6B1A]/50 focus:ring-2 focus:ring-[#FF6B1A]/15";
 const btn = "inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-sm font-semibold disabled:opacity-50";
@@ -39,12 +40,7 @@ export default function FacultyAssignmentsPage() {
 
   return (
     <div className="mx-auto w-full max-w-[1280px] space-y-6">
-      <div>
-        <h1 className="text-2xl font-extrabold tracking-tight text-[#0B1F44]">Faculty Assignments</h1>
-        <p className="mt-1 max-w-[52rem] text-sm text-[#64748B]">
-          Every eligible student gets one active primary mentor from an approved department. Students whose department isn&apos;t approved stay in the exception queue. Demo and real records are never paired.
-        </p>
-      </div>
+      <AdminPageHeader title="Faculty Assignments" description="Every eligible student gets one active primary mentor from an approved department. Students whose department isn&apos;t approved stay in the exception queue. Demo and real records are never paired." />
 
       {!s ? (
         <Skeleton className="h-24 rounded-2xl" />
@@ -105,10 +101,11 @@ function AllocationPanel({ departments, target: defaultTarget }: { departments: 
     );
 
   return (
-    <section className={cn(adminCard, "space-y-4 p-5")}>
+    <section className={cn(adminCard, "overflow-hidden")}>
+      <AdminPanelHeader icon={Wand2} title="Automatic mentor allocation" />
+      <div className="space-y-4 p-5">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <h2 className="flex items-center gap-2 font-bold text-[#0B1F44]"><Wand2 className="h-5 w-5 text-[#FF6B1A]" aria-hidden="true" /> Automatic mentor allocation</h2>
           <p className="mt-1 text-sm text-[#64748B]">Lowest mentee count first, ties to the least recently assigned. The target is soft: faculty over it are flagged, not skipped. Existing and manual assignments are never changed.</p>
         </div>
         <div className="flex flex-wrap items-end gap-2">
@@ -161,6 +158,7 @@ function AllocationPanel({ departments, target: defaultTarget }: { departments: 
           )}
         </div>
       )}
+      </div>
     </section>
   );
 }

@@ -3,7 +3,7 @@
 import * as React from "react";
 import { format } from "date-fns";
 import { toast } from "sonner";
-import { CheckCheck, Loader2 } from "lucide-react";
+import { ClipboardCheck, CheckCheck, Loader2 } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient, ApiError } from "@/lib/api-client";
 import { useAssignmentOverview } from "@/features/admin-assignments/hooks/use-assignments";
@@ -11,6 +11,7 @@ import { adminCard } from "@/features/admin-imports/components/import-ui";
 import { TYPE_META } from "@/features/evidence/lib/evidence-meta";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+import { AdminPageHeader, AdminPanelHeader } from "@/features/admin/components/admin-ui";
 import type { EvidenceType } from "@placecampus/shared-types";
 
 interface QueueItem {
@@ -46,18 +47,14 @@ export default function ReviewCoordinatorPage() {
 
   return (
     <div className="mx-auto w-full max-w-[1200px] space-y-6">
-      <div>
-        <h1 className="text-2xl font-extrabold tracking-tight text-[#0B1F44]">Review Queue</h1>
-        <p className="mt-1 max-w-[50rem] text-sm text-[#64748B]">
-          Evidence that couldn&apos;t be routed (no assigned or department reviewer) or was escalated lands here. You act as Review Coordinator: assign it to an available reviewer with a reason. Conflicts of interest and demo/real separation are enforced.
-        </p>
-      </div>
+      <AdminPageHeader title="Review Queue" description="Evidence that couldn&apos;t be routed (no assigned or department reviewer) or was escalated lands here. You act as Review Coordinator: assign it to an available reviewer with a reason. Conflicts of interest and demo/real separation are enforced." />
       <div role="tablist" className="inline-flex rounded-xl bg-slate-100 p-1">
         {([["coordinator", "Coordinator queue"], ["overdue", "All overdue"]] as const).map(([k, l]) => (
           <button key={k} type="button" role="tab" aria-selected={filter === k} onClick={() => setFilter(k)} className={cn("rounded-lg px-4 py-2 text-sm font-semibold", filter === k ? "bg-white text-[#0B1F44] shadow-sm" : "text-[#64748B]")}>{l}</button>
         ))}
       </div>
       <section className={cn(adminCard, "overflow-hidden")}>
+        <AdminPanelHeader icon={ClipboardCheck} title={filter === "overdue" ? "All overdue reviews" : "Coordinator queue"} />
         {queue.isLoading ? (
           <div className="space-y-2 p-5">{Array.from({ length: 3 }, (_, i) => <Skeleton key={i} className="h-14 rounded-xl" />)}</div>
         ) : !queue.data?.length ? (
