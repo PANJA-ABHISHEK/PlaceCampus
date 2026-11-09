@@ -18,8 +18,9 @@ export class NotificationsListener {
     const role = e.purposes.includes('MENTOR') ? 'mentor' : 'assigned faculty member';
     const stamp = Date.now();
     await this.notificationsService.createFromEvent({
-      recipientId: e.studentId, type: NotificationType.MENTOR_ASSIGNED, title: `Your ${role} has changed`,
-      message: `${e.newFacultyName} is now your ${role}.`, actionUrl: '/student/dashboard',
+      recipientId: e.studentId, type: NotificationType.MENTOR_ASSIGNED,
+      title: e.previousFacultyId ? `Your ${role} has changed` : `Your ${role} has been assigned`,
+      message: `${e.newFacultyName} is now your ${role}.`, actionUrl: '/student/profile',
       entityType: 'faculty-assignment', entityId: e.studentId, idempotencyKey: `assignment:${e.studentId}:${e.newFacultyId}:${stamp}`,
     });
     await this.notificationsService.createFromEvent({

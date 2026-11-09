@@ -1,5 +1,6 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Model } from 'mongoose';
 import type { StudentSettings } from '@placecampus/shared-types';
 import {
@@ -18,6 +19,7 @@ export class StudentsService {
     private readonly profileModel: Model<StudentProfileDocument>,
     @InjectModel(User.name)
     private readonly userModel: Model<UserDocument>,
+    @Optional() private readonly events?: EventEmitter2,
   ) {}
 
   async getProfileByUserId(userId: string): Promise<StudentProfileDocument> {
@@ -26,6 +28,7 @@ export class StudentsService {
     // Auto-create an empty profile if one doesn't exist yet for the authenticated student
     if (!profile) {
       profile = await this.profileModel.create({ userId });
+      this.events?.emit('student.profile_created', { userId });
     }
 
     return profile;

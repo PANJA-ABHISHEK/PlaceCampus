@@ -32,8 +32,13 @@ export class VerificationService {
     const sanitized = record.toObject();
     delete (sanitized as any)._id;
     delete (sanitized as any).__v;
-    delete (sanitized as any).aiResult; // Hide internal AI JSON from students
+    // Students see the neutral AI summary only, never the full analysis (§ data model ai_analyses).
+    (sanitized as any).aiSummary = (sanitized as any).aiResult?.summary ?? null;
+    delete (sanitized as any).aiResult;
+    delete (sanitized as any).aiAnalysisId;
     delete (sanitized as any).errorInformation; // Hide raw errors
+    delete (sanitized as any).duplicateMatches; // May reference other students' evidence
+    delete (sanitized as any).extractionId;
 
     return sanitized;
   }

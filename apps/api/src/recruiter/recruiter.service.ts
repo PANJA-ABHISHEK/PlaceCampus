@@ -27,6 +27,30 @@ export class RecruiterService {
     }));
   }
 
+  /** Aggregate dashboard values only over this recruiter's active access grants. */
+  async getDashboardSummary(recruiterId: string) {
+    const grants = await this.recruiterAccessService.getMyActiveGrants(recruiterId);
+    return Promise.all(grants.map(async (grant: any) => {
+      const drive = grant.driveId;
+      const driveId = String(drive?._id ?? drive);
+      const canSeeApplicationStatus = grant.releasedFields.includes('applicationStatus');
+      const [candidateCount, shortlistedCount] = await Promise.all([
+        this.applicationsService.countForDrive(driveId),
+        canSeeApplicationStatus
+          ? this.applicationsService.countForDrive(driveId, ApplicationStatus.SHORTLISTED)
+          : Promise.resolve(null),
+      ]);
+      return {
+        grantId: grant.id,
+        drive,
+        expiresAt: grant.expiresAt,
+        releasedFields: grant.releasedFields,
+        candidateCount,
+        shortlistedCount,
+      };
+    }));
+  }
+
   async getCandidates(recruiterId: string, driveId: string, page = 1, limit = 10, status?: string, query?: string) {
     const grant = await this.recruiterAccessService.getActiveGrant(driveId, recruiterId);
     if (!grant) {

@@ -62,6 +62,14 @@ import { Notification } from '../../notifications/schemas/notification.schema.js
 import { StudentsService } from '../../students/students.service.js';
 import { StorageService } from '../../storage/storage.service.js';
 import { DocumentExtractorService } from '../../verification/providers/document-extractor.service.js';
+import { ExtractionStoreService } from '../../verification/extraction-store.service.js';
+import { EvidenceExtraction } from '../../verification/schemas/evidence-extraction.schema.js';
+import { AiAnalysis } from '../../verification/schemas/ai-analysis.schema.js';
+import {
+  EXTRACTED_FIELDS,
+  type DocumentAnalysisResult,
+} from '../../verification/ai/document-analysis.schema.js';
+import { PROMPT_VERSION } from '../../verification/ai/prompts/document-analysis.v1.js';
 import { VerificationEngineService } from '../../verification/providers/verification-engine.service.js';
 import { FacultyService } from '../../faculty/faculty.service.js';
 import { ReviewAction } from '../../faculty/dto/review-decision.dto.js';
@@ -79,7 +87,6 @@ const STUDENT = {
 const FACULTY_EMAIL = 'faculty.demo@placecampus.local';
 const OFFICER_EMAIL = 'placement.demo@placecampus.local';
 const ASSET_DIR = resolve(process.cwd(), 'src/database/seed/assets/showcase-student');
-const AI_MODEL = process.env.AI_MODEL || 'gpt-4';
 
 const d = (iso: string) => new Date(iso);
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -263,6 +270,14 @@ const EVIDENCE: EvidenceSeed[] = [
     // Left for faculty review so it can be approved live in a demo.
   },
 ];
+
+const ANALYSIS_TYPE: Record<string, DocumentAnalysisResult['documentType']> = {
+  CERTIFICATION: 'CERTIFICATE',
+  PROJECT: 'PROJECT_REPORT',
+  INTERNSHIP: 'INTERNSHIP_LETTER',
+  HACKATHON: 'ACHIEVEMENT',
+  ACADEMIC: 'MARKSHEET',
+};
 
 const DOCUMENT_TYPE: Record<string, string> = {
   CERTIFICATION: 'Course completion certificate',
@@ -453,6 +468,8 @@ async function run() {
     profile: model(StudentProfile.name),
     evidence: model(Evidence.name),
     record: model(VerificationRecord.name),
+    extraction: model(EvidenceExtraction.name),
+    analysis: model(AiAnalysis.name),
     skill: model(Skill.name),
     claim: model(SkillClaim.name),
     skillProfile: model(StudentSkillProfile.name),
@@ -469,6 +486,7 @@ async function run() {
   const students = app.get(StudentsService);
   const storage = app.get(StorageService);
   const extractor = app.get(DocumentExtractorService);
+  const extractionStore = app.get(ExtractionStoreService);
   const engine = app.get(VerificationEngineService);
   const faculty = app.get(FacultyService);
   const readiness = app.get(ReadinessService);
@@ -504,6 +522,8 @@ async function run() {
     await Promise.all([
       M.evidence.deleteMany({ studentId: uid }),
       M.record.deleteMany({ studentId: uid }),
+      M.extraction.deleteMany({ studentId: uid }),
+      M.analysis.deleteMany({ studentId: uid }),
       M.claim.deleteMany({ studentId: { $in: ids } }),
       M.skillProfile.deleteMany({ studentId: { $in: ids } }),
       M.attempt.deleteMany({ studentId: { $in: ids } }),
@@ -645,32 +665,82 @@ async function run() {
 
     const absolutePath = await storage.getFilePath(meta.key);
     const extraction = await extractor.extractText(absolutePath, 'application/pdf');
+    const extractionDoc = await extractionStore.save({
+      evidenceId: evidence.id,
+      studentId: userId,
+      version: 1,
+      fileId: meta.id,
+      result: extraction,
+    });
+    // Curated demo analysis in the §12.6 shape (labelled as seed data, not model output).
+    const analysisResult: DocumentAnalysisResult = {
+      documentType: ANALYSIS_TYPE[e.type] ?? 'OTHER',
+      documentTypeConfidence: e.confidence,
+      readability: extraction.hasText ? 'GOOD' : 'POOR',
+      extracted: {
+        ...(Object.fromEntries(EXTRACTED_FIELDS.map((f) => [f, null])) as DocumentAnalysisResult['extracted']),
+        issuerName: e.issuer,
+        title: e.title,
+        issueDate: e.issuedDate,
+      },
+      fieldEvidence: [],
+      skillMentions: e.claimedSkills.map((name) => ({
+        text: name,
+        suggestedSkillId: skillId(name),
+        matchType: 'EXACT' as const,
+        relevance: 0.9,
+        suggestedLevelCap: 3,
+        rationale: 'Listed in the document.',
+      })),
+      consistencyFlags: [],
+      summary: e.aiReasons.join(' '),
+      uncertainty: [],
+    };
+    const analysisDoc = await M.analysis.create({
+      evidenceId: evidence.id,
+      studentId: userId,
+      version: 1,
+      provider: 'none',
+      model: 'showcase-seed',
+      promptVersion: PROMPT_VERSION,
+      status: 'SUCCEEDED',
+      result: analysisResult,
+    });
     const aiResult = {
       documentType: DOCUMENT_TYPE[e.type] ?? 'Document',
       issuer: e.issuer,
       claimedSkills: e.claimedSkills,
       skillRelevant: e.claimedSkills.length > 0,
-      possibleDuplicate: false,
       readable: extraction.hasText,
-      decision: 'VERIFIED' as const,
       confidence: e.confidence,
       reasons: e.aiReasons,
-      modelVersion: AI_MODEL,
+      summary: analysisResult.summary,
+      modelVersion: 'showcase-seed',
+      analysisId: analysisDoc.id,
     };
     const outcome = engine.evaluate(
       { evidenceId: evidence.id, title: e.title, type: e.type as any },
       extraction,
-      aiResult,
-      null,
+      { status: 'SUCCEEDED', result: analysisResult, postValidation: { droppedSkillIds: [], unconfirmedFields: [], invalidDates: [] } },
     );
     const record = await M.record.create({
       evidenceId: evidence.id,
       studentId: userId,
       attemptNumber: 1,
       extractionMethod: extraction.method,
-      extractedTextMetadata: { wordCount: extraction.wordCount, hasText: extraction.hasText },
-      aiProvider: process.env.AI_PROVIDER || 'openai',
-      modelVersion: AI_MODEL,
+      extractionStatus: extraction.status,
+      extractionId: extractionDoc.id,
+      extractedTextMetadata: {
+        wordCount: extraction.wordCount,
+        hasText: extraction.hasText,
+        charCount: extraction.charCount,
+        pageCount: extraction.pageCount,
+        ocrConfidence: extraction.ocrConfidence,
+      },
+      aiProvider: 'none',
+      modelVersion: 'showcase-seed',
+      aiStatus: 'SUCCEEDED',
+      aiAnalysisId: analysisDoc.id,
       aiResult,
       ruleResults: outcome.ruleResults,
       finalDecision: outcome.finalDecision,

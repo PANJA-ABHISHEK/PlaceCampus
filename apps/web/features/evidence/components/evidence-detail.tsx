@@ -13,6 +13,11 @@ import {
   getTypeLabel,
 } from "@/features/evidence/components/evidence-card";
 import { EvidenceStatus } from "@placecampus/shared-types";
+import {
+  ExtractionStatusBadge,
+  extractionMethodLabel,
+  ocrConfidenceClass,
+} from "@/features/evidence/components/extraction-panel";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
@@ -54,7 +59,12 @@ export function VerificationRecordSection({ evidenceId }: { evidenceId: string }
             <p className="text-[hsl(var(--muted-foreground))] mb-1">
               Extraction
             </p>
-            <p className="font-medium">{record.extractionMethod || "None"}</p>
+            <p className="flex flex-wrap items-center gap-1.5 font-medium">
+              {extractionMethodLabel(record.extractionMethod)}
+              {record.extractionStatus && record.extractionStatus !== "COMPLETED" && (
+                <ExtractionStatusBadge status={record.extractionStatus} />
+              )}
+            </p>
           </div>
           <div>
             <p className="text-[hsl(var(--muted-foreground))] mb-1">
@@ -64,6 +74,16 @@ export function VerificationRecordSection({ evidenceId }: { evidenceId: string }
               {record.extractedTextMetadata?.wordCount || 0}
             </p>
           </div>
+          {typeof record.extractedTextMetadata?.ocrConfidence === "number" && (
+            <div>
+              <p className="text-[hsl(var(--muted-foreground))] mb-1">
+                OCR Confidence
+              </p>
+              <p className={`font-medium ${ocrConfidenceClass(record.extractedTextMetadata.ocrConfidence)}`}>
+                {Math.round(record.extractedTextMetadata.ocrConfidence)}%
+              </p>
+            </div>
+          )}
           <div>
             <p className="text-[hsl(var(--muted-foreground))] mb-1">Attempt</p>
             <p className="font-medium">#{record.attemptNumber}</p>
@@ -77,6 +97,16 @@ export function VerificationRecordSection({ evidenceId }: { evidenceId: string }
             </p>
           </div>
         </div>
+
+        {record.aiSummary && (
+          <div className="pt-3 border-t border-[hsl(var(--border))]">
+            <p className="text-[hsl(var(--muted-foreground))] text-sm mb-1">AI summary</p>
+            <p className="text-sm leading-6 text-heading">{record.aiSummary}</p>
+            <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
+              Suggestion only. A faculty reviewer makes the decision.
+            </p>
+          </div>
+        )}
 
         {record.reasons && record.reasons.length > 0 && (
           <div className="pt-3 border-t border-[hsl(var(--border))]">

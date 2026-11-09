@@ -7,6 +7,7 @@ import * as z from "zod";
 import { toast } from "sonner";
 import {
   CircleCheck,
+  Code2,
   FileText,
   Github,
   Globe,
@@ -38,6 +39,7 @@ import { ProfileOverview } from "@/features/student/components/profile/profile-o
 import { ProfileSectionCard } from "@/features/student/components/profile/profile-section-card";
 import { AcademicDetailsCard } from "@/features/student/components/profile/academic-details-card";
 import { ResumeCard } from "@/features/student/components/profile/resume-card";
+import { MentorCard } from "@/features/student/components/profile/mentor-card";
 import {
   IconInputField,
   IconTextareaField,
@@ -71,6 +73,8 @@ const profileSchema = z.object({
   linkedinUrl: optionalUrl("LinkedIn"),
   githubUrl: optionalUrl("GitHub"),
   portfolioUrl: optionalUrl("portfolio"),
+  leetcodeUrl: optionalUrl("LeetCode"),
+  otherUrl: optionalUrl("other link"),
 });
 
 type ProfileValues = z.infer<typeof profileSchema>;
@@ -81,6 +85,8 @@ const toFormValues = (profile?: StudentProfile): ProfileValues => ({
   linkedinUrl: profile?.linkedinUrl || "",
   githubUrl: profile?.githubUrl || "",
   portfolioUrl: profile?.portfolioUrl || "",
+  leetcodeUrl: profile?.leetcodeUrl || "",
+  otherUrl: profile?.otherUrl || "",
 });
 
 const SECTIONS = [
@@ -141,9 +147,9 @@ export default function StudentProfilePage() {
     defaultValues: toFormValues(),
   });
 
-  const [bio, linkedinUrl, githubUrl, portfolioUrl] = useWatch({
+  const [bio, linkedinUrl, githubUrl, portfolioUrl, leetcodeUrl, otherUrl] = useWatch({
     control,
-    name: ["bio", "linkedinUrl", "githubUrl", "portfolioUrl"],
+    name: ["bio", "linkedinUrl", "githubUrl", "portfolioUrl", "leetcodeUrl", "otherUrl"],
   });
 
   React.useEffect(() => {
@@ -375,6 +381,26 @@ export default function StudentProfilePage() {
                 value={portfolioUrl}
                 error={errors.portfolioUrl?.message}
               />
+              <SocialLinkField
+                id="leetcodeUrl"
+                label="LeetCode"
+                icon={Code2}
+                iconClassName="bg-[#FFA116] text-white"
+                placeholder="https://leetcode.com/u/username"
+                registration={register("leetcodeUrl")}
+                value={leetcodeUrl}
+                error={errors.leetcodeUrl?.message}
+              />
+              <SocialLinkField
+                id="otherUrl"
+                label="Other"
+                icon={Globe}
+                iconClassName="bg-[hsl(var(--primary)/0.12)] text-[hsl(var(--primary))]"
+                placeholder="https://your-link.com"
+                registration={register("otherUrl")}
+                value={otherUrl}
+                error={errors.otherUrl?.message}
+              />
             </div>
           </ProfileSectionCard>
 
@@ -383,6 +409,8 @@ export default function StudentProfilePage() {
             style={delay(280)}
             className={cn(spotlight === "resume" && SPOTLIGHT_CLASS)}
           />
+
+          <MentorCard id="mentor" style={delay(320)} />
         </div>
 
         {/* Sticky save bar */}

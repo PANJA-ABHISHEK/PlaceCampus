@@ -39,12 +39,25 @@ export interface RecruiterDriveView {
   releasedFields: string[];
 }
 
+export interface RecruiterDashboardDrive extends RecruiterDriveView {
+  candidateCount: number;
+  /** Null when this drive's access grant does not share application status. */
+  shortlistedCount: number | null;
+}
+
 export function useRecruiterDrives() {
   return useQuery({
     queryKey: ['recruiter', 'drives'],
     queryFn: async () => {
       return apiClient.get<RecruiterDriveView[]>('/recruiter/drives');
     },
+  });
+}
+
+export function useRecruiterDashboardSummary() {
+  return useQuery({
+    queryKey: ['recruiter', 'dashboard', 'summary'],
+    queryFn: () => apiClient.get<RecruiterDashboardDrive[]>('/recruiter/dashboard/summary'),
   });
 }
 

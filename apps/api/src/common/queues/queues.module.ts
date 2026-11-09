@@ -8,7 +8,7 @@ import { BullModule } from '@nestjs/bull';
  */
 @Global()
 @Module({
-  imports: [BullModule.registerQueue({ name: 'verification' }, { name: 'imports' })],
+  imports: [BullModule.registerQueue({ name: 'verification' }, { name: 'imports' }, { name: 'readiness' })],
   exports: [BullModule],
 })
 export class QueuesModule {}

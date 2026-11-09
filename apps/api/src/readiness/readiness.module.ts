@@ -2,6 +2,11 @@ import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { ReadinessService } from './readiness.service.js';
 import { ReadinessController } from './readiness.controller.js';
+import { ReadinessBatchController } from './readiness-batch.controller.js';
+import { ReadinessBatchService } from './readiness-batch.service.js';
+import { ReadinessBatchProcessor } from './readiness-batch.processor.js';
+import { BatchRun, BatchRunSchema } from './schemas/batch-run.schema.js';
+import { AuditModule } from '../audit/audit.module.js';
 import {
   ReadinessSnapshot,
   ReadinessSnapshotSchema,
@@ -36,10 +41,12 @@ import {
       { name: AssessmentAttempt.name, schema: AssessmentAttemptSchema },
       { name: Evidence.name, schema: EvidenceSchema },
       { name: MockInterview.name, schema: MockInterviewSchema },
+      { name: BatchRun.name, schema: BatchRunSchema },
     ]),
+    AuditModule,
   ],
-  controllers: [ReadinessController],
-  providers: [ReadinessService],
-  exports: [ReadinessService],
+  controllers: [ReadinessController, ReadinessBatchController],
+  providers: [ReadinessService, ReadinessBatchService, ReadinessBatchProcessor],
+  exports: [ReadinessService, ReadinessBatchService],
 })
 export class ReadinessModule {}

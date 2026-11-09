@@ -3,311 +3,598 @@
 import React from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import {
-  usePlacementDrive,
-  usePublishDrive,
-  useCloseDrive,
-} from "@/features/drives/hooks/use-drives";
+import { toast } from "sonner";
 import {
   ArrowLeft,
-  Building2,
-  Calendar,
-  MapPin,
-  Briefcase,
+  BadgeIndianRupee,
+  BarChart3,
+  BriefcaseBusiness,
+  CalendarCheck,
+  CalendarClock,
+  CalendarDays,
+  CircleCheck,
+  Code2,
+  Copy,
+  FileText,
   GraduationCap,
-  CheckCircle,
-  AlertTriangle,
-  Coins,
+  Hash,
+  Info,
+  Laptop,
+  Layers,
+  Link2,
+  Loader2,
+  Lock,
+  MapPin,
+  MoreVertical,
+  Pencil,
+  Rocket,
+  SearchX,
+  Send,
+  ShieldCheck,
+  Star,
+  UsersRound,
+  XCircle,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { DriveStatus } from "@placecampus/shared-types";
+import {
+  DriveStatus,
+  type CreatePlacementDriveDto,
+  type PlacementDrive,
+} from "@placecampus/shared-types";
+import {
+  useCloseDrive,
+  useCreateDrive,
+  usePlacementDrive,
+  usePublishDrive,
+} from "@/features/drives/hooks/use-drives";
 import { RecruiterAccessManager } from "@/features/recruiter-access/components/recruiter-access-manager";
+import { CompanyMark } from "@/features/drives/components/drive-ui";
+import {
+  DriveCardTitle,
+  DriveStatusBadge,
+  STATUS_META,
+  driveCardClassName,
+} from "@/features/drives/components/drive-admin-ui";
+import { getWindowState } from "@/features/drives/lib/drive-meta";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { ApiError } from "@/lib/api-client";
+import { cn } from "@/lib/utils";
+
+const TABS = [
+  { id: "overview", label: "Overview", icon: Info },
+  { id: "eligibility", label: "Eligibility", icon: ShieldCheck },
+  { id: "skills", label: "Skills", icon: Code2 },
+  { id: "cohort", label: "Cohort Analysis", icon: BarChart3 },
+  { id: "access", label: "Recruiter Access", icon: UsersRound },
+] as const;
+
+type TabId = (typeof TABS)[number]["id"];
+
+const formatDate = (value?: string) =>
+  value ? new Date(value).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }) : null;
+
+const errorMessage = (error: unknown, fallback: string) =>
+  error instanceof ApiError && error.message ? error.message : fallback;
+
+/** A copy of the drive's content as a new draft; dates are left for the officer to set. */
+function duplicatePayload(drive: PlacementDrive): CreatePlacementDriveDto {
+  const r = drive.requirements ?? {};
+  return {
+    companyName: drive.companyName,
+    roleTitle: drive.roleTitle,
+    description: drive.description,
+    location: drive.location || undefined,
+    workMode: drive.workMode || undefined,
+    package: drive.package || undefined,
+    requirements: {
+      minimumCGPA: r.minimumCGPA ?? undefined,
+      maximumBacklogs: r.maximumBacklogs ?? undefined,
+      graduationYear: r.graduationYear ?? undefined,
+      allowedDepartments: r.allowedDepartments?.length ? r.allowedDepartments : undefined,
+      skills: (r.skills ?? []).map((s) => ({
+        skillId: s.skillId,
+        skillName: s.skillName,
+        minimumLevel: s.minimumLevel,
+        isOptional: s.isOptional,
+      })),
+    },
+  };
+}
 
 export default function PlacementDriveDetailPage() {
   const { id } = useParams() as { id: string };
   const router = useRouter();
-  const { data: drive, isLoading } = usePlacementDrive(id);
+  const { data: drive, isLoading, isError, refetch } = usePlacementDrive(id);
   const publishMutation = usePublishDrive();
   const closeMutation = useCloseDrive();
+  const duplicateMutation = useCreateDrive();
+  const [activeTab, setActiveTab] = React.useState<TabId>("overview");
+
+  // Ignore scroll tracking while a tab click is smooth-scrolling.
+  const lockUntil = React.useRef(0);
+
+  // Highlight the tab of the section currently in view.
+  React.useEffect(() => {
+    if (!drive) return;
+    // On wide screens Recruiter Access sits in the side column beside the
+    // main sections, so it only becomes active when its tab is clicked.
+    const wide = window.matchMedia("(min-width: 1024px)").matches;
+    const sections = TABS.filter((t) => !(wide && t.id === "access"))
+      .map((t) => document.getElementById(`drive-${t.id}`))
+      .filter(Boolean) as HTMLElement[];
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (Date.now() < lockUntil.current) return;
+        const visible = entries.filter((e) => e.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0];
+        if (visible) setActiveTab(visible.target.id.replace("drive-", "") as TabId);
+      },
+      { rootMargin: "-120px 0px -55% 0px" },
+    );
+    sections.forEach((s) => observer.observe(s));
+    return () => observer.disconnect();
+  }, [drive]);
+
+  const scrollTo = (tab: TabId) => {
+    lockUntil.current = Date.now() + 1000;
+    setActiveTab(tab);
+    document.getElementById(`drive-${tab}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
 
   if (isLoading) {
     return (
-      <div className="p-8 text-center text-muted-foreground animate-pulse">
-        Loading drive details...
+      <div className="mx-auto w-full max-w-[1280px] space-y-5 pb-8" aria-label="Loading drive">
+        <div className="h-5 w-32 animate-pulse rounded bg-slate-200" />
+        <div className="h-32 animate-pulse rounded-[20px] bg-white" />
+        <div className="h-14 animate-pulse rounded-[18px] bg-white" />
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
+          <div className="h-[520px] animate-pulse rounded-[18px] bg-white" />
+          <div className="h-[520px] animate-pulse rounded-[18px] bg-white" />
+        </div>
       </div>
     );
   }
 
   if (!drive) {
-    return <div className="p-8 text-center text-red-500">Drive not found.</div>;
+    return (
+      <div className={cn(driveCardClassName, "mx-auto flex max-w-xl flex-col items-center gap-3 px-6 py-14 text-center")}>
+        <span className="flex h-12 w-12 items-center justify-center rounded-full bg-[#FFF1E8] text-[#FF6500]">
+          <SearchX className="h-6 w-6" aria-hidden="true" />
+        </span>
+        <h1 className="text-lg font-bold text-[#10264A]">{isError ? "Drive could not be loaded" : "Drive not found"}</h1>
+        <p className="text-sm text-slate-500">{isError ? "Check your connection and try again." : "This drive may have been removed, or the link is incorrect."}</p>
+        <div className="flex gap-2 pt-1">
+          {isError && (
+            <button type="button" onClick={() => void refetch()} className="h-10 rounded-xl bg-[#FF6500] px-4 text-sm font-semibold text-white hover:bg-[#E85C00]">Try again</button>
+          )}
+          <Link href="/placement/drives" className="inline-flex h-10 items-center rounded-xl border border-slate-300 px-4 text-sm font-semibold text-[#10264A] hover:bg-slate-50">Back to Drives</Link>
+        </div>
+      </div>
+    );
   }
 
+  const isDraft = drive.status === DriveStatus.DRAFT;
+  const isPublished = drive.status === DriveStatus.PUBLISHED;
+  const requirements = drive.requirements ?? {};
+  const skills = requirements.skills ?? [];
+  const requiredCount = skills.filter((s) => !s.isOptional).length;
+
   const handlePublish = async () => {
-    if (
-      confirm(
-        "Are you sure you want to publish this drive? It will become visible to all students.",
-      )
-    ) {
-      try {
-        await publishMutation.mutateAsync(id);
-        alert("Drive published successfully!");
-      } catch (e: unknown) {
-        const error = e as { response?: { data?: { message?: string } } };
-        alert(
-          error.response?.data?.message ||
-            "Failed to publish drive. Ensure required fields are complete.",
-        );
-      }
+    if (!confirm("Are you sure you want to publish this drive? It will become visible to all students.")) return;
+    try {
+      await publishMutation.mutateAsync(id);
+      toast.success("Drive published successfully");
+    } catch (e) {
+      toast.error(errorMessage(e, "Failed to publish drive. Ensure required fields are complete."));
     }
   };
 
   const handleClose = async () => {
-    if (
-      confirm(
-        "Are you sure you want to close this drive? Students will no longer be able to apply.",
-      )
-    ) {
-      try {
-        await closeMutation.mutateAsync(id);
-      } catch (e) {
-        alert("Failed to close drive.");
-      }
+    if (!confirm("Are you sure you want to close this drive? Students will no longer be able to apply.")) return;
+    try {
+      await closeMutation.mutateAsync(id);
+      toast.success("Drive closed");
+    } catch (e) {
+      toast.error(errorMessage(e, "Failed to close drive."));
     }
   };
 
+  const handleDuplicate = async () => {
+    try {
+      const copy = await duplicateMutation.mutateAsync(duplicatePayload(drive));
+      toast.success("Drive duplicated as a new draft. Set the dates before publishing.");
+      router.push(`/placement/drives/${copy.id}/edit`);
+    } catch (e) {
+      toast.error(errorMessage(e, "Failed to duplicate drive."));
+    }
+  };
+
+  const copyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      toast.success("Drive link copied");
+    } catch {
+      toast.error("Could not copy the link");
+    }
+  };
+
+  const secondaryButton =
+    "inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 text-sm font-semibold text-[#10264A] shadow-sm transition-colors hover:border-[#FFC9A3] hover:bg-[#FFF6F0] disabled:cursor-not-allowed disabled:opacity-55";
+
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <div className="mx-auto w-full max-w-[1280px] space-y-5 pb-8">
+      <Link href="/placement/drives" className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#10264A]/70 transition-colors hover:text-[#FF6500]">
+        <ArrowLeft className="h-4 w-4" aria-hidden="true" />Back to Drives
+      </Link>
+
       {/* Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
-        <div>
-          <Link
-            href="/placement/drives"
-            className="inline-flex items-center text-sm font-medium text-muted-foreground hover:text-heading mb-3 transition-colors"
-          >
-            <ArrowLeft className="w-4 h-4 mr-1" /> Back to Drives
-          </Link>
-          <div className="flex items-center gap-3">
-            <h1 className="text-3xl font-bold text-heading">
-              {drive.companyName}
-            </h1>
-            <span
-              className={`text-xs px-3 py-1 rounded-full font-medium border ${
-                drive.status === DriveStatus.PUBLISHED
-                  ? "bg-green-50 text-green-700 border-green-200"
-                  : drive.status === DriveStatus.DRAFT
-                    ? "bg-orange-50 text-orange-700 border-orange-200"
-                    : drive.status === DriveStatus.CLOSED
-                      ? "bg-gray-50 text-gray-700 border-gray-200"
-                      : "bg-red-50 text-red-700 border-red-200"
-              }`}
-            >
-              {drive.status}
-            </span>
-          </div>
-          <p className="text-lg text-muted-foreground mt-1">
-            {drive.roleTitle}
-          </p>
-        </div>
-
-        <div className="flex gap-2 w-full md:w-auto">
-          {drive.status === DriveStatus.DRAFT && (
-            <>
-              {/* For now we don't have an edit page, just a button placeholder or we could link to it if we built one */}
-              <Button
-                onClick={handlePublish}
-                disabled={publishMutation.isPending}
-                className="w-full md:w-auto bg-green-600 hover:bg-green-700 text-white"
-              >
-                {publishMutation.isPending ? "Publishing..." : "Publish Drive"}
-              </Button>
-            </>
-          )}
-          {drive.status === DriveStatus.PUBLISHED && (
-            <Button
-              variant="outline"
-              onClick={handleClose}
-              disabled={closeMutation.isPending}
-              className="w-full md:w-auto text-red-600 hover:text-red-700 hover:bg-red-50"
-            >
-              Close Drive
-            </Button>
-          )}
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* Left Column: Details */}
-        <div className="md:col-span-2 space-y-6">
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-orange-100">
-            <h2 className="text-xl font-semibold text-heading mb-4">
-              About the Role
-            </h2>
-            <p className="text-muted-foreground whitespace-pre-wrap leading-relaxed text-sm">
-              {drive.description}
-            </p>
-          </div>
-
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-orange-100">
-            <h2 className="text-xl font-semibold text-heading mb-4">
-              Eligibility Requirements
-            </h2>
-
-            <div className="grid grid-cols-2 gap-4 mb-6">
-              <div className="p-3 bg-muted/50 rounded-lg">
-                <p className="text-xs font-medium text-muted-foreground uppercase mb-1">
-                  Min CGPA
-                </p>
-                <p className="font-semibold text-heading">
-                  {drive.requirements.minimumCGPA || "No minimum"}
-                </p>
+      <header className="pc-enter relative overflow-hidden rounded-[20px] border border-[#FF6500]/15 bg-gradient-to-r from-white via-[#FFF8F3] to-[#FFEBDD] px-5 py-5 shadow-[0_10px_30px_-20px_rgba(255,101,0,0.45)] sm:px-7">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div className="flex min-w-0 items-center gap-4">
+            <CompanyMark name={drive.companyName} size="lg" />
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                <h1 className="truncate text-2xl font-extrabold tracking-tight text-[#10264A] sm:text-[28px]">{drive.companyName}</h1>
+                <DriveStatusBadge status={drive.status} />
               </div>
-              <div className="p-3 bg-muted/50 rounded-lg">
-                <p className="text-xs font-medium text-muted-foreground uppercase mb-1">
-                  Max Backlogs
-                </p>
-                <p className="font-semibold text-heading">
-                  {drive.requirements.maximumBacklogs ?? "No limit"}
-                </p>
-              </div>
-              <div className="p-3 bg-muted/50 rounded-lg">
-                <p className="text-xs font-medium text-muted-foreground uppercase mb-1">
-                  Batch / Year
-                </p>
-                <p className="font-semibold text-heading">
-                  {drive.requirements.graduationYear || "Any"}
-                </p>
-              </div>
-              <div className="p-3 bg-muted/50 rounded-lg">
-                <p className="text-xs font-medium text-muted-foreground uppercase mb-1">
-                  Departments
-                </p>
-                <p className="font-semibold text-heading">
-                  {drive.requirements.allowedDepartments?.length
-                    ? drive.requirements.allowedDepartments.join(", ")
-                    : "All"}
-                </p>
-              </div>
+              <p className="mt-1 truncate text-sm font-medium text-[#10264A]/75 sm:text-base">{drive.roleTitle}</p>
             </div>
+          </div>
 
-            {drive.requirements.skills &&
-              drive.requirements.skills.length > 0 && (
-                <div>
-                  <p className="text-sm font-semibold text-heading mb-3 border-b pb-2">
-                    Skill Requirements
-                  </p>
-                  <div className="space-y-2">
-                    {drive.requirements.skills.map((skill) => (
-                      <div
-                        key={skill.skillId}
-                        className="flex justify-between items-center p-3 border rounded-md bg-white"
-                      >
-                        <div>
-                          <p className="font-medium text-sm text-heading">
-                            {skill.skillName || skill.skillId}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            Minimum Level: {skill.minimumLevel}
-                          </p>
-                        </div>
-                        <span
-                          className={`text-xs px-2 py-1 rounded ${skill.isOptional ? "bg-gray-100 text-gray-600" : "bg-orange-100 text-orange-700 font-medium"}`}
-                        >
-                          {skill.isOptional ? "OPTIONAL" : "REQUIRED"}
+          <div className="flex flex-wrap items-center gap-2">
+            {isDraft ? (
+              <Link href={`/placement/drives/${id}/edit`} className={secondaryButton}>
+                <Pencil className="h-4 w-4" aria-hidden="true" />Edit Drive
+              </Link>
+            ) : (
+              <span title="Only draft drives can be edited" className="inline-flex">
+                <Link href={`/placement/drives/${id}/edit`} className={secondaryButton} aria-label="View drive details in the editor (read-only)">
+                  <Lock className="h-4 w-4" aria-hidden="true" />Edit Drive
+                </Link>
+              </span>
+            )}
+            <button type="button" onClick={() => void handleDuplicate()} disabled={duplicateMutation.isPending} className={secondaryButton}>
+              {duplicateMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Copy className="h-4 w-4" aria-hidden="true" />}
+              Duplicate
+            </button>
+            {isDraft && (
+              <button
+                type="button"
+                onClick={() => void handlePublish()}
+                disabled={publishMutation.isPending}
+                className="inline-flex h-10 items-center gap-2 rounded-xl bg-[#FF6500] px-4 text-sm font-semibold text-white shadow-[0_10px_22px_-12px_rgba(255,101,0,0.9)] transition-colors hover:bg-[#E85C00] disabled:opacity-60"
+              >
+                {publishMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Rocket className="h-4 w-4" aria-hidden="true" />}
+                {publishMutation.isPending ? "Publishing..." : "Publish Drive"}
+              </button>
+            )}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button type="button" aria-label="More drive actions" className={cn(secondaryButton, "w-10 px-0")}>
+                  <MoreVertical className="h-4 w-4" aria-hidden="true" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-52">
+                {isDraft && (
+                  <DropdownMenuItem onSelect={() => void handlePublish()}>
+                    <Send className="mr-2 h-4 w-4" />Publish drive
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuItem onSelect={() => void handleDuplicate()}>
+                  <Copy className="mr-2 h-4 w-4" />Duplicate drive
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => void copyLink()}>
+                  <Link2 className="mr-2 h-4 w-4" />Copy link
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => scrollTo("access")}>
+                  <UsersRound className="mr-2 h-4 w-4" />Manage recruiter access
+                </DropdownMenuItem>
+                {isPublished && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onSelect={() => void handleClose()} className="text-rose-600 focus:bg-rose-50 focus:text-rose-700">
+                      <XCircle className="mr-2 h-4 w-4" />Close drive
+                    </DropdownMenuItem>
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </div>
+      </header>
+
+      {/* Section tabs */}
+      <nav aria-label="Drive sections" className={cn(driveCardClassName, "overflow-x-auto px-2 sm:px-3")}>
+        <ul className="flex min-w-max items-center gap-1">
+          {TABS.map((tab) => {
+            const active = activeTab === tab.id;
+            return (
+              <li key={tab.id}>
+                <button
+                  type="button"
+                  onClick={() => scrollTo(tab.id)}
+                  aria-current={active ? "true" : undefined}
+                  className={cn(
+                    "relative inline-flex h-14 items-center gap-2 px-3 text-sm font-semibold transition-colors sm:px-4",
+                    active ? "text-[#FF6500]" : "text-[#10264A]/75 hover:text-[#10264A]",
+                  )}
+                >
+                  <tab.icon className="h-4 w-4" aria-hidden="true" />
+                  {tab.label}
+                  <span aria-hidden="true" className={cn("absolute inset-x-3 bottom-0 h-[3px] rounded-t-full transition-colors", active ? "bg-[#FF6500]" : "bg-transparent")} />
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      </nav>
+
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
+        {/* Main column */}
+        <div className="min-w-0 space-y-5">
+          <section id="drive-overview" aria-labelledby="about-title" className={cn(driveCardClassName, "scroll-mt-24 p-5 sm:p-6")}>
+            <DriveCardTitle id="about-title" icon={FileText} title="About the Role" />
+            <p className="mt-4 whitespace-pre-wrap text-[15px] leading-7 text-slate-700">
+              {drive.description || <span className="text-slate-400">No description provided.</span>}
+            </p>
+          </section>
+
+          <section id="drive-eligibility" aria-labelledby="eligibility-title" className={cn(driveCardClassName, "scroll-mt-24 p-5 sm:p-6")}>
+            <DriveCardTitle id="eligibility-title" icon={GraduationCap} title="Eligibility Requirements" description="Students must meet every criterion set here." />
+            <div className="mt-4 grid grid-cols-2 gap-3 xl:grid-cols-4">
+              <EligibilityTile icon={Star} label="Min CGPA" value={requirements.minimumCGPA != null && requirements.minimumCGPA !== 0 ? String(requirements.minimumCGPA) : null} empty="No minimum" tone="violet" />
+              <EligibilityTile icon={Hash} label="Max Backlogs" value={requirements.maximumBacklogs != null ? String(requirements.maximumBacklogs) : null} empty="No limit" tone="emerald" />
+              <EligibilityTile icon={CalendarDays} label="Batch / Year" value={requirements.graduationYear ? String(requirements.graduationYear) : null} empty="Any" tone="blue" />
+              <EligibilityTile icon={Layers} label="Departments" value={requirements.allowedDepartments?.length ? requirements.allowedDepartments.join(", ") : null} empty="All" tone="orange" />
+            </div>
+          </section>
+
+          <section id="drive-skills" aria-labelledby="skills-title" className={cn(driveCardClassName, "scroll-mt-24 p-5 sm:p-6")}>
+            <DriveCardTitle
+              id="skills-title"
+              icon={Code2}
+              title="Skill Requirements"
+              description={skills.length ? `${requiredCount} required · ${skills.length - requiredCount} optional` : undefined}
+            />
+            {skills.length ? (
+              <ul className="mt-4 divide-y divide-slate-100 overflow-hidden rounded-xl border border-slate-200">
+                {skills.map((skill) => (
+                  <li key={skill.skillId} className="flex items-center gap-3 bg-white px-4 py-3 transition-colors hover:bg-slate-50/70">
+                    <span aria-hidden="true" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#EEF2F8] text-sm font-bold text-[#10264A]">
+                      {(skill.skillName || "?").charAt(0).toUpperCase()}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold text-[#10264A]">{skill.skillName || skill.skillId}</p>
+                      <div className="mt-1 flex items-center gap-2">
+                        <span className="whitespace-nowrap text-xs text-slate-500">Min. level {skill.minimumLevel}</span>
+                        <span className="flex gap-0.5" aria-hidden="true">
+                          {[1, 2, 3, 4, 5].map((n) => (
+                            <span key={n} className={cn("h-1.5 w-3.5 rounded-full", n <= skill.minimumLevel ? "bg-[#FF6500]" : "bg-slate-200")} />
+                          ))}
                         </span>
                       </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-          </div>
+                    </div>
+                    <span
+                      className={cn(
+                        "shrink-0 rounded-md px-2 py-1 text-[10px] font-bold tracking-wide",
+                        skill.isOptional ? "bg-slate-100 text-slate-600" : "bg-[#FFF1E8] text-[#C24E00] ring-1 ring-[#FFD9BF]",
+                      )}
+                    >
+                      {skill.isOptional ? "OPTIONAL" : "REQUIRED"}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <EmptyNote icon={Code2} title="No skills specified" text="Any student who meets the eligibility criteria can apply." />
+            )}
+          </section>
 
-          {/* Placement Officer Matching Summary */}
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-orange-100">
-            <h2 className="text-xl font-semibold text-heading mb-4">
-              Cohort Matching Overview
-            </h2>
-            <div className="p-8 border-2 border-dashed border-gray-200 rounded-xl text-center bg-gray-50">
-              <h3 className="text-lg font-medium text-heading mb-2">
-                Skill Supply Analytics
-              </h3>
-              <p className="text-sm text-muted-foreground max-w-md mx-auto">
-                Real-time gap analysis and candidate skill supply matching will
-                be available in the next lifecycle update. This will allow you
-                to see exactly how the student cohort matches against these
-                specific requirements before opening applications.
-              </p>
+          <section id="drive-cohort" aria-labelledby="cohort-title" className={cn(driveCardClassName, "scroll-mt-24 p-5 sm:p-6")}>
+            <DriveCardTitle id="cohort-title" icon={BarChart3} title="Cohort Matching Overview" />
+            <div className="mt-4 flex flex-col items-center gap-5 rounded-2xl border border-[#FFE0CC] bg-gradient-to-r from-[#FFF8F3] to-white p-5 sm:flex-row sm:p-6">
+              <div className="min-w-0 flex-1 text-center sm:text-left">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold text-[#C24E00] ring-1 ring-[#FFD9BF]">
+                  Coming soon
+                </span>
+                <h3 className="mt-2 text-base font-bold text-[#10264A]">Skill Supply Analytics</h3>
+                <p className="mt-1.5 text-sm leading-6 text-slate-600">
+                  Real-time gap analysis and candidate skill-supply matching will appear here once the system supports it.
+                  You&apos;ll see how the student cohort matches these requirements before opening applications.
+                </p>
+              </div>
+              <AnalyticsIllustration />
             </div>
-          </div>
-          
-          <RecruiterAccessManager driveId={id} />
+          </section>
         </div>
 
-        {/* Right Column: Meta Info */}
-        <div className="space-y-6">
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-orange-100">
-            <h2 className="text-sm font-semibold text-heading uppercase mb-4 tracking-wider">
-              Drive Details
-            </h2>
-            <div className="space-y-4">
-              <div className="flex items-start gap-3">
-                <MapPin className="w-5 h-5 text-orange-500 mt-0.5" />
-                <div>
-                  <p className="text-sm font-medium text-heading">Location</p>
-                  <p className="text-sm text-muted-foreground">
-                    {drive.location || "Not specified"}
-                  </p>
-                </div>
-              </div>
+        {/* Side column */}
+        <aside className="min-w-0 space-y-5">
+          <section aria-labelledby="details-title" className={cn(driveCardClassName, "p-5")}>
+            <DriveCardTitle id="details-title" icon={BriefcaseBusiness} title="Drive Details" />
+            <dl className="mt-4 space-y-3.5">
+              <DetailRow icon={MapPin} label="Location" value={drive.location} />
+              <DetailRow icon={Laptop} label="Work Mode" value={drive.workMode} />
+              <DetailRow icon={BadgeIndianRupee} label="Package / CTC" value={drive.package} />
+              <DetailRow icon={CalendarClock} label="Application Start" value={formatDate(drive.applicationStart)} />
+              <DetailRow icon={CalendarCheck} label="Drive Date" value={formatDate(drive.driveDate)} empty="To be decided" />
+              <DetailRow icon={CalendarDays} label="Application Deadline" value={formatDate(drive.applicationDeadline)} />
+            </dl>
+          </section>
 
-              <div className="flex items-start gap-3">
-                <Briefcase className="w-5 h-5 text-orange-500 mt-0.5" />
-                <div>
-                  <p className="text-sm font-medium text-heading">Work Mode</p>
-                  <p className="text-sm text-muted-foreground">
-                    {drive.workMode || "Not specified"}
-                  </p>
-                </div>
-              </div>
+          <DriveStatusCard
+            drive={drive}
+            onPublish={() => void handlePublish()}
+            onClose={() => void handleClose()}
+            publishing={publishMutation.isPending}
+            closing={closeMutation.isPending}
+          />
 
-              <div className="flex items-start gap-3">
-                <Coins className="w-5 h-5 text-orange-500 mt-0.5" />
-                <div>
-                  <p className="text-sm font-medium text-heading">
-                    Package / CTC
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    {drive.package || "Not specified"}
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-3">
-                <Calendar className="w-5 h-5 text-orange-500 mt-0.5" />
-                <div>
-                  <p className="text-sm font-medium text-heading">Drive Date</p>
-                  <p className="text-sm text-muted-foreground">
-                    {drive.driveDate
-                      ? new Date(drive.driveDate).toLocaleDateString()
-                      : "To be decided"}
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-3">
-                <AlertTriangle className="w-5 h-5 text-orange-500 mt-0.5" />
-                <div>
-                  <p className="text-sm font-medium text-heading">Deadline</p>
-                  <p className="text-sm text-muted-foreground">
-                    {drive.applicationDeadline
-                      ? new Date(drive.applicationDeadline).toLocaleDateString()
-                      : "Not specified"}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+          <RecruiterAccessManager driveId={id} sectionId="drive-access" />
+        </aside>
       </div>
     </div>
+  );
+}
+
+const TILE_TONES = {
+  violet: "bg-violet-50/70 text-violet-600 ring-violet-100",
+  emerald: "bg-emerald-50/70 text-emerald-600 ring-emerald-100",
+  blue: "bg-blue-50/70 text-blue-600 ring-blue-100",
+  orange: "bg-[#FFF6F0] text-[#FF6500] ring-[#FFE0CC]",
+};
+
+function EligibilityTile({
+  icon: Icon,
+  label,
+  value,
+  empty,
+  tone,
+}: {
+  icon: React.ElementType;
+  label: string;
+  value: string | null;
+  empty: string;
+  tone: keyof typeof TILE_TONES;
+}) {
+  return (
+    <div className={cn("flex min-h-[112px] min-w-0 flex-col items-center justify-center gap-1.5 rounded-2xl px-3 py-4 text-center ring-1", TILE_TONES[tone])}>
+      <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white shadow-sm">
+        <Icon className="h-[18px] w-[18px]" aria-hidden="true" />
+      </span>
+      <p className="text-xs font-medium text-slate-600">{label}</p>
+      <p className={cn("max-w-full truncate font-extrabold", value ? "text-xl text-[#10264A]" : "text-sm text-slate-500")} title={value ?? empty}>
+        {value ?? empty}
+      </p>
+    </div>
+  );
+}
+
+function DetailRow({ icon: Icon, label, value, empty = "Not specified" }: { icon: React.ElementType; label: string; value?: string | null; empty?: string }) {
+  return (
+    <div className="flex items-start gap-3">
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#FFF6F0] text-[#FF6500]">
+        <Icon className="h-[18px] w-[18px]" aria-hidden="true" />
+      </span>
+      <div className="min-w-0">
+        <dt className="text-sm font-semibold text-[#10264A]">{label}</dt>
+        <dd className={cn("truncate text-sm", value ? "text-slate-600" : "text-slate-400")}>{value || empty}</dd>
+      </div>
+    </div>
+  );
+}
+
+function DriveStatusCard({
+  drive,
+  onPublish,
+  onClose,
+  publishing,
+  closing,
+}: {
+  drive: PlacementDrive;
+  onPublish: () => void;
+  onClose: () => void;
+  publishing: boolean;
+  closing: boolean;
+}) {
+  const meta = STATUS_META[drive.status] ?? STATUS_META[DriveStatus.DRAFT];
+  // A published drive still follows its application window.
+  const [now] = React.useState(() => Date.now());
+  const windowState = drive.status === DriveStatus.PUBLISHED ? getWindowState(drive, now) : null;
+  const deadline = formatDate(drive.applicationDeadline);
+  const opens = formatDate(drive.applicationStart);
+
+  let message: string;
+  switch (drive.status) {
+    case DriveStatus.DRAFT:
+      message = "Not visible to students yet. Publish the drive when its details are complete.";
+      break;
+    case DriveStatus.CLOSED:
+      message = "Applications are no longer being accepted for this drive.";
+      break;
+    case DriveStatus.CANCELLED:
+      message = "This drive was cancelled. Students cannot apply.";
+      break;
+    default:
+      message =
+        windowState === "CLOSED"
+          ? `The application deadline${deadline ? ` (${deadline})` : ""} has passed, so students can no longer apply.`
+          : windowState === "NOT_OPEN"
+            ? `Visible to students. Applications open${opens ? ` on ${opens}` : " soon"}.`
+            : windowState === "CLOSING_SOON"
+              ? `Accepting applications. Closing soon${deadline ? `: ${deadline}` : ""}.`
+              : `Accepting applications${deadline ? ` until ${deadline}` : ""}.`;
+  }
+
+  return (
+    <section aria-labelledby="status-title" className={cn(driveCardClassName, "p-5")}>
+      <DriveCardTitle id="status-title" icon={CircleCheck} title="Drive Status" />
+      <div className={cn("mt-4 flex flex-col items-center gap-2 rounded-2xl px-4 py-5 text-center ring-1", meta.panel)}>
+        <span className="inline-flex items-center gap-2 text-lg font-extrabold uppercase tracking-wide">
+          <meta.icon className="h-5 w-5" aria-hidden="true" />
+          {meta.label}
+        </span>
+        <p className="text-sm leading-5 opacity-90">{message}</p>
+      </div>
+      {drive.status === DriveStatus.DRAFT && (
+        <button
+          type="button"
+          onClick={onPublish}
+          disabled={publishing}
+          className="mt-3 inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#FF6500] text-sm font-semibold text-white shadow-[0_10px_22px_-12px_rgba(255,101,0,0.9)] hover:bg-[#E85C00] disabled:opacity-60"
+        >
+          {publishing ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Rocket className="h-4 w-4" aria-hidden="true" />}
+          {publishing ? "Publishing..." : "Publish Drive"}
+        </button>
+      )}
+      {drive.status === DriveStatus.PUBLISHED && (
+        <button
+          type="button"
+          onClick={onClose}
+          disabled={closing}
+          className="mt-3 inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-rose-200 bg-white text-sm font-semibold text-rose-600 hover:bg-rose-50 disabled:opacity-60"
+        >
+          {closing ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <XCircle className="h-4 w-4" aria-hidden="true" />}
+          Close Drive
+        </button>
+      )}
+    </section>
+  );
+}
+
+function EmptyNote({ icon: Icon, title, text }: { icon: React.ElementType; title: string; text: string }) {
+  return (
+    <div className="mt-4 flex flex-col items-center gap-2 rounded-xl border border-dashed border-slate-200 bg-slate-50/70 px-4 py-6 text-center">
+      <span className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-slate-400 shadow-sm ring-1 ring-slate-200">
+        <Icon className="h-5 w-5" aria-hidden="true" />
+      </span>
+      <p className="text-sm font-semibold text-[#10264A]">{title}</p>
+      <p className="text-xs text-slate-500">{text}</p>
+    </div>
+  );
+}
+
+function AnalyticsIllustration() {
+  return (
+    <svg viewBox="0 0 200 130" className="h-28 w-44 shrink-0" aria-hidden="true">
+      <rect x="20" y="14" width="130" height="88" rx="10" fill="#fff" stroke="#FFB98A" strokeWidth="3" />
+      <rect x="20" y="14" width="130" height="14" rx="7" fill="#FFE7D6" />
+      {[
+        [40, 72, 18],
+        [64, 56, 34],
+        [88, 44, 46],
+        [112, 62, 28],
+      ].map(([x, y, h]) => (
+        <rect key={x} x={x} y={y} width="16" height={h} rx="3" fill="#FF6500" opacity={0.55 + (h as number) / 100} />
+      ))}
+      <path d="M8 108 h158" stroke="#10264A" strokeWidth="4" strokeLinecap="round" opacity="0.8" />
+      <circle cx="152" cy="84" r="20" fill="#fff" fillOpacity="0.85" stroke="#10264A" strokeWidth="5" />
+      <path d="M166 98 l18 18" stroke="#10264A" strokeWidth="7" strokeLinecap="round" />
+      <path d="M144 86 l6 -8 6 4 6 -9" stroke="#FF6500" strokeWidth="3" fill="none" strokeLinecap="round" />
+    </svg>
   );
 }

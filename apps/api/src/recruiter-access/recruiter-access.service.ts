@@ -191,6 +191,6 @@ export class RecruiterAccessService {
       recruiterId,
       status: GrantStatus.ACTIVE,
       expiresAt: { $gt: new Date() },
-    }).populate('driveId', 'companyName roleTitle status').exec();
+    }).populate('driveId', 'companyName roleTitle status applicationStart applicationDeadline driveDate createdAt location workMode').exec();
   }
 }

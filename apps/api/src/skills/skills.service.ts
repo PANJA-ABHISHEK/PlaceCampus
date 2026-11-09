@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Skill, SkillDocument } from './schemas/skill.schema.js';
@@ -18,6 +18,7 @@ import { SkillNormalizationService } from './skill-normalization.service.js';
 import { EvidenceDocument } from '../evidence/schemas/evidence.schema.js';
 import { VerificationRecordDocument } from '../verification/schemas/verification-record.schema.js';
 import { OnEvent } from '@nestjs/event-emitter';
+import { AuditService } from '../audit/audit.service.js';
 
 @Injectable()
 export class SkillsService {
@@ -32,7 +33,66 @@ export class SkillsService {
     @InjectModel(StudentSkillProfile.name)
     private profileModel: Model<StudentSkillProfileDocument>,
     private normalizationService: SkillNormalizationService,
+    private audit: AuditService,
   ) {}
+
+  async getAdminTaxonomy() {
+    const skills = await this.skillModel.find().populate('clusterId').sort({ name: 1 }).lean().exec();
+    return skills.map((skill: any) => ({
+      id: String(skill._id), name: skill.name, normalizedName: skill.normalizedName,
+      description: skill.description, active: skill.active !== false, synonyms: skill.synonyms ?? [],
+      clusterId: skill.clusterId?._id ? String(skill.clusterId._id) : undefined,
+      clusterName: skill.clusterId?.name,
+    }));
+  }
+
+  async createTaxonomySkill(dto: { name: string; description?: string; clusterId?: string; synonyms?: string[] }, actor: { userId: string; role: string }) {
+    const name = dto.name.trim();
+    const normalizedName = this.normalizeCanonicalSkill(name);
+    if (!name || !normalizedName) throw new BadRequestException('Enter a valid skill name.');
+    if (dto.clusterId && !(await this.skillClusterModel.exists({ _id: dto.clusterId }).exec())) throw new BadRequestException('Choose an existing skill cluster.');
+    try {
+      const skill = await this.skillModel.create({ name, normalizedName, description: dto.description?.trim() || undefined, clusterId: dto.clusterId, synonyms: this.cleanSynonyms(dto.synonyms), active: true });
+      await this.audit.logAction({ actorId: actor.userId, actorRole: actor.role, action: 'SKILL_TAXONOMY_CREATED', resourceType: 'SKILL', resourceId: String(skill._id), metadata: { name } });
+      return { id: String(skill._id), name: skill.name, normalizedName: skill.normalizedName, description: skill.description, clusterId: skill.clusterId, active: skill.active, synonyms: skill.synonyms };
+    } catch (error: any) {
+      if (error?.code === 11000) throw new ConflictException('A skill with that name already exists.');
+      throw error;
+    }
+  }
+
+  async updateTaxonomySkill(id: string, dto: { name?: string; description?: string; clusterId?: string; synonyms?: string[]; active?: boolean }, actor: { userId: string; role: string }) {
+    const skill = await this.skillModel.findById(id).exec();
+    if (!skill) throw new NotFoundException('Skill not found.');
+    const changes: Record<string, unknown> = {};
+    if (dto.name !== undefined) {
+      const name = dto.name.trim();
+      const normalizedName = this.normalizeCanonicalSkill(name);
+      if (!name || !normalizedName) throw new BadRequestException('Enter a valid skill name.');
+      skill.name = name;
+      skill.normalizedName = normalizedName;
+      changes.name = name;
+    }
+    if (dto.description !== undefined) { skill.description = dto.description.trim() || undefined; changes.description = skill.description; }
+    if (dto.clusterId !== undefined) {
+      if (dto.clusterId && !(await this.skillClusterModel.exists({ _id: dto.clusterId }).exec())) throw new BadRequestException('Choose an existing skill cluster.');
+      skill.clusterId = dto.clusterId || undefined;
+      changes.clusterId = dto.clusterId || null;
+    }
+    if (dto.synonyms !== undefined) { skill.synonyms = this.cleanSynonyms(dto.synonyms); changes.synonyms = skill.synonyms; }
+    if (dto.active !== undefined) { skill.active = dto.active; changes.active = dto.active; }
+    try {
+      await skill.save();
+    } catch (error: any) {
+      if (error?.code === 11000) throw new ConflictException('A skill with that name already exists.');
+      throw error;
+    }
+    await this.audit.logAction({ actorId: actor.userId, actorRole: actor.role, action: 'SKILL_TAXONOMY_UPDATED', resourceType: 'SKILL', resourceId: id, metadata: changes });
+    return { id, name: skill.name, normalizedName: skill.normalizedName, description: skill.description, clusterId: skill.clusterId, active: skill.active, synonyms: skill.synonyms };
+  }
+
+  private normalizeCanonicalSkill(value: string) { return value.trim().toLowerCase().replace(/[^a-z0-9]/g, ''); }
+  private cleanSynonyms(values?: string[]) { return [...new Set((values ?? []).map((value) => value.trim()).filter(Boolean))]; }
 
   /**
    * Processes a verified evidence item and its associated verification record.

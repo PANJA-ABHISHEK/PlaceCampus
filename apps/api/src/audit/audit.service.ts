@@ -4,7 +4,8 @@ import { Model } from 'mongoose';
 import { AuditLog, AuditLogDocument } from './schemas/audit-log.schema.js';
 
 export interface LogActionParams {
-  actorId: string;
+  /** Omitted for automated system actions (shown as "System"). */
+  actorId?: string;
   actorRole: string;
   action: string;
   resourceType: string;
@@ -24,6 +25,28 @@ export class AuditService {
   constructor(
     @InjectModel(AuditLog.name) private readonly auditLogModel: Model<AuditLogDocument>,
   ) {}
+
+  async recent(limit = 8) {
+    const rows = await this.auditLogModel
+      .find()
+      .sort({ createdAt: -1 })
+      .limit(Math.min(Math.max(limit, 1), 50))
+      .populate('actorId', 'fullName')
+      .lean()
+      .exec();
+
+    return rows.map((row: any) => ({
+      id: String(row._id),
+      action: row.action,
+      resourceType: row.resourceType,
+      resourceId: row.resourceId ? String(row.resourceId) : undefined,
+      actorName: row.actorId?.fullName ?? 'System',
+      actorRole: row.actorRole,
+      success: row.success,
+      reason: row.reason,
+      createdAt: row.createdAt,
+    }));
+  }
 
   async logAction(params: LogActionParams): Promise<void> {
     try {

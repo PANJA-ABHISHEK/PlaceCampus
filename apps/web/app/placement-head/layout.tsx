@@ -5,19 +5,28 @@ import { SwitchRoleLink } from "@/features/auth/components/switch-role-link";
 import { useAuth } from "@/features/auth/components/auth-provider";
 import { redirect, usePathname } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import {
   LayoutDashboard,
   LineChart,
   BarChart,
   Building,
   Award,
-  Bell,
+
+  ChevronDown,
   Settings,
   LogOut,
   Menu,
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { UserRole } from "@placecampus/shared-types";
 import { NotificationBell } from "@/features/notifications/components/notification-bell";
 
@@ -32,30 +41,25 @@ const navigation = [
     href: "/placement-head/analytics",
     icon: LineChart,
   },
-  { name: "Notifications", href: "/placement-head/notifications", icon: Bell },
   {
     name: "Institution Readiness",
     href: "/placement-head/readiness",
     icon: BarChart,
-    comingSoon: true,
   },
   {
     name: "Department Comparison",
     href: "/placement-head/departments",
     icon: Building,
-    comingSoon: true,
   },
   {
     name: "Placement Outcomes",
     href: "/placement-head/outcomes",
     icon: Award,
-    comingSoon: true,
   },
   {
     name: "Settings",
     href: "/placement-head/settings",
     icon: Settings,
-    comingSoon: true,
   },
 ];
 
@@ -94,6 +98,9 @@ export default function PlacementHeadLayout({
     clearAuth();
   };
 
+  const currentPage =
+    navigation.find((item) => pathname === item.href || pathname.startsWith(`${item.href}/`))?.name ?? "Placement Head";
+
   const getInitials = (name: string) => {
     return name
       .split(" ")
@@ -108,9 +115,10 @@ export default function PlacementHeadLayout({
       <div className="md:hidden flex items-center justify-between p-4 border-b border-[hsl(var(--border))] bg-white/50 backdrop-blur-md sticky top-0 z-30">
         <Link
           href="/placement-head/dashboard"
-          className="text-xl font-bold tracking-tighter text-heading"
+          aria-label="PlaceCampus placement head dashboard"
+          className="flex items-center"
         >
-          Place<span className="text-[hsl(var(--primary))]">Campus</span>
+          <Image src="/images/placecampus-logo-trimmed.png" alt="PlaceCampus" width={1200} height={269} priority className="h-8 w-auto object-contain" />
         </Link>
         <button
           onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
@@ -130,12 +138,13 @@ export default function PlacementHeadLayout({
           isMobileMenuOpen ? "translate-x-0" : "-translate-x-full",
         )}
       >
-        <div className="p-6 hidden md:block border-b border-[hsl(var(--border))]">
+        <div className="hidden h-[68px] items-center border-b border-slate-200 px-5 md:flex">
           <Link
             href="/placement-head/dashboard"
-            className="text-2xl font-bold tracking-tighter text-heading"
+            aria-label="PlaceCampus placement head dashboard"
+            className="flex min-w-0 items-center"
           >
-            Place<span className="text-[hsl(var(--primary))]">Campus</span>
+            <Image src="/images/placecampus-logo-trimmed.png" alt="PlaceCampus" width={1200} height={269} priority className="h-9 w-auto object-contain" />
           </Link>
         </div>
 
@@ -160,26 +169,20 @@ export default function PlacementHeadLayout({
             return (
               <Link
                 key={item.name}
-                href={item.comingSoon ? "#" : item.href}
+                href={item.href}
+                aria-current={isActive ? "page" : undefined}
                 className={cn(
-                  "flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-colors relative group",
+                  "group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors duration-200",
                   isActive
-                    ? "bg-[hsl(var(--primary)/0.1)] text-[hsl(var(--primary))]"
-                    : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted)/0.5)] hover:text-heading",
-                  item.comingSoon && "opacity-60 cursor-not-allowed",
+                    ? "bg-[#FFF0E6] font-semibold text-[#E25A00]"
+                    : "text-slate-600 hover:bg-slate-50 hover:text-[#10264A]",
                 )}
-                onClick={(e) => {
-                  if (item.comingSoon) e.preventDefault();
+                onClick={() => {
                   if (isMobileMenuOpen) setIsMobileMenuOpen(false);
                 }}
               >
-                <item.icon className="h-4 w-4" />
+                <item.icon className="h-[18px] w-[18px] shrink-0" aria-hidden="true" />
                 {item.name}
-                {item.comingSoon && (
-                  <span className="absolute right-2 text-[10px] bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))] px-1.5 py-0.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
-                    Soon
-                  </span>
-                )}
               </Link>
             );
           })}
@@ -189,18 +192,47 @@ export default function PlacementHeadLayout({
           <SwitchRoleLink />
           <button
             onClick={handleLogout}
-            className="flex items-center gap-3 px-3 py-2.5 w-full rounded-md text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
+            className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-red-600 transition-colors hover:bg-red-50"
           >
-            <LogOut className="h-4 w-4" /> Logout
+            <LogOut className="h-[18px] w-[18px]" aria-hidden="true" /> Logout
           </button>
         </div>
       </nav>
 
       <main className="flex-1 flex flex-col min-w-0 bg-[#f8f9fa]">
-        <header className="hidden md:flex items-center justify-between p-6 border-b border-[hsl(var(--border))] bg-white/50 backdrop-blur-md sticky top-0 z-30">
-          <div className="flex-1"></div>
-          <div className="flex items-center gap-4">
+        <header className="sticky top-0 z-30 hidden min-h-[68px] items-center justify-between border-b border-slate-200 bg-white/95 px-6 py-2 backdrop-blur md:flex">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">Placement Head</p>
+            <p className="text-sm font-semibold text-[#10264A]">{currentPage}</p>
+          </div>
+          <div className="flex items-center gap-3">
             <NotificationBell inboxHref="/placement-head/notifications" />
+            <DropdownMenu>
+              <DropdownMenuTrigger className="flex items-center gap-2 rounded-xl p-1.5 pr-2 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF6500]/30">
+                <span className="flex h-9 w-9 items-center justify-center rounded-full bg-orange-50 text-xs font-bold text-[#E25A00]">
+                  {getInitials(user?.fullName || "Placement Head")}
+                </span>
+                <span className="hidden min-w-0 text-left lg:block">
+                  <span className="block max-w-40 truncate text-sm font-semibold text-[#10264A]">{user?.fullName || "Placement Head"}</span>
+                  <span className="block text-xs text-slate-500">Placement Head</span>
+                </span>
+                <ChevronDown className="h-4 w-4 text-slate-400" aria-hidden="true" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-52 rounded-xl bg-white p-1.5">
+                <div className="px-2.5 py-2">
+                  <p className="truncate text-sm font-semibold text-[#10264A]">{user?.fullName || "Placement Head"}</p>
+                  <p className="text-xs text-slate-500">Placement Head</p>
+                </div>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem asChild>
+                  <Link href="/placement-head/notifications">Notifications</Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={handleLogout} className="text-rose-600 focus:text-rose-600">
+                  <LogOut className="h-4 w-4" />
+                  Log out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </header>
         <div className="flex-1 p-4 md:p-8 overflow-y-auto">{children}</div>

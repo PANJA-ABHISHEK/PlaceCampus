@@ -9,6 +9,11 @@ import {
   VerificationRecordSchema,
 } from '../verification/schemas/verification-record.schema.js';
 import {
+  EvidenceExtraction,
+  EvidenceExtractionSchema,
+} from '../verification/schemas/evidence-extraction.schema.js';
+import { AiAnalysis, AiAnalysisSchema } from '../verification/schemas/ai-analysis.schema.js';
+import {
   ReadinessSnapshot,
   ReadinessSnapshotSchema,
 } from '../readiness/schemas/readiness-snapshot.schema.js';
@@ -33,6 +38,8 @@ import { AuditModule } from '../audit/audit.module.js';
     MongooseModule.forFeature([
       { name: Evidence.name, schema: EvidenceSchema },
       { name: VerificationRecord.name, schema: VerificationRecordSchema },
+      { name: EvidenceExtraction.name, schema: EvidenceExtractionSchema },
+      { name: AiAnalysis.name, schema: AiAnalysisSchema },
       { name: ReadinessSnapshot.name, schema: ReadinessSnapshotSchema },
       { name: StudentSkillProfile.name, schema: StudentSkillProfileSchema },
       { name: MockInterview.name, schema: MockInterviewSchema },

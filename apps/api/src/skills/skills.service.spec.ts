@@ -7,6 +7,7 @@ import { SkillClaim } from './schemas/skill-claim.schema.js';
 import { StudentSkillProfile } from './schemas/student-skill-profile.schema.js';
 import { SkillNormalizationService } from './skill-normalization.service.js';
 import { Types } from 'mongoose';
+import { AuditService } from '../audit/audit.service.js';
 
 describe('SkillsService', () => {
   let service: SkillsService;
@@ -38,6 +39,7 @@ describe('SkillsService', () => {
           provide: SkillNormalizationService,
           useValue: mockNormalizationService,
         },
+        { provide: AuditService, useValue: { logAction: vi.fn() } },
       ],
     }).compile();
 

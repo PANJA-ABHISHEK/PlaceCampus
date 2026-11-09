@@ -214,6 +214,13 @@ export class ApplicationsService {
     return { applications, total };
   }
 
+  async countForDrive(driveId: string, status?: string) {
+    return this.applicationModel.countDocuments({
+      driveId,
+      ...(status ? { status } : {}),
+    }).exec();
+  }
+
   async findOne(id: string) {
     const app = await this.applicationModel.findById(id).exec();
     if (!app) throw new NotFoundException('Application not found');

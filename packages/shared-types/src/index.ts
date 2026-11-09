@@ -84,6 +84,8 @@ export interface StudentProfile {
   linkedinUrl?: string;
   githubUrl?: string;
   portfolioUrl?: string;
+  leetcodeUrl?: string;
+  otherUrl?: string;
   resumeUrl?: string;
   createdAt: Date;
   updatedAt: Date;
@@ -96,6 +98,8 @@ export interface UpdateStudentProfileDto {
   linkedinUrl?: string | null;
   githubUrl?: string | null;
   portfolioUrl?: string | null;
+  leetcodeUrl?: string | null;
+  otherUrl?: string | null;
 }
 
 /** Evidence Types */
@@ -179,19 +183,87 @@ export interface UpdateEvidenceDto {
   externalUrl?: string | null;
 }
 
+/** Text extraction (Master Plan §12): PDF text layer, OCR, or both. */
+export type ExtractionMethod = 'PDF_TEXT' | 'OCR' | 'MIXED' | 'NONE';
+export type ExtractionStatus = 'COMPLETED' | 'PARTIAL' | 'FAILED';
+
+/** Reviewer view of one extraction run, including the extracted text. */
+export interface EvidenceExtractionSummary {
+  id: string;
+  version: number;
+  method: ExtractionMethod;
+  status: ExtractionStatus;
+  text: string;
+  textTruncated: boolean;
+  charCount: number;
+  wordCount: number;
+  ocrConfidence: number | null;
+  pageCount: number;
+  pages: { page: number; source: 'TEXT_LAYER' | 'OCR' | 'NONE'; chars: number; ocrConfidence?: number; error?: string }[];
+  durationMs?: number;
+  error?: string;
+}
+
+/** AI document analysis (Master Plan §12.6). Advisory only; reviewer-facing. */
+export type AiAnalysisStatus = 'SUCCEEDED' | 'INVALID_OUTPUT' | 'REFUSED' | 'FAILED' | 'DISABLED';
+
+export interface DocumentAnalysisResult {
+  documentType: 'CERTIFICATE' | 'INTERNSHIP_LETTER' | 'MARKSHEET' | 'PROJECT_REPORT' | 'ACHIEVEMENT' | 'CODING_PROFILE' | 'OTHER' | 'UNREADABLE';
+  documentTypeConfidence: number;
+  readability: 'GOOD' | 'FAIR' | 'POOR';
+  extracted: Record<string, string | null>;
+  fieldEvidence: { field: string; quote: string; page: number | null }[];
+  skillMentions: {
+    text: string;
+    suggestedSkillId: string | null;
+    matchType: 'EXACT' | 'SYNONYM' | 'INFERRED';
+    relevance: number;
+    suggestedLevelCap: number | null;
+    rationale: string;
+  }[];
+  consistencyFlags: { code: string; detail: string }[];
+  summary: string;
+  uncertainty: string[];
+}
+
+export interface AiAnalysisSummary {
+  id: string;
+  version: number;
+  provider: 'groq' | 'openai' | 'none';
+  model?: string;
+  promptVersion: string;
+  status: AiAnalysisStatus;
+  result: DocumentAnalysisResult | null;
+  postValidation: { droppedSkillIds: string[]; unconfirmedFields: string[]; invalidDates: string[] };
+  latencyMs?: number;
+  skippedReason?: string;
+  createdAt?: string;
+}
+
 /** Verification Record */
 export interface VerificationRecord {
   id: string;
   evidenceId: string;
   studentId: string;
   attemptNumber: number;
-  extractionMethod?: 'PDF_TEXT' | 'IMAGE_OCR' | 'NONE';
+  /** IMAGE_OCR is the legacy value for image OCR before PDF page OCR existed. */
+  extractionMethod?: ExtractionMethod | 'IMAGE_OCR';
+  extractionStatus?: ExtractionStatus;
   extractedTextMetadata?: {
     wordCount: number;
     hasText: boolean;
+    charCount?: number;
+    pageCount?: number;
+    /** 0-100; null when OCR did not run. */
+    ocrConfidence?: number | null;
   };
+  /** Reviewer-only: other evidence with the same file or text. */
+  duplicateMatches?: { evidenceId: string; matchType: 'FILE' | 'TEXT'; sameStudent: boolean }[];
   aiProvider?: string;
   modelVersion?: string;
+  aiStatus?: AiAnalysisStatus;
+  /** Student view only: neutral one-paragraph AI summary. */
+  aiSummary?: string | null;
   aiResult?: any;
   ruleResults?: any;
   finalDecision: EvidenceStatus;
@@ -868,7 +940,7 @@ export interface AnalyticsReadiness {
   mean: number | null;
   median: number | null;
   byStatus: Array<{ status: string; count: number }>;
-  byDepartment: Array<{ department: string; count: number; average: number }>;
+  byDepartment: Array<{ group: string; count: number; average: number }>;
   byGraduationYear: Array<{ graduationYear: number | string; count: number; average: number }>;
   factorBreakdown: Array<{ key: string; averageScore: number; averageContribution: number; coverageCount: number }>;
   coverage: { averageFactorsPresent: number; studentsMissingFactors: number };
@@ -1033,6 +1105,10 @@ export interface FacultyDashboard {
     pendingReviews: number;
     upcomingInterviews: number;
     overdueReviews: number;
+    /** Items returned to the student and not yet resubmitted. */
+    awaitingResubmission: number;
+    /** Decisions this reviewer recorded since the start of the month. */
+    reviewedThisMonth: number;
   };
   reviewQueue: FacultyReviewQueueItem[];
   upcomingInterviews: FacultyUpcomingInterview[];

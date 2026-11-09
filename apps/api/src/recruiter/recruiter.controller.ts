@@ -46,3 +46,18 @@ export class RecruiterController {
     return this.recruiterService.getCandidateDetail(user.userId, driveId, applicationId);
   }
 }
+
+@ApiTags('Recruiter Portal')
+@Controller('recruiter/dashboard')
+@UseGuards(JwtAuthGuard, RolesGuard)
+@ApiBearerAuth()
+@Roles(UserRole.RECRUITER)
+export class RecruiterDashboardController {
+  constructor(private readonly recruiterService: RecruiterService) {}
+
+  @Get('summary')
+  @ApiOperation({ summary: 'Get aggregate metrics for the recruiter’s active drive grants' })
+  getSummary(@CurrentUser() user: any) {
+    return this.recruiterService.getDashboardSummary(user.userId);
+  }
+}
