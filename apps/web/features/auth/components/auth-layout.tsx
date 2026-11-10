@@ -48,23 +48,39 @@ export function AuthLayout({ children }: AuthLayoutProps) {
             isLogin ? 'max-w-[35rem] py-5 [@media(max-height:780px)]:py-3' : 'max-w-[30rem] py-8',
           )}
         >
-          <Link
-            href="/"
-            aria-label="PlaceCampus home"
+          <div
             className={cn(
-              'block w-fit rounded-md transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]',
+              // The logo pair sits a little left of centre, as requested.
+              'flex -translate-x-5 items-center justify-center gap-4 sm:-translate-x-12 sm:gap-7',
               isLogin ? 'mb-4 [@media(max-height:780px)]:mb-2' : 'mb-7',
             )}
           >
-            <Image
-              src="/images/placecampus-logo-trimmed.png"
-              alt="PlaceCampus"
-              width={1200}
-              height={269}
-              priority
-              className="h-11 w-auto object-contain sm:h-12 xl:h-14"
-            />
-          </Link>
+            {isLogin && (
+              <Image
+                src="/images/lpu-logo.png"
+                alt="Lovely Professional University Logo"
+                width={554}
+                height={554}
+                priority
+                // The logo is circular on a white square; rounding only trims those corners.
+                className="h-12 w-12 shrink-0 rounded-full object-contain sm:h-14 sm:w-14 xl:h-[70px] xl:w-[70px] [@media(max-height:780px)]:h-14 [@media(max-height:780px)]:w-14"
+              />
+            )}
+            <Link
+              href="/"
+              aria-label="PlaceCampus home"
+              className="block w-fit rounded-md transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]"
+            >
+              <Image
+                src="/images/placecampus-logo-trimmed.png"
+                alt="PlaceCampus"
+                width={1200}
+                height={269}
+                priority
+                className="h-11 w-auto object-contain sm:h-12 xl:h-14"
+              />
+            </Link>
+          </div>
           <div
             className={cn(
               'w-full rounded-3xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] shadow-[0_24px_60px_-28px_rgba(255,107,26,0.35),0_8px_24px_-12px_rgba(11,31,68,0.10)]',

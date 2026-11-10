@@ -28,7 +28,7 @@ import { cn } from '@/lib/utils';
 import styles from './auth-motion.module.css';
 
 const loginSchema = z.object({
-  email: z.string().email('Please enter a valid email address'),
+  email: z.string().trim().min(1, 'Username is required').email('Enter your username (your university email address)'),
   password: z.string().min(1, 'Password is required'),
 });
 
@@ -199,10 +199,13 @@ export function LoginForm({ initialRole = UserRole.STUDENT }: { initialRole?: Us
         <AuthFeedback message={serverError} variant="banner" className="-mb-4 data-[open=true]:mb-0" />
 
         <AuthInput
-          label="Email address"
-          type="email"
+          label="Username"
+          type="text"
+          inputMode="email"
+          autoCapitalize="none"
+          spellCheck={false}
           placeholder="name@university.edu"
-          autoComplete="email"
+          autoComplete="username"
           revealIndex={3}
           error={errors.email?.message}
           {...register('email')}
