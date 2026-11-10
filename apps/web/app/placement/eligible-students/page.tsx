@@ -15,6 +15,7 @@ import {
 import { DriveStatus } from '@placecampus/shared-types';
 import { apiClient } from '@/lib/api-client';
 import { usePlacementDrives } from '@/features/drives/hooks/use-drives';
+import { GapAnalysisDialog } from '@/features/drives/components/drive-insights';
 
 type EligibilityCheck = { type: string; result?: string; reason?: string };
 type EligibleStudent = {
@@ -45,6 +46,7 @@ export default function EligibleStudentsPage() {
   const [driveId, setDriveId] = React.useState('');
   const [search, setSearch] = React.useState('');
   const [expandedRowKey, setExpandedRowKey] = React.useState<string | null>(null);
+  const [gapStudentId, setGapStudentId] = React.useState<string | null>(null);
 
   const selectedId = publishedDrives.some((drive) => drive.id === driveId)
     ? driveId
@@ -247,6 +249,15 @@ export default function EligibleStudentsPage() {
                                     <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Requirements met</p>
                                     <p className="mt-1 text-[#142b4d]">{passingChecks.length ? passingChecks.map((check) => check.type.replaceAll('_', ' ').toLocaleLowerCase()).join(' · ') : 'Eligibility confirmed for this drive.'}</p>
                                   </div>
+                                  <div className="sm:col-span-2 lg:col-span-3">
+                                    <button
+                                      type="button"
+                                      onClick={() => setGapStudentId(student.id)}
+                                      className="inline-flex h-9 items-center rounded-lg border border-orange-200 bg-white px-3.5 text-sm font-semibold text-[#e9570c] transition hover:bg-orange-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff6b1a]/40"
+                                    >
+                                      View skill gap analysis
+                                    </button>
+                                  </div>
                                 </div>
                               </td>
                             </tr>
@@ -261,6 +272,7 @@ export default function EligibleStudentsPage() {
           )}
         </section>
       )}
+      <GapAnalysisDialog driveId={selectedId} studentId={gapStudentId} onClose={() => setGapStudentId(null)} />
     </div>
   );
 }

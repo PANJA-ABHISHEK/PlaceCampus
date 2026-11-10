@@ -16,6 +16,7 @@ import {
 import { AssessmentsService } from '../assessments/assessments.service.js';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { MatchingService } from '../matching/matching.service.js';
+import { DrivesService } from '../drives/drives.service.js';
 import {
   PreparationPlan,
   PreparationPlanDocument,
@@ -27,6 +28,41 @@ const PRIORITY_ORDER: Record<GapPriority, number> = {
   [GapPriority.LOW]: 2,
 };
 
+const DAY = 24 * 60 * 60 * 1000;
+/** Working time per item when the drive leaves room: bigger gaps get longer. */
+const DAYS_FOR: Record<GapPriority, number> = {
+  [GapPriority.HIGH]: 7,
+  [GapPriority.MEDIUM]: 5,
+  [GapPriority.LOW]: 3,
+};
+
+/**
+ * Gives every item a dated checkpoint, in plan order. Items get 7/5/3 days by
+ * priority; when that would run past the drive's application deadline, the
+ * schedule is compressed to finish the day before it (at least one day each).
+ */
+export function scheduleCheckpoints<T extends { priority: GapPriority }>(
+  items: T[],
+  start: Date,
+  deadline?: Date | null,
+): { items: (T & { dueDate: Date })[]; targetDate?: Date } {
+  if (!items.length) return { items: [] };
+  const natural = items.map((i) => DAYS_FOR[i.priority] ?? 5);
+  const total = natural.reduce((a, b) => a + b, 0);
+  const available = deadline ? Math.floor((deadline.getTime() - start.getTime()) / DAY) - 1 : Infinity;
+  const scale = available >= total ? 1 : Math.max(available, items.length) / total;
+  // Checkpoints fall at the end of a day, counted from the end of the start day.
+  const base = new Date(start);
+  base.setHours(23, 59, 0, 0);
+  let elapsed = 0;
+  const scheduled = items.map((item, i) => {
+    elapsed += natural[i] * scale;
+    const days = Math.max(i + 1, Math.round(elapsed));
+    return { ...item, dueDate: new Date(base.getTime() + days * DAY) };
+  });
+  return { items: scheduled, targetDate: scheduled[scheduled.length - 1].dueDate };
+}
+
 @Injectable()
 export class PreparationService {
   constructor(
@@ -34,8 +70,32 @@ export class PreparationService {
     private readonly planModel: Model<PreparationPlanDocument>,
     private readonly matchingService: MatchingService,
     private readonly assessmentsService: AssessmentsService,
+    private readonly drivesService: DrivesService,
     @Optional() private readonly eventEmitter?: EventEmitter2,
   ) {}
+
+  /** Future application deadline of the drive, if it has one. */
+  private async deadlineFor(driveId: string, after: Date): Promise<Date | null> {
+    const drive: any = await this.drivesService.findOne(driveId).catch(() => null);
+    const deadline = drive?.applicationDeadline ? new Date(drive.applicationDeadline) : null;
+    return deadline && deadline > after ? deadline : null;
+  }
+
+  /** Plans made before checkpoints existed get dates from their creation day. */
+  private async withCheckpoints(plan: PreparationPlanDocument) {
+    if (!plan.items.length || plan.items.every((item) => item.dueDate)) return plan;
+    const start = (plan as any).createdAt ? new Date((plan as any).createdAt) : new Date();
+    const { items, targetDate } = scheduleCheckpoints(
+      plan.items.map((item) => ({ priority: item.priority, itemId: item.itemId })),
+      start,
+      await this.deadlineFor(plan.driveId, start),
+    );
+    const due = new Map(items.map((i) => [i.itemId, i.dueDate]));
+    for (const item of plan.items) item.dueDate = due.get(item.itemId);
+    plan.targetDate = targetDate;
+    await plan.save();
+    return plan;
+  }
 
   async createForDrive(driveId: string, studentId: string) {
     const existing = await this.planModel
@@ -49,13 +109,18 @@ export class PreparationService {
   }
 
   async getMine(studentId: string) {
-    return this.planModel.find({ studentId }).sort({ updatedAt: -1 }).exec();
+    const plans = await this.planModel.find({ studentId }).sort({ updatedAt: -1 }).exec();
+    return Promise.all(
+      plans.map((plan) =>
+        plan.status === PreparationPlanStatus.ARCHIVED ? plan : this.withCheckpoints(plan),
+      ),
+    );
   }
 
   async getOwnedPlan(id: string, studentId: string) {
     const plan = await this.planModel.findOne({ _id: id, studentId }).exec();
     if (!plan) throw new NotFoundException('Preparation plan not found');
-    return plan;
+    return plan.status === PreparationPlanStatus.ARCHIVED ? plan : this.withCheckpoints(plan);
   }
 
   async updateItemStatus(
@@ -104,7 +169,12 @@ export class PreparationService {
         .filter((assessment) => assessment.targetSkillId)
         .map((assessment) => [assessment.targetSkillId.toString(), assessment]),
     );
-    const items = this.buildItems(match.skills, assessmentBySkill);
+    const now = new Date();
+    const { items, targetDate } = scheduleCheckpoints(
+      this.buildItems(match.skills, assessmentBySkill),
+      now,
+      await this.deadlineFor(driveId, now),
+    );
 
     try {
       return await this.planModel.create({
@@ -115,6 +185,7 @@ export class PreparationService {
         items,
         completionPercentage: 0,
         previousPlanId,
+        targetDate,
       });
     } catch (error: any) {
       if (error?.code === 11000) {

@@ -47,7 +47,8 @@ export class EligibilityService {
   }
 
   async listForPlacement(driveId: string, search?: string) {
-    const drive = await this.drivesService.findOnePublished(driveId);
+    // Staff can check any drive (draft, open or closed); students only see published ones.
+    const drive = await this.drivesService.findOne(driveId);
     const users = await this.userModel
       .find({ $or: [{ role: UserRole.STUDENT }, { roles: UserRole.STUDENT }], isActive: true })
       .select('fullName email isDemoData accountStatus')
@@ -56,9 +57,14 @@ export class EligibilityService {
     const userIds = users.map((user: any) => String(user._id));
     const profiles = await this.profileModel.find({ userId: { $in: userIds } }).lean().exec();
     const profilesByUser = new Map(profiles.map((profile: any) => [String(profile.userId), profile]));
+    // Skill profiles are keyed by the student's user id (as the student's own
+    // eligibility check reads them); legacy rows keyed by profile id still match.
     const profileIds = profiles.map((profile: any) => profile._id);
-    const skillProfiles = await this.studentSkillsModel.find({ studentId: { $in: profileIds } }).lean().exec();
-    const skillsByProfile = new Map(skillProfiles.map((profile: any) => [String(profile.studentId), profile]));
+    const skillProfiles = await this.studentSkillsModel
+      .find({ studentId: { $in: [...userIds, ...profileIds] } })
+      .lean()
+      .exec();
+    const skillsByOwner = new Map(skillProfiles.map((profile: any) => [String(profile.studentId), profile]));
     const needle = search?.trim().toLocaleLowerCase();
 
     const students = users.flatMap((user: any) => {
@@ -66,7 +72,7 @@ export class EligibilityService {
       if (!profile || user.accountStatus === 'SUSPENDED' || user.accountStatus === 'DEACTIVATED') return [];
       const eligibility = this.eligibilityEngine.evaluate(
         profile as any,
-        (skillsByProfile.get(String(profile._id)) as any) ?? null,
+        (skillsByOwner.get(String(user._id)) ?? skillsByOwner.get(String(profile._id)) ?? null) as any,
         drive as any,
       );
       const student = {

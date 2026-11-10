@@ -331,13 +331,17 @@ export interface StudentSkillEntry {
   level: number;
   verificationStatus: 'VERIFIED' | 'UNVERIFIED';
   sourceEvidenceIds: string[];
-  lastVerifiedAt: string;
+  /** Evidence types (CERTIFICATION, PROJECT, …) behind this skill. */
+  sourceTypes?: string[];
+  lastVerifiedAt?: string;
 }
 
 export interface StudentSkillProfile {
   id: string;
   studentId: string;
   skills: StudentSkillEntry[];
+  /** Distinct evidence types that contributed verified skills. */
+  evidenceTypes?: string[];
   updatedAt: string;
 }
 
@@ -665,6 +669,12 @@ export interface SkillMatchItem {
   gapLevel: number;
   priority?: GapPriority;
   explanation: string;
+  /** 1 = most urgent. Set on every unmet requirement; satisfied skills have none. */
+  rank?: number;
+  /** The concrete next step that closes this gap. */
+  recommendedAction?: string;
+  /** Evidence claiming this skill is waiting for faculty review. */
+  pendingVerification?: boolean;
 }
 
 export interface SkillMatchResult {
@@ -889,6 +899,8 @@ export interface PreparationItem {
   status: PreparationItemStatus;
   recommendedActions: string[];
   assessmentCheckpoint?: PreparationAssessmentCheckpoint;
+  /** Checkpoint date: this item should be complete by then. */
+  dueDate?: string;
   completedAt?: string;
 }
 
@@ -900,6 +912,8 @@ export interface PreparationPlan {
   status: PreparationPlanStatus;
   items: PreparationItem[];
   completionPercentage: number;
+  /** Date the whole plan should be finished (the drive's deadline when it allows). */
+  targetDate?: string;
   previousPlanId?: string;
   createdAt: string;
   updatedAt: string;
@@ -1121,4 +1135,76 @@ export interface FacultyStudentDetail {
   skills: { name: string; level: number }[];
   evidence: { id: string; title: string; type: EvidenceType; status: EvidenceStatus; createdAt: string; reviewedByMe: boolean }[];
   interviews: { id: string; type: string; status: MockInterviewStatus; scheduledAt: string }[];
+}
+
+/**
+ * DRIVE SKILL SUPPLY AGAINST DEMAND
+ * Demand is the drive's skill requirements; supply is the verified skills of
+ * the students the drive is open to (its eligible pool) and of its applicants.
+ */
+export interface DriveSkillSupplyRow {
+  skillId: string;
+  skillName: string;
+  requiredLevel: number;
+  isOptional: boolean;
+  /** Students verified at or above the required level. */
+  meetsLevel: number;
+  /** Students verified, but below the required level. */
+  belowLevel: number;
+  /** Students with no verified evidence of the skill. */
+  missing: number;
+  /** Students whose evidence for the skill is still under review. */
+  pendingReview: number;
+  /** meetsLevel as a percentage of the pool. */
+  supplyRate: number;
+  /** Required skills only: SHORTAGE under 25%, LIMITED under 60%, otherwise ADEQUATE. */
+  supplyStatus: 'SHORTAGE' | 'LIMITED' | 'ADEQUATE';
+  /** Applicants (of those who applied) meeting the level. */
+  applicantsMeetingLevel: number;
+}
+
+export interface DriveSkillSupplyReport {
+  drive: {
+    id: string;
+    companyName: string;
+    roleTitle: string;
+    status: string;
+    applicationDeadline?: string;
+  };
+  /** Students considered: active students who pass the drive's eligibility rules except skills. */
+  poolSize: number;
+  /** Students who pass every eligibility rule, skills included. */
+  fullyEligible: number;
+  applicants: number;
+  /** Students meeting every required skill at its level. */
+  meetingAllRequired: number;
+  skills: DriveSkillSupplyRow[];
+  /** Required skills sorted by lowest supply first. */
+  shortages: string[];
+  generatedAt: string;
+}
+
+/**
+ * RECRUITER ACCESS LOG (every recruiter read of student data, allowed or denied)
+ */
+export interface RecruiterAccessLogEntry {
+  id: string;
+  action: string;
+  success: boolean;
+  recruiter: { id: string; name: string; email?: string } | null;
+  drive: { id: string; companyName: string; roleTitle: string } | null;
+  student: { id: string; name: string } | null;
+  resourceType: string;
+  resourceId?: string;
+  createdAt: string;
+}
+
+export interface RecruiterAccessLogPage {
+  entries: RecruiterAccessLogEntry[];
+  total: number;
+  page: number;
+  limit: number;
+  /** Counts over the same filter: allowed reads and denied attempts. */
+  allowed: number;
+  denied: number;
 }

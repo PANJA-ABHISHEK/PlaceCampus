@@ -15,10 +15,26 @@ import {
   StudentSkillProfileDocument,
 } from './schemas/student-skill-profile.schema.js';
 import { SkillNormalizationService } from './skill-normalization.service.js';
-import { EvidenceDocument } from '../evidence/schemas/evidence.schema.js';
-import { VerificationRecordDocument } from '../verification/schemas/verification-record.schema.js';
+import { Evidence, EvidenceDocument } from '../evidence/schemas/evidence.schema.js';
+import {
+  VerificationRecord,
+  VerificationRecordDocument,
+} from '../verification/schemas/verification-record.schema.js';
 import { OnEvent } from '@nestjs/event-emitter';
+import { EvidenceStatus, StudentSkillEntry } from '@placecampus/shared-types';
 import { AuditService } from '../audit/audit.service.js';
+
+/** A student's skills as returned to callers: stored profile plus pending claims. */
+export interface StudentSkillProfileView {
+  id?: string;
+  studentId: string;
+  skills: (StudentSkillEntry & { skillId: any })[];
+  evidenceTypes: string[];
+  updatedAt?: Date;
+}
+
+/** Evidence whose claimed skills are shown as pending until a decision. */
+const PENDING_EVIDENCE: string[] = [EvidenceStatus.PROCESSING, EvidenceStatus.NEEDS_REVIEW];
 
 @Injectable()
 export class SkillsService {
@@ -34,6 +50,9 @@ export class SkillsService {
     private profileModel: Model<StudentSkillProfileDocument>,
     private normalizationService: SkillNormalizationService,
     private audit: AuditService,
+    @InjectModel(Evidence.name) private evidenceModel: Model<EvidenceDocument>,
+    @InjectModel(VerificationRecord.name)
+    private recordModel: Model<VerificationRecordDocument>,
   ) {}
 
   async getAdminTaxonomy() {
@@ -222,17 +241,87 @@ export class SkillsService {
     );
   }
 
-  async getStudentProfile(studentId: string) {
-    const profile = await this.profileModel
-      .findOne({ studentId })
-      .lean()
-      .exec();
-    if (!profile) {
-      return { studentId, skills: [] };
+  /**
+   * The student's skill profile, assembled from every evidence type.
+   * Verified skills come from the stored profile; skills claimed by evidence
+   * still in review are added as UNVERIFIED so the student sees their status.
+   * Matching, eligibility and readiness only ever count VERIFIED entries.
+   */
+  async getStudentProfile(studentId: string): Promise<StudentSkillProfileView> {
+    const [profile, evidence] = await Promise.all([
+      this.profileModel.findOne({ studentId }).lean().exec(),
+      this.evidenceModel
+        .find({ studentId })
+        .select('type status')
+        .lean()
+        .exec(),
+    ]);
+    const typeOf = new Map(evidence.map((e: any) => [String(e._id), String(e.type)]));
+    const typesFor = (ids: unknown[]) =>
+      [...new Set(ids.map((id) => typeOf.get(String(id))).filter((t): t is string => !!t))];
+
+    const skills: any[] = (profile?.skills ?? []).map((s: any) => ({
+      ...s,
+      sourceTypes: typesFor(s.sourceEvidenceIds ?? []),
+    }));
+
+    const inReview = evidence.filter((e: any) => PENDING_EVIDENCE.includes(e.status));
+    if (inReview.length) {
+      const records = await this.recordModel
+        .find({ evidenceId: { $in: inReview.map((e: any) => e._id) } })
+        .sort({ createdAt: -1 })
+        .select('evidenceId aiResult.claimedSkills')
+        .lean()
+        .exec();
+      const latest = new Map<string, string[]>();
+      for (const r of records as any[]) {
+        const key = String(r.evidenceId);
+        if (!latest.has(key)) latest.set(key, r.aiResult?.claimedSkills ?? []);
+      }
+      const resolved = new Map<string, SkillDocument | null>();
+      for (const [evidenceId, claims] of latest) {
+        for (const claim of claims) {
+          if (!resolved.has(claim)) {
+            resolved.set(claim, await this.normalizationService.normalizeSkill(claim).catch(() => null));
+          }
+          const skill = resolved.get(claim);
+          if (!skill) continue;
+          const entry = skills.find((s) => String(s.skillId) === String(skill._id));
+          if (entry?.verificationStatus === 'VERIFIED') continue;
+          if (entry) {
+            if (!entry.sourceEvidenceIds.some((id: unknown) => String(id) === evidenceId)) {
+              entry.sourceEvidenceIds.push(evidenceId);
+              entry.sourceTypes = typesFor(entry.sourceEvidenceIds);
+            }
+          } else {
+            skills.push({
+              skillId: String(skill._id),
+              canonicalName: skill.name,
+              level: 1,
+              verificationStatus: 'UNVERIFIED',
+              sourceEvidenceIds: [evidenceId],
+              sourceTypes: typesFor([evidenceId]),
+            });
+          }
+        }
+      }
     }
 
-    // Enrich with cluster names if needed, though frontend can fetch clusters
-    return profile;
+    const evidenceTypes = [
+      ...new Set(
+        skills
+          .filter((s) => s.verificationStatus === 'VERIFIED')
+          .flatMap((s) => s.sourceTypes as string[]),
+      ),
+    ].sort();
+
+    return {
+      id: profile ? String((profile as any)._id) : undefined,
+      studentId,
+      skills,
+      evidenceTypes,
+      updatedAt: (profile as any)?.updatedAt,
+    };
   }
 
   async getAllClusters() {

@@ -9,6 +9,43 @@ import {
   Skill,
 } from '@placecampus/shared-types';
 
+/** Sort key: required gaps by priority, then optional gaps, then met requirements. */
+function urgency(item: SkillMatchItem): number {
+  if (item.status === SkillMatchStatus.SATISFIED) return 9;
+  if (item.isOptional) return item.status === SkillMatchStatus.OPTIONAL_GAP ? 5 : 6;
+  const byPriority = { HIGH: 0, MEDIUM: 2, LOW: 4 } as const;
+  // At equal priority a missing skill outranks one that only needs a higher level.
+  return byPriority[item.priority ?? GapPriority.LOW] + (item.status === SkillMatchStatus.MISSING ? 0 : 1);
+}
+
+/** One concrete step per unmet requirement, naming the skill and levels involved. */
+export function recommendAction(
+  status: SkillMatchStatus,
+  skill: string,
+  required: number,
+  current: number | undefined,
+  pending: boolean,
+): string | undefined {
+  const prefix = status === SkillMatchStatus.OPTIONAL_GAP || status === SkillMatchStatus.OPTIONAL_MISSING ? 'Optional: ' : '';
+  switch (status) {
+    case SkillMatchStatus.SATISFIED:
+      return undefined;
+    case SkillMatchStatus.MISSING:
+    case SkillMatchStatus.OPTIONAL_MISSING:
+      if (pending) {
+        return required > 1
+          ? `${prefix}Your ${skill} evidence is awaiting faculty review. Once verified it counts at Level 1; add a project or certification that shows ${skill} at Level ${required}.`
+          : `${prefix}Your ${skill} evidence is awaiting faculty review. It meets this requirement as soon as it is verified.`;
+      }
+      return `${prefix}Submit evidence of ${skill} (a certification, project or internship that uses it) and have it verified at Level ${required}.`;
+    case SkillMatchStatus.GAP:
+    case SkillMatchStatus.OPTIONAL_GAP:
+      return `${prefix}Raise ${skill} from Level ${current ?? 0} to Level ${required}: submit a more advanced project or certification in ${skill}, or pass its assessment.`;
+    default:
+      return undefined;
+  }
+}
+
 @Injectable()
 export class MatchingEngine {
   evaluate(
@@ -83,6 +120,11 @@ export class MatchingEngine {
         }
       }
 
+      // Evidence claiming this skill that faculty have not decided on yet.
+      const pendingVerification = !!skillProfile?.skills.some(
+        (s) => String(s.skillId) === String(req.skillId) && s.verificationStatus === 'UNVERIFIED',
+      );
+
       matchItems.push({
         skillId: req.skillId,
         skillName,
@@ -93,7 +135,21 @@ export class MatchingEngine {
         gapLevel,
         priority,
         explanation,
+        pendingVerification: pendingVerification || undefined,
+        recommendedAction: recommendAction(status, skillName, req.minimumLevel, studentSkill?.level, pendingVerification),
       });
+    }
+
+    // Unmet requirements first, most urgent first; satisfied skills last.
+    matchItems.sort(
+      (a, b) =>
+        urgency(a) - urgency(b) ||
+        b.gapLevel - a.gapLevel ||
+        a.skillName.localeCompare(b.skillName),
+    );
+    let rank = 0;
+    for (const item of matchItems) {
+      if (item.status !== SkillMatchStatus.SATISFIED) item.rank = ++rank;
     }
 
     const requiredSkillCoverage =

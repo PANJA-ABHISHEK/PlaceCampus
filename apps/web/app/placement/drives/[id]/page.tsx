@@ -47,6 +47,7 @@ import {
   usePublishDrive,
 } from "@/features/drives/hooks/use-drives";
 import { RecruiterAccessManager } from "@/features/recruiter-access/components/recruiter-access-manager";
+import { RecruiterAccessLogCard, SkillSupplyCard } from "@/features/drives/components/drive-insights";
 import { CompanyMark } from "@/features/drives/components/drive-ui";
 import {
   DriveCardTitle,
@@ -69,7 +70,7 @@ const TABS = [
   { id: "overview", label: "Overview", icon: Info },
   { id: "eligibility", label: "Eligibility", icon: ShieldCheck },
   { id: "skills", label: "Skills", icon: Code2 },
-  { id: "cohort", label: "Cohort Analysis", icon: BarChart3 },
+  { id: "cohort", label: "Skill Supply", icon: BarChart3 },
   { id: "access", label: "Recruiter Access", icon: UsersRound },
 ] as const;
 
@@ -394,22 +395,7 @@ export default function PlacementDriveDetailPage() {
             )}
           </section>
 
-          <section id="drive-cohort" aria-labelledby="cohort-title" className={cn(driveCardClassName, "scroll-mt-24 p-5 sm:p-6")}>
-            <DriveCardTitle id="cohort-title" icon={BarChart3} title="Cohort Matching Overview" />
-            <div className="mt-4 flex flex-col items-center gap-5 rounded-2xl border border-[#FFE0CC] bg-gradient-to-r from-[#FFF8F3] to-white p-5 sm:flex-row sm:p-6">
-              <div className="min-w-0 flex-1 text-center sm:text-left">
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold text-[#C24E00] ring-1 ring-[#FFD9BF]">
-                  Coming soon
-                </span>
-                <h3 className="mt-2 text-base font-bold text-[#10264A]">Skill Supply Analytics</h3>
-                <p className="mt-1.5 text-sm leading-6 text-slate-600">
-                  Real-time gap analysis and candidate skill-supply matching will appear here once the system supports it.
-                  You&apos;ll see how the student cohort matches these requirements before opening applications.
-                </p>
-              </div>
-              <AnalyticsIllustration />
-            </div>
-          </section>
+          <SkillSupplyCard driveId={id} sectionId="drive-cohort" />
         </div>
 
         {/* Side column */}
@@ -435,6 +421,7 @@ export default function PlacementDriveDetailPage() {
           />
 
           <RecruiterAccessManager driveId={id} sectionId="drive-access" />
+          <RecruiterAccessLogCard driveId={id} />
         </aside>
       </div>
     </div>
@@ -575,26 +562,5 @@ function EmptyNote({ icon: Icon, title, text }: { icon: React.ElementType; title
       <p className="text-sm font-semibold text-[#10264A]">{title}</p>
       <p className="text-xs text-slate-500">{text}</p>
     </div>
-  );
-}
-
-function AnalyticsIllustration() {
-  return (
-    <svg viewBox="0 0 200 130" className="h-28 w-44 shrink-0" aria-hidden="true">
-      <rect x="20" y="14" width="130" height="88" rx="10" fill="#fff" stroke="#FFB98A" strokeWidth="3" />
-      <rect x="20" y="14" width="130" height="14" rx="7" fill="#FFE7D6" />
-      {[
-        [40, 72, 18],
-        [64, 56, 34],
-        [88, 44, 46],
-        [112, 62, 28],
-      ].map(([x, y, h]) => (
-        <rect key={x} x={x} y={y} width="16" height={h} rx="3" fill="#FF6500" opacity={0.55 + (h as number) / 100} />
-      ))}
-      <path d="M8 108 h158" stroke="#10264A" strokeWidth="4" strokeLinecap="round" opacity="0.8" />
-      <circle cx="152" cy="84" r="20" fill="#fff" fillOpacity="0.85" stroke="#10264A" strokeWidth="5" />
-      <path d="M166 98 l18 18" stroke="#10264A" strokeWidth="7" strokeLinecap="round" />
-      <path d="M144 86 l6 -8 6 4 6 -9" stroke="#FF6500" strokeWidth="3" fill="none" strokeLinecap="round" />
-    </svg>
   );
 }
