@@ -100,6 +100,30 @@ export class UsersService {
     return newUser.save();
   }
 
+  async createRecruiter(
+    fullName: string,
+    email: string,
+    passwordHash: string,
+    companyName: string,
+  ): Promise<UserDocument> {
+    const normalizedEmail = email.trim().toLowerCase();
+    const existing = await this.userModel.findOne({ email: normalizedEmail });
+    if (existing) {
+      throw new ConflictException('Email already exists');
+    }
+
+    const recruiter = new this.userModel({
+      fullName: fullName.trim(),
+      email: normalizedEmail,
+      passwordHash,
+      companyName: companyName.trim(),
+      role: UserRole.RECRUITER,
+      isActive: true,
+    });
+
+    return recruiter.save();
+  }
+
   async findByEmail(email: string): Promise<UserDocument | null> {
     return this.userModel.findOne({ email: email.toLowerCase() });
   }

@@ -6,7 +6,7 @@ export const navigationLinks = {
     { title: "How It Works", href: "/#how-it-works" },
     { title: "For Students", href: "/login" },
     { title: "For Universities", href: "/login" },
-    { title: "For Recruiters", href: "/recruiter/login" },
+    { title: "For Recruiters", href: "/recruiter/register" },
   ],
   footer: {
     platform: [

@@ -15,6 +15,18 @@
   animation: auth-form-in 420ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
 }
 
+/* Keep the login controls fixed in place for stable alignment. */
+.staticForm .reveal,
+.staticForm .formEnter {
+  animation: none !important;
+  opacity: 1 !important;
+  transform: none !important;
+}
+
+.staticForm button:hover {
+  transform: none !important;
+}
+
 /* Staggered reveal: elements set --auth-i to control their order. */
 .reveal {
   animation: auth-rise 460ms cubic-bezier(0.22, 1, 0.36, 1) backwards;

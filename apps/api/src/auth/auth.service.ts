@@ -13,7 +13,7 @@ import { UserRole } from '@placecampus/shared-types';
 import { UsersService, assignedRoles } from '../users/users.service.js';
 import { UserDocument } from '../users/schemas/user.schema.js';
 import { AuditService } from '../audit/audit.service.js';
-import { RegisterDto, LoginDto } from './dto/auth.dto.js';
+import { RecruiterRegisterDto, RegisterDto, LoginDto } from './dto/auth.dto.js';
 import {
   RefreshSession,
   RefreshSessionDocument,
@@ -48,6 +48,22 @@ export class AuthService {
 
     return {
       message: 'Registration successful',
+      user: this.usersService.sanitize(user),
+    };
+  }
+
+  async registerRecruiter(registerDto: RecruiterRegisterDto) {
+    const salt = await bcrypt.genSalt();
+    const passwordHash = await bcrypt.hash(registerDto.password, salt);
+    const user = await this.usersService.createRecruiter(
+      registerDto.fullName,
+      registerDto.email,
+      passwordHash,
+      registerDto.companyName,
+    );
+
+    return {
+      message: 'Recruiter registration successful',
       user: this.usersService.sanitize(user),
     };
   }

@@ -18,10 +18,11 @@ export const ROLE_LABELS: Record<string, string> = {
 
 export const CAMPUS_LOGIN_ROUTE = "/login";
 export const RECRUITER_LOGIN_ROUTE = "/recruiter/login";
+export const RECRUITER_REGISTER_ROUTE = "/recruiter/register";
 export const SELECT_ROLE_ROUTE = "/select-role";
 
 /** Full-screen auth pages: no marketing header or footer. */
-export const AUTH_ROUTE_PATTERN = /^\/(login|register|forgot-password|faculty-login|select-role|recruiter\/login)(\/|$)/;
+export const AUTH_ROUTE_PATTERN = /^\/(login|register|forgot-password|faculty-login|select-role|recruiter\/(login|register))(\/|$)/;
 
 /** Signed-in portal areas; a session without an active role can't use them. */
 export const PORTAL_ROUTE_PATTERN = /^\/(student|faculty|placement|placement-head|recruiter|admin)(\/|$)/;
