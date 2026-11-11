@@ -58,6 +58,12 @@ export class StudentProfile implements Omit<
   portfolioUrl?: string;
 
   @Prop({ type: String })
+  leetcodeUrl?: string;
+
+  @Prop({ type: String })
+  otherUrl?: string;
+
+  @Prop({ type: String })
   resumeUrl?: string;
 
   /** Approved programme lookup code (`program` keeps the display name). */

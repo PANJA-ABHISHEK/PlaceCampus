@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { toast } from "sonner";
 import {
   CalendarCheck,
@@ -9,6 +10,9 @@ import {
   CircleAlert,
   Clock,
   ExternalLink,
+  Info,
+  Mail,
+  Radio,
   Star,
   UserRound,
   Video,
@@ -22,12 +26,16 @@ import {
 } from "@/features/interviews/hooks/use-interviews";
 import {
   RUBRIC_DIMENSIONS,
+  canEnterRoom,
   canJoin,
   canStudentCancel,
+  displayStatus,
   isUpcoming,
   rubricAverage,
   startTime,
+  typeLabel,
 } from "@/features/interviews/lib/interview-meta";
+import { EvaluationView } from "@/features/interviews/components/evaluation";
 import {
   InterviewStatusBadge,
   ReasonDialog,
@@ -87,8 +95,11 @@ function StatCard({ label, value, icon: Icon, tile, delay }: { label: string; va
 function UpcomingCard({ interview, now, onCancel }: { interview: MockInterview; now: number; onCancel: () => void }) {
   const joinable = canJoin(interview, now);
   const cancellable = canStudentCancel(interview, now);
+  const inApp = !!interview.roomId;
+  const roomOpen = canEnterRoom(interview, now);
+  const live = interview.status === "IN_PROGRESS";
   return (
-    <article className="pc-enter flex flex-col gap-4 rounded-2xl border border-[hsl(var(--border)/0.8)] bg-white p-5 shadow-[var(--shadow-card)] transition-shadow hover:shadow-[var(--shadow-card-hover)] sm:flex-row sm:items-center">
+    <article className={cn("pc-enter flex flex-col gap-4 rounded-2xl border bg-white p-5 shadow-[var(--shadow-card)] transition-shadow hover:shadow-[var(--shadow-card-hover)] sm:flex-row sm:items-start", live ? "border-[hsl(var(--primary)/0.5)] ring-2 ring-[hsl(var(--primary)/0.15)]" : "border-[hsl(var(--border)/0.8)]")}>
       <div className="flex w-full shrink-0 items-center gap-3 sm:w-auto sm:flex-col sm:items-center sm:gap-0 sm:rounded-xl sm:bg-[hsl(var(--primary)/0.08)] sm:px-4 sm:py-3">
         <span className="text-xs font-bold uppercase tracking-wider text-[hsl(var(--color-primary-700))]">
           {formatDay(interview.scheduledAt).split(",")[0]}
@@ -102,9 +113,10 @@ function UpcomingCard({ interview, now, onCancel }: { interview: MockInterview; 
       </div>
       <div className="min-w-0 flex-1 space-y-1.5">
         <div className="flex flex-wrap items-center gap-2">
-          <h3 className="font-bold text-[hsl(var(--foreground))]">{interview.type} interview</h3>
-          <InterviewStatusBadge status={interview.status} />
+          <h3 className="font-bold text-[hsl(var(--foreground))]">{interview.title || typeLabel(interview.type)}</h3>
+          <InterviewStatusBadge status={displayStatus(interview, now)} />
         </div>
+        {interview.title && <p className="text-sm font-medium text-[hsl(var(--foreground)/0.8)]">{typeLabel(interview.type)}</p>}
         <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-[hsl(var(--foreground)/0.75)]">
           <span className="flex items-center gap-1.5">
             <Clock className="h-4 w-4" aria-hidden="true" />
@@ -114,15 +126,50 @@ function UpcomingCard({ interview, now, onCancel }: { interview: MockInterview; 
             <UserRound className="h-4 w-4" aria-hidden="true" />
             {interview.interviewer?.fullName ?? "Faculty interviewer"}
           </span>
+          {interview.interviewer?.email && (
+            <a href={`mailto:${interview.interviewer.email}`} className="flex items-center gap-1.5 hover:text-[hsl(var(--primary))]">
+              <Mail className="h-4 w-4" aria-hidden="true" />
+              {interview.interviewer.email}
+            </a>
+          )}
         </p>
-        {!joinable && interview.meetingUrl && (
+        {interview.instructions && (
+          <div className="mt-2 flex gap-2 rounded-xl bg-[hsl(var(--primary)/0.06)] px-3 py-2 text-sm text-[hsl(var(--foreground)/0.85)]">
+            <Info className="mt-0.5 h-4 w-4 shrink-0 text-[hsl(var(--primary))]" aria-hidden="true" />
+            <p className="whitespace-pre-line">{interview.instructions}</p>
+          </div>
+        )}
+        {live && inApp && (
+          <p className="flex items-center gap-1.5 text-sm font-semibold text-[hsl(var(--color-primary-700))]">
+            <Radio className="h-4 w-4" aria-hidden="true" /> Your interviewer has started. Join now.
+          </p>
+        )}
+        {inApp && !roomOpen && interview.status === "SCHEDULED" && (
+          <p className="text-xs text-[hsl(var(--muted-foreground))]">The interview room opens 15 minutes before the start.</p>
+        )}
+        {!inApp && !joinable && interview.meetingUrl && (
           <p className="text-xs text-[hsl(var(--muted-foreground))]">
             The meeting link opens 15 minutes before the start.
           </p>
         )}
       </div>
       <div className="flex flex-col gap-2 sm:items-end">
-        {joinable ? (
+        {inApp ? (
+          roomOpen ? (
+            <Link
+              href={`/student/interviews/room/${interview.roomId}`}
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[hsl(var(--primary))] px-5 text-sm font-semibold text-white shadow-[0_6px_16px_-8px_hsl(var(--primary)/0.8)] transition-all hover:bg-[hsl(var(--color-primary-600))] active:scale-[0.98]"
+            >
+              <Video className="h-4 w-4" aria-hidden="true" />
+              Join Interview
+            </Link>
+          ) : (
+            <span className="inline-flex h-10 cursor-not-allowed items-center justify-center gap-2 rounded-xl bg-[hsl(var(--muted))] px-5 text-sm font-semibold text-[hsl(var(--muted-foreground))]">
+              <Video className="h-4 w-4" aria-hidden="true" />
+              Join Interview
+            </span>
+          )
+        ) : joinable ? (
           <a
             href={interview.meetingUrl}
             target="_blank"
@@ -156,9 +203,15 @@ function UpcomingCard({ interview, now, onCancel }: { interview: MockInterview; 
   );
 }
 
-function HistoryRow({ interview }: { interview: MockInterview }) {
+/** Interviews evaluated before structured feedback used a 0–10 rubric; show them on the same 5-point scale. */
+function legacyScore(interview: MockInterview) {
+  const avg = rubricAverage(interview.rubricScores);
+  return avg == null ? null : Math.round((avg / 2) * 10) / 10;
+}
+
+function HistoryRow({ interview, now }: { interview: MockInterview; now: number }) {
   const [open, setOpen] = React.useState(false);
-  const average = rubricAverage(interview.rubricScores);
+  const average = interview.evaluation ? interview.evaluation.overallScore : legacyScore(interview);
   const hasFeedback = interview.status === "COMPLETED";
   return (
     <li className="border-b border-[hsl(var(--border)/0.6)] last:border-0">
@@ -172,7 +225,7 @@ function HistoryRow({ interview }: { interview: MockInterview }) {
         )}
       >
         <div className="min-w-0 flex-1">
-          <p className="font-semibold text-[hsl(var(--foreground))]">{interview.type} interview</p>
+          <p className="font-semibold text-[hsl(var(--foreground))]">{interview.title || typeLabel(interview.type)}</p>
           <p className="text-sm text-[hsl(var(--muted-foreground))]">
             {formatDay(interview.scheduledAt)} · {interview.interviewer?.fullName ?? "Faculty interviewer"}
           </p>
@@ -186,10 +239,10 @@ function HistoryRow({ interview }: { interview: MockInterview }) {
         {average != null && (
           <span className="flex items-center gap-1 text-sm font-bold tabular-nums text-[hsl(var(--foreground))]">
             <Star className="h-4 w-4 fill-amber-400 text-amber-400" aria-hidden="true" />
-            {average} / 10
+            {average} / 5
           </span>
         )}
-        <InterviewStatusBadge status={interview.status} />
+        <InterviewStatusBadge status={displayStatus(interview, now)} />
         {hasFeedback && (
           <ChevronDown
             className={cn("hidden h-5 w-5 text-[hsl(var(--muted-foreground))] transition-transform sm:block", open && "rotate-180")}
@@ -197,7 +250,13 @@ function HistoryRow({ interview }: { interview: MockInterview }) {
           />
         )}
       </button>
-      {open && hasFeedback && (
+      {open && hasFeedback && interview.evaluation && (
+        <div className="pc-step border-t border-[hsl(var(--border)/0.6)] bg-[hsl(var(--muted)/0.25)] px-5 py-5">
+          <p className="mb-4 text-sm text-[hsl(var(--muted-foreground))]">Feedback from {interview.interviewer?.fullName ?? "your interviewer"}</p>
+          <EvaluationView evaluation={interview.evaluation} />
+        </div>
+      )}
+      {open && hasFeedback && !interview.evaluation && (
         <div className="pc-step grid gap-5 border-t border-[hsl(var(--border)/0.6)] bg-[hsl(var(--muted)/0.25)] px-5 py-5 md:grid-cols-2">
           <div className="space-y-3">
             {RUBRIC_DIMENSIONS.map(({ key, label }) => {
@@ -232,6 +291,11 @@ function HistoryRow({ interview }: { interview: MockInterview }) {
 
 export default function StudentInterviewsPage() {
   const { data, isLoading, isError, refetch } = useStudentInterviews();
+  // Pick up "your interviewer has started" without a reload.
+  React.useEffect(() => {
+    const t = setInterval(() => void refetch(), 30_000);
+    return () => clearInterval(t);
+  }, [refetch]);
   const cancelMutation = useCancelStudentInterview();
   const [bookOpen, setBookOpen] = React.useState(false);
   const [cancelTarget, setCancelTarget] = React.useState<MockInterview | null>(null);
@@ -239,16 +303,16 @@ export default function StudentInterviewsPage() {
 
   const interviews = React.useMemo(() => data ?? [], [data]);
   const upcoming = React.useMemo(
-    () => interviews.filter((iv) => isUpcoming(iv, now)).sort((a, b) => startTime(a) - startTime(b)),
+    () => interviews.filter((iv) => isUpcoming(iv, now) && !iv.endedAt).sort((a, b) => startTime(a) - startTime(b)),
     [interviews, now],
   );
   const history = React.useMemo(
-    () => interviews.filter((iv) => !isUpcoming(iv, now)).sort((a, b) => startTime(b) - startTime(a)),
+    () => interviews.filter((iv) => !isUpcoming(iv, now) || !!iv.endedAt).sort((a, b) => startTime(b) - startTime(a)),
     [interviews, now],
   );
   const completed = interviews.filter((iv) => iv.status === "COMPLETED");
   const averages = completed
-    .map((iv) => rubricAverage(iv.rubricScores))
+    .map((iv) => (iv.evaluation ? iv.evaluation.overallScore : legacyScore(iv)))
     .filter((v): v is number => v != null);
   const overallAverage = averages.length
     ? (averages.reduce((a, b) => a + b, 0) / averages.length).toFixed(1)
@@ -260,7 +324,7 @@ export default function StudentInterviewsPage() {
       { id: cancelTarget.id, reason },
       {
         onSuccess: () => {
-          toast.success("Booking cancelled", { description: "The slot is open for other students again." });
+          toast.success("Booking cancelled", { description: "Your interviewer has been notified." });
           setCancelTarget(null);
         },
         onError: (error) =>
@@ -282,7 +346,7 @@ export default function StudentInterviewsPage() {
               <span className="text-[hsl(var(--primary))]">Interviews</span>
             </h1>
             <p className="text-[15px] leading-relaxed text-[hsl(var(--foreground)/0.8)] sm:text-base">
-              Book live mock interviews with faculty and get rubric-based feedback that counts towards your readiness.
+              Join live video mock interviews with faculty, or book an open slot, and get structured feedback that counts towards your readiness.
             </p>
           </div>
           <div className="pointer-events-none absolute right-[230px] top-1/2 hidden h-[140px] w-[210px] -translate-y-1/2 xl:block">
@@ -317,7 +381,7 @@ export default function StudentInterviewsPage() {
           <div className="grid gap-4 md:grid-cols-3">
             <StatCard label="Upcoming" value={String(upcoming.length)} icon={CalendarCheck} tile="bg-blue-50 text-blue-600" delay={40} />
             <StatCard label="Completed" value={String(completed.length)} icon={Video} tile="bg-emerald-50 text-emerald-600" delay={80} />
-            <StatCard label="Average score" value={overallAverage ? `${overallAverage} / 10` : "—"} icon={Star} tile="bg-[hsl(var(--primary)/0.1)] text-[hsl(var(--primary))]" delay={120} />
+            <StatCard label="Average score" value={overallAverage ? `${overallAverage} / 5` : "—"} icon={Star} tile="bg-[hsl(var(--primary)/0.1)] text-[hsl(var(--primary))]" delay={120} />
           </div>
 
           <section aria-labelledby="upcoming-heading" className="space-y-3">
@@ -349,7 +413,7 @@ export default function StudentInterviewsPage() {
             <section aria-labelledby="history-heading" className="space-y-3">
               <h2 id="history-heading" className="text-xl font-bold text-[hsl(var(--foreground))]">Past Interviews</h2>
               <ul className="overflow-hidden rounded-2xl border border-[hsl(var(--border)/0.8)] bg-white shadow-[var(--shadow-card)]">
-                {history.map((interview) => <HistoryRow key={interview.id} interview={interview} />)}
+                {history.map((interview) => <HistoryRow key={interview.id} interview={interview} now={now} />)}
               </ul>
             </section>
           )}
@@ -362,7 +426,7 @@ export default function StudentInterviewsPage() {
         title="Cancel this interview?"
         description={
           cancelTarget
-            ? `${cancelTarget.type} interview on ${formatDay(cancelTarget.scheduledAt)} at ${formatTime(cancelTarget.scheduledAt)}. The interviewer will be notified and the slot reopens for others.`
+            ? `${typeLabel(cancelTarget.type)} on ${formatDay(cancelTarget.scheduledAt)} at ${formatTime(cancelTarget.scheduledAt)}. Your interviewer will be notified.`
             : ""
         }
         confirmLabel="Cancel booking"

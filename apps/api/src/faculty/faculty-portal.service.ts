@@ -67,7 +67,7 @@ export class FacultyPortalService {
   async getDashboard(viewer: ReviewViewer): Promise<FacultyDashboard> {
     const facultyId = viewer.userId;
     const now = new Date();
-    const [me, assignments, pendingReviews, overdueReviews, upcomingCount, queue, interviews] =
+    const [me, assignments, pendingReviews, overdueReviews, upcomingCount, queue, interviews, reviewCounts] =
       await Promise.all([
         this.userModel.findById(facultyId).select('fullName designation department').lean().exec(),
         this.assignments.assignmentsFor(facultyId),
@@ -85,6 +85,7 @@ export class FacultyPortalService {
           .limit(3)
           .lean()
           .exec(),
+        this.facultyService.reviewCounts(facultyId, now),
       ]);
     if (!me) throw new NotFoundException('Faculty account not found');
 
@@ -103,6 +104,8 @@ export class FacultyPortalService {
         pendingReviews,
         upcomingInterviews: upcomingCount,
         overdueReviews,
+        awaitingResubmission: reviewCounts.awaitingResubmission,
+        reviewedThisMonth: reviewCounts.reviewedThisMonth,
       },
       reviewQueue: queue.slice(0, 3).map((e: any) => ({
         id: e.id,

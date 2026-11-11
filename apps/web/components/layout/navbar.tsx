@@ -94,7 +94,7 @@ export function Navbar({ className }: NavbarProps) {
             asChild
             className="font-medium shadow-md shadow-[hsl(var(--primary)/0.2)]"
           >
-            <Link href="/register">Get Started</Link>
+            <Link href="/login">Get Started</Link>
           </Button>
         </div>
 
@@ -144,7 +144,7 @@ export function Navbar({ className }: NavbarProps) {
             <Link href="/login">Log in</Link>
           </Button>
           <Button size="lg" asChild className="w-full justify-center shadow-md">
-            <Link href="/register">Get Started</Link>
+            <Link href="/login">Get Started</Link>
           </Button>
         </div>
       </div>

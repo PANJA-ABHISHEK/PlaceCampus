@@ -15,6 +15,8 @@ import { AuditModule } from '../audit/audit.module.js';
 import { AssignmentsService } from './assignments.service.js';
 import { AssignmentAdminService } from './assignment-admin.service.js';
 import { AssignmentAdminController } from './assignment-admin.controller.js';
+import { AutoAllocationService } from './auto-allocation.service.js';
+import { StudentMentorController } from './student-mentor.controller.js';
 
 @Module({
   imports: [
@@ -27,8 +29,8 @@ import { AssignmentAdminController } from './assignment-admin.controller.js';
     ]),
     AuditModule,
   ],
-  controllers: [AssignmentAdminController],
-  providers: [AssignmentsService, AssignmentAdminService],
-  exports: [AssignmentsService, AssignmentAdminService, MongooseModule],
+  controllers: [AssignmentAdminController, StudentMentorController],
+  providers: [AssignmentsService, AssignmentAdminService, AutoAllocationService],
+  exports: [AssignmentsService, AssignmentAdminService, AutoAllocationService, MongooseModule],
 })
 export class AssignmentsModule {}

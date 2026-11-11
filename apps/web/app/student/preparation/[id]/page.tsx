@@ -123,6 +123,11 @@ export default function StudentPreparationDetailPage() {
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-[hsl(var(--foreground)/0.75)]">
                 <PlanStatusBadge status={plan.status} />
                 <span className="flex items-center gap-1.5"><CalendarDays className="h-4 w-4" aria-hidden="true" /> Created {format(new Date(plan.createdAt), "d MMM yyyy")}</span>
+                {plan.targetDate && (
+                  <span className="flex items-center gap-1.5 font-semibold text-[hsl(var(--foreground))]">
+                    <CalendarDays className="h-4 w-4 text-[hsl(var(--primary))]" aria-hidden="true" /> Finish by {format(new Date(plan.targetDate), "d MMM yyyy")}
+                  </span>
+                )}
                 <span className="flex items-center gap-1.5">
                   <CalendarClock className="h-4 w-4" aria-hidden="true" />
                   {drive?.applicationDeadline ? `Drive deadline ${format(new Date(drive.applicationDeadline), "d MMM yyyy")}` : "No drive deadline"}

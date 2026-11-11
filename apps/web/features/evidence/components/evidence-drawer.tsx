@@ -165,7 +165,7 @@ export function EvidenceDrawer({
     <DialogPrimitive.Root open={!!initial} onOpenChange={onOpenChange}>
       <DialogPrimitive.Portal>
         <DialogPrimitive.Overlay className="pc-overlay fixed inset-0 z-[var(--z-overlay)] bg-[hsl(var(--color-navy-dark)/0.35)] backdrop-blur-[2px]" />
-        <DialogPrimitive.Content className="pc-drawer fixed inset-y-0 right-0 z-[var(--z-modal)] flex w-full max-w-[36rem] flex-col bg-white shadow-[var(--shadow-2xl)] focus:outline-none sm:rounded-l-3xl">
+        <DialogPrimitive.Content className="pc-modal fixed left-1/2 top-1/2 z-[var(--z-modal)] flex max-h-[min(880px,calc(100dvh-2rem))] w-[calc(100vw-2rem)] max-w-[46rem] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-3xl bg-white shadow-[var(--shadow-2xl)] focus:outline-none sm:max-h-[min(880px,calc(100dvh-4rem))]">
           {evidence && (
             <DrawerBody
               evidence={evidence}
@@ -202,7 +202,7 @@ function DrawerBody({
 
   return (
     <>
-      <div className="border-b border-[hsl(var(--border)/0.7)] bg-gradient-to-br from-white to-[hsl(var(--color-primary-50))] px-6 pb-5 pt-6 sm:rounded-tl-3xl">
+      <div className="border-b border-[hsl(var(--border)/0.7)] bg-gradient-to-br from-white to-[hsl(var(--color-primary-50))] px-6 pb-5 pt-6">
         <div className="flex items-start gap-4 pr-10">
           <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[hsl(var(--primary)/0.12)] text-[hsl(var(--primary))]">
             <TypeIcon className="h-6 w-6" aria-hidden="true" />

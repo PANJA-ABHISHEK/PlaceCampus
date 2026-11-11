@@ -21,6 +21,7 @@ import { AuthService } from './auth.service.js';
 import { UsersService } from '../users/users.service.js';
 import {
   RegisterDto,
+  RecruiterRegisterDto,
   LoginDto,
   ForgotPasswordDto,
   ChangePasswordDto,
@@ -205,6 +206,14 @@ export class AuthController {
 @Controller('recruiter/auth')
 export class RecruiterAuthController {
   constructor(private authService: AuthService) {}
+
+  @Post('register')
+  @ApiOperation({ summary: 'Create a recruiter account' })
+  @ApiResponse({ status: 201, description: 'Recruiter account successfully created' })
+  @ApiResponse({ status: 409, description: 'Email already exists' })
+  async register(@Body() registerDto: RecruiterRegisterDto) {
+    return this.authService.registerRecruiter(registerDto);
+  }
 
   @Post('login')
   @HttpCode(HttpStatus.OK)

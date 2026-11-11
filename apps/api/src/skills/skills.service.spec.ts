@@ -7,6 +7,9 @@ import { SkillClaim } from './schemas/skill-claim.schema.js';
 import { StudentSkillProfile } from './schemas/student-skill-profile.schema.js';
 import { SkillNormalizationService } from './skill-normalization.service.js';
 import { Types } from 'mongoose';
+import { AuditService } from '../audit/audit.service.js';
+import { Evidence } from '../evidence/schemas/evidence.schema.js';
+import { VerificationRecord } from '../verification/schemas/verification-record.schema.js';
 
 describe('SkillsService', () => {
   let service: SkillsService;
@@ -16,6 +19,12 @@ describe('SkillsService', () => {
   const mockSkillClaimModel = { findOneAndUpdate: vi.fn() };
   const mockProfileModel = { findOne: vi.fn() };
   const mockNormalizationService = { normalizeSkill: vi.fn() };
+  const mockEvidenceModel = { find: vi.fn() };
+  const mockRecordModel = { find: vi.fn() };
+  const query = (rows: unknown) => {
+    const q: any = { select: () => q, sort: () => q, lean: () => q, exec: vi.fn().mockResolvedValue(rows) };
+    return q;
+  };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -38,6 +47,9 @@ describe('SkillsService', () => {
           provide: SkillNormalizationService,
           useValue: mockNormalizationService,
         },
+        { provide: AuditService, useValue: { logAction: vi.fn() } },
+        { provide: getModelToken(Evidence.name), useValue: mockEvidenceModel },
+        { provide: getModelToken(VerificationRecord.name), useValue: mockRecordModel },
       ],
     }).compile();
 
@@ -146,6 +158,75 @@ describe('SkillsService', () => {
       // Save shouldn't add duplicate source evidence IDs
       expect(existingProfile.skills[0].sourceEvidenceIds).toHaveLength(1);
       expect(mockSave).toHaveBeenCalled();
+    });
+  });
+
+  describe('getStudentProfile', () => {
+    const id = () => new Types.ObjectId();
+    const [cert, project, internship, hackathon, inReview] = [id(), id(), id(), id(), id()];
+    const [react, sql, docker, python, aws] = [id(), id(), id(), id(), id()];
+    const verified = (skillId: Types.ObjectId, name: string, sources: Types.ObjectId[]) => ({
+      skillId, canonicalName: name, level: 1, verificationStatus: 'VERIFIED', sourceEvidenceIds: sources,
+    });
+
+    beforeEach(() => {
+      mockProfileModel.findOne.mockReturnValue(
+        query({
+          studentId: 'student-1',
+          skills: [
+            verified(react, 'React', [cert, project]),
+            verified(sql, 'SQL', [internship]),
+            verified(docker, 'Docker', [hackathon]),
+          ],
+        }),
+      );
+      mockEvidenceModel.find.mockReturnValue(
+        query([
+          { _id: cert, type: 'CERTIFICATION', status: 'VERIFIED' },
+          { _id: project, type: 'PROJECT', status: 'VERIFIED' },
+          { _id: internship, type: 'INTERNSHIP', status: 'VERIFIED' },
+          { _id: hackathon, type: 'HACKATHON', status: 'VERIFIED' },
+          { _id: inReview, type: 'CODING_PROFILE', status: 'NEEDS_REVIEW' },
+        ]),
+      );
+      // The in-review evidence claims Python (new) and React (already verified).
+      mockRecordModel.find.mockReturnValue(
+        query([{ evidenceId: inReview, aiResult: { claimedSkills: ['python', 'React', 'AWS'] } }]),
+      );
+      mockNormalizationService.normalizeSkill.mockImplementation(async (claim: string) => {
+        const map: Record<string, unknown> = {
+          python: { _id: python, name: 'Python' },
+          React: { _id: react, name: 'React' },
+          AWS: { _id: aws, name: 'AWS' },
+        };
+        return map[claim] ?? null;
+      });
+    });
+
+    it('assembles skills from four evidence types and lists the types', async () => {
+      const profile: any = await service.getStudentProfile('student-1');
+      expect(profile.evidenceTypes).toEqual(['CERTIFICATION', 'HACKATHON', 'INTERNSHIP', 'PROJECT']);
+      const reactEntry = profile.skills.find((s: any) => s.canonicalName === 'React');
+      expect(reactEntry.sourceTypes).toEqual(['CERTIFICATION', 'PROJECT']);
+    });
+
+    it('shows skills claimed by evidence in review as UNVERIFIED without touching verified ones', async () => {
+      const profile: any = await service.getStudentProfile('student-1');
+      const status = Object.fromEntries(profile.skills.map((s: any) => [s.canonicalName, s.verificationStatus]));
+      expect(status).toEqual({
+        React: 'VERIFIED', SQL: 'VERIFIED', Docker: 'VERIFIED', Python: 'UNVERIFIED', AWS: 'UNVERIFIED',
+      });
+      const pythonEntry = profile.skills.find((s: any) => s.canonicalName === 'Python');
+      expect(pythonEntry.sourceTypes).toEqual(['CODING_PROFILE']);
+      // Pending types are not counted as evidence behind verified skills.
+      expect(profile.evidenceTypes).not.toContain('CODING_PROFILE');
+    });
+
+    it('returns an empty profile for a student with no evidence', async () => {
+      mockProfileModel.findOne.mockReturnValue(query(null));
+      mockEvidenceModel.find.mockReturnValue(query([]));
+      const profile: any = await service.getStudentProfile('student-2');
+      expect(profile).toMatchObject({ studentId: 'student-2', skills: [], evidenceTypes: [] });
     });
   });
 });

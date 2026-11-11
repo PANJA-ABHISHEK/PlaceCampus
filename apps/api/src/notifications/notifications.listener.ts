@@ -18,8 +18,9 @@ export class NotificationsListener {
     const role = e.purposes.includes('MENTOR') ? 'mentor' : 'assigned faculty member';
     const stamp = Date.now();
     await this.notificationsService.createFromEvent({
-      recipientId: e.studentId, type: NotificationType.MENTOR_ASSIGNED, title: `Your ${role} has changed`,
-      message: `${e.newFacultyName} is now your ${role}.`, actionUrl: '/student/dashboard',
+      recipientId: e.studentId, type: NotificationType.MENTOR_ASSIGNED,
+      title: e.previousFacultyId ? `Your ${role} has changed` : `Your ${role} has been assigned`,
+      message: `${e.newFacultyName} is now your ${role}.`, actionUrl: '/student/profile',
       entityType: 'faculty-assignment', entityId: e.studentId, idempotencyKey: `assignment:${e.studentId}:${e.newFacultyId}:${stamp}`,
     });
     await this.notificationsService.createFromEvent({
@@ -149,6 +150,50 @@ export class NotificationsListener {
     });
   }
 
+  @OnEvent('interview.scheduled', { async: true })
+  async interviewScheduled({ interview }: { interview: any }) {
+    const id = idOf(interview);
+    await this.notificationsService.createFromEvent({
+      recipientId: idOf(interview.studentId),
+      type: NotificationType.INTERVIEW_SCHEDULED,
+      title: 'Mock interview scheduled',
+      message: `Your interviewer scheduled a ${interview.type} mock interview${interview.title ? ` (“${interview.title}”)` : ''}. Open Interviews for the time and instructions.`,
+      actionUrl: '/student/interviews',
+      entityType: 'mock-interview', entityId: id,
+      idempotencyKey: `interview:${id}:scheduled`,
+    });
+  }
+
+  @OnEvent('interview.rescheduled', { async: true })
+  async interviewRescheduled({ interview, reason }: { interview: any; reason?: string }) {
+    const id = idOf(interview);
+    await this.notificationsService.createFromEvent({
+      recipientId: idOf(interview.studentId),
+      type: NotificationType.INTERVIEW_SCHEDULED,
+      title: 'Mock interview rescheduled',
+      message: `Your ${interview.type} mock interview has a new time${reason ? `: ${reason}` : '.'} Open Interviews to see it.`,
+      actionUrl: '/student/interviews',
+      entityType: 'mock-interview', entityId: id,
+      // One notification per move.
+      idempotencyKey: `interview:${id}:rescheduled:${interview.scheduledAt}`,
+    });
+  }
+
+  @OnEvent('interview.started', { async: true })
+  async interviewStarted({ interview }: { interview: any }) {
+    if (!interview.roomId) return;
+    const id = idOf(interview);
+    await this.notificationsService.createFromEvent({
+      recipientId: idOf(interview.studentId),
+      type: NotificationType.INTERVIEW_SCHEDULED,
+      title: 'Your interviewer is ready',
+      message: `Your ${interview.type} mock interview has started. Join the waiting room now.`,
+      actionUrl: `/student/interviews/room/${interview.roomId}`,
+      entityType: 'mock-interview', entityId: id,
+      idempotencyKey: `interview:${id}:started`,
+    });
+  }
+
   @OnEvent('interview.cancelled', { async: true })
   async interviewCancelled({ interview, cancelledBy }: { interview: any; cancelledBy: 'STUDENT' | 'FACULTY' }) {
     const id = idOf(interview);
@@ -158,7 +203,7 @@ export class NotificationsListener {
       type: NotificationType.INTERVIEW_CANCELLED,
       title: 'Mock interview cancelled',
       message: byStudent
-        ? `A student cancelled their ${interview.type} interview. The slot is open again.`
+        ? `A student cancelled their ${interview.type} interview.${interview.slotId ? " The slot is open again." : ""}`
         : `Your ${interview.type} mock interview was cancelled by the interviewer${interview.cancellationReason ? `: ${interview.cancellationReason}` : '.'}`,
       actionUrl: byStudent ? '/faculty/interviews' : '/student/interviews',
       entityType: 'mock-interview', entityId: id,

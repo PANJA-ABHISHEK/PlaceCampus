@@ -10,6 +10,7 @@ import {
 import {
   InterviewsService,
   MAX_UPCOMING_BOOKINGS,
+  overallScoreOf,
 } from './interviews.service.js';
 
 const MINUTE = 60_000;
@@ -47,12 +48,15 @@ describe('InterviewsService', () => {
   let slotModel: any;
   let userModel: any;
   let emitter: { emit: ReturnType<typeof vi.fn> };
+  let feedbackModel: any;
+  let assignments: { isAssigned: ReturnType<typeof vi.fn> };
   let service: InterviewsService;
 
   beforeEach(() => {
     interviewModel = {
       find: vi.fn().mockReturnValue(query([])),
       findOne: vi.fn(),
+      findById: vi.fn(),
       create: vi.fn(),
     };
     slotModel = {
@@ -63,47 +67,70 @@ describe('InterviewsService', () => {
       updateOne: vi.fn().mockReturnValue(query({ modifiedCount: 1 })),
       create: vi.fn(),
     };
-    userModel = { find: vi.fn().mockReturnValue(query([])) };
+    userModel = { find: vi.fn().mockReturnValue(query([])), findById: vi.fn() };
     emitter = { emit: vi.fn() };
+    feedbackModel = {
+      create: vi.fn(async (doc: any) => ({ _id: new Types.ObjectId(), ...doc })),
+      findOne: vi.fn().mockReturnValue(query(null)),
+      find: vi.fn().mockReturnValue(query([])),
+      deleteOne: vi.fn().mockReturnValue(query({ deletedCount: 1 })),
+    };
+    assignments = { isAssigned: vi.fn().mockResolvedValue(true) };
     service = new InterviewsService(
       interviewModel,
       slotModel,
       userModel,
       emitter as any,
+      feedbackModel,
+      undefined,
+      assignments as any,
     );
   });
 
   describe('evaluateInterview', () => {
     const payload = {
-      rubricScores: { technicalKnowledge: 8, problemSolving: 7 },
-      feedback: 'Good.',
+      technicalKnowledge: 4,
+      problemSolving: 3,
+      communication: 5,
+      conceptualUnderstanding: 4,
+      confidence: 3,
+      strengths: 'Clear reasoning.',
+      improvements: 'Practise graph problems.',
+      recommendedTopics: ['Graphs', ' Graphs ', 'DP'],
+      assessment: 'GOOD' as const,
     };
 
-    it('completes an interview with valid rubric scores', async () => {
-      const interview = interviewDoc();
+    it('saves feedback with a server-computed score and completes the interview', async () => {
+      const interview = interviewDoc({ status: MockInterviewStatus.IN_PROGRESS });
       interviewModel.findOne.mockReturnValue(query(interview));
+      interviewModel.findById.mockReturnValue(query(interview));
 
       const result = await service.evaluateInterview(
         String(interview._id),
         interview.interviewerId,
-        payload,
+        // A client-supplied score is ignored.
+        { ...payload, overallScore: 5 } as any,
       );
 
+      expect(feedbackModel.create).toHaveBeenCalledWith(
+        expect.objectContaining({ overallScore: 3.8, recommendedTopics: ['Graphs', 'DP'] }),
+      );
       expect(result.status).toBe(MockInterviewStatus.COMPLETED);
-      expect(result.rubricScores).toEqual(payload.rubricScores);
-      expect(emitter.emit).toHaveBeenCalledWith('interview.evaluated', {
-        interview,
+      // 1–5 scores are mirrored onto the 0–10 rubric that readiness reads.
+      expect(interview.rubricScores).toEqual({
+        technicalKnowledge: 8,
+        problemSolving: 6,
+        communication: 10,
+        conceptualUnderstanding: 8,
+        confidence: 6,
       });
+      expect(emitter.emit).toHaveBeenCalledWith('interview.evaluated', { interview });
     });
 
-    it('rejects scores outside 0-10', async () => {
+    it('refuses a second evaluation', async () => {
       interviewModel.findOne.mockReturnValue(query(interviewDoc()));
-      await expect(
-        service.evaluateInterview(id(), id(), {
-          rubricScores: { technicalKnowledge: 11 },
-          feedback: 'x',
-        }),
-      ).rejects.toThrow(BadRequestException);
+      feedbackModel.create.mockRejectedValue({ code: 11000 });
+      await expect(service.evaluateInterview(id(), id(), payload)).rejects.toThrow(ConflictException);
     });
 
     it('rejects a cancelled interview', async () => {
@@ -122,6 +149,121 @@ describe('InterviewsService', () => {
       await expect(
         service.evaluateInterview(id(), id(), payload),
       ).rejects.toThrow(/opens 15 minutes/);
+    });
+  });
+
+  describe('overallScoreOf', () => {
+    it('averages the five criteria to one decimal place', () => {
+      expect(
+        overallScoreOf({ technicalKnowledge: 5, problemSolving: 4, communication: 4, conceptualUnderstanding: 4, confidence: 4 }),
+      ).toBe(4.2);
+      expect(
+        overallScoreOf({ technicalKnowledge: 1, problemSolving: 1, communication: 1, conceptualUnderstanding: 1, confidence: 1 }),
+      ).toBe(1);
+    });
+  });
+
+  describe('scheduleInterview', () => {
+    const facultyId = id();
+    const dto = () => ({
+      studentId: id(),
+      title: 'DSA round',
+      type: 'DSA' as const,
+      scheduledAt: inMinutes(60).toISOString(),
+      durationMinutes: 30,
+      questions: [{ text: 'Reverse a linked list', category: 'DSA' as const }],
+    });
+
+    beforeEach(() => {
+      userModel.findById.mockReturnValue(query({ _id: 'x', fullName: 'Asha', role: 'student' }));
+    });
+
+    it('refuses students who are not assigned to the faculty member', async () => {
+      assignments.isAssigned.mockResolvedValue(false);
+      await expect(service.scheduleInterview(facultyId, dto())).rejects.toThrow(/assigned to you/);
+      expect(interviewModel.create).not.toHaveBeenCalled();
+    });
+
+    it('refuses a user who is not a student', async () => {
+      userModel.findById.mockReturnValue(query({ _id: 'x', fullName: 'Prof', role: 'faculty' }));
+      await expect(service.scheduleInterview(facultyId, dto())).rejects.toThrow(/Student not found/);
+    });
+
+    it('refuses overlapping interviews', async () => {
+      const input = dto();
+      interviewModel.find.mockReturnValue(
+        query([{ interviewerId: facultyId, studentId: id(), scheduledAt: input.scheduledAt, durationMinutes: 30 }]),
+      );
+      await expect(service.scheduleInterview(facultyId, input)).rejects.toThrow(ConflictException);
+    });
+
+    it('creates the interview with an unguessable room id and notifies the student', async () => {
+      const input = dto();
+      const created = interviewDoc({ studentId: input.studentId, interviewerId: facultyId });
+      interviewModel.create.mockResolvedValue(created);
+      interviewModel.findById.mockReturnValue(query(created));
+
+      await service.scheduleInterview(facultyId, input);
+
+      const saved = interviewModel.create.mock.calls[0][0];
+      expect(saved.roomId).toMatch(/^[a-f0-9]{32}$/);
+      expect(saved.questions[0]).toMatchObject({ text: 'Reverse a linked list', asked: false });
+      expect(emitter.emit).toHaveBeenCalledWith('interview.scheduled', { interview: created });
+    });
+
+    it('rejects times in the past', async () => {
+      await expect(
+        service.scheduleInterview(facultyId, { ...dto(), scheduledAt: inMinutes(-10).toISOString() }),
+      ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('authorizeRoomAccess', () => {
+    const roomId = 'a'.repeat(32);
+    const facultyId = id();
+    const studentId = id();
+    const room = (overrides: Record<string, unknown> = {}) =>
+      interviewModel.findOne.mockReturnValue(
+        query({
+          _id: new Types.ObjectId(),
+          roomId,
+          interviewerId: facultyId,
+          studentId,
+          status: MockInterviewStatus.IN_PROGRESS,
+          scheduledAt: inMinutes(-1).toISOString(),
+          ...overrides,
+        }),
+      );
+
+    it('admits the assigned faculty member and the invited student', async () => {
+      room();
+      await expect(service.authorizeRoomAccess(roomId, facultyId, 'faculty')).resolves.toMatchObject({ seat: 'FACULTY' });
+      room();
+      await expect(service.authorizeRoomAccess(roomId, studentId, 'student')).resolves.toMatchObject({ seat: 'STUDENT' });
+    });
+
+    it('refuses anyone else, including the right user with the wrong role', async () => {
+      room();
+      await expect(service.authorizeRoomAccess(roomId, id(), 'STUDENT')).rejects.toThrow(/not a participant/);
+      room();
+      await expect(service.authorizeRoomAccess(roomId, studentId, 'faculty')).rejects.toThrow(/not a participant/);
+    });
+
+    it('refuses malformed room ids without querying', async () => {
+      await expect(service.authorizeRoomAccess('../x', facultyId, 'faculty')).rejects.toThrow(/not found/);
+      expect(interviewModel.findOne).not.toHaveBeenCalled();
+    });
+
+    it('refuses ended and cancelled interviews', async () => {
+      room({ endedAt: new Date().toISOString() });
+      await expect(service.authorizeRoomAccess(roomId, studentId, 'student')).rejects.toThrow(/ended/);
+      room({ status: MockInterviewStatus.CANCELLED });
+      await expect(service.authorizeRoomAccess(roomId, studentId, 'student')).rejects.toThrow(/cancelled/);
+    });
+
+    it('keeps the room closed until 15 minutes before the start', async () => {
+      room({ status: MockInterviewStatus.SCHEDULED, scheduledAt: inMinutes(60).toISOString() });
+      await expect(service.authorizeRoomAccess(roomId, studentId, 'student')).rejects.toThrow(/opens 15 minutes/);
     });
   });
 

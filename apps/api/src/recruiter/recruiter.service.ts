@@ -19,6 +19,7 @@ export class RecruiterService {
 
   async getDrives(recruiterId: string) {
     const grants = await this.recruiterAccessService.getMyActiveGrants(recruiterId);
+    await this.logListing(recruiterId, 'VIEW_ACCESSIBLE_DRIVES', grants);
     return grants.map(g => ({
       grantId: g.id,
       drive: g.driveId,
@@ -27,12 +28,37 @@ export class RecruiterService {
     }));
   }
 
+  /** Aggregate dashboard values only over this recruiter's active access grants. */
+  async getDashboardSummary(recruiterId: string) {
+    const grants = await this.recruiterAccessService.getMyActiveGrants(recruiterId);
+    await this.logListing(recruiterId, 'VIEW_DASHBOARD', grants);
+    return Promise.all(grants.map(async (grant: any) => {
+      const drive = grant.driveId;
+      const driveId = String(drive?._id ?? drive);
+      const canSeeApplicationStatus = grant.releasedFields.includes('applicationStatus');
+      const [candidateCount, shortlistedCount] = await Promise.all([
+        this.applicationsService.countForDrive(driveId),
+        canSeeApplicationStatus
+          ? this.applicationsService.countForDrive(driveId, ApplicationStatus.SHORTLISTED)
+          : Promise.resolve(null),
+      ]);
+      return {
+        grantId: grant.id,
+        drive,
+        expiresAt: grant.expiresAt,
+        releasedFields: grant.releasedFields,
+        candidateCount,
+        shortlistedCount,
+      };
+    }));
+  }
+
   async getCandidates(recruiterId: string, driveId: string, page = 1, limit = 10, status?: string, query?: string) {
     const grant = await this.recruiterAccessService.getActiveGrant(driveId, recruiterId);
     if (!grant) {
       await this.auditService.logAction({
         actorId: recruiterId, actorRole: UserRole.RECRUITER, action: 'DENIED_CROSS_DRIVE_ACCESS',
-        resourceType: 'PlacementDrive', resourceId: driveId, success: false,
+        resourceType: 'PlacementDrive', resourceId: driveId, driveId, success: false,
       });
       throw new ForbiddenException('You do not have active access to this drive');
     }
@@ -55,7 +81,8 @@ export class RecruiterService {
 
     await this.auditService.logAction({
       actorId: recruiterId, actorRole: UserRole.RECRUITER, action: 'VIEW_CANDIDATE_LIST',
-      resourceType: 'PlacementDrive', resourceId: driveId,
+      resourceType: 'PlacementDrive', resourceId: driveId, driveId,
+      metadata: { page, shown: candidates.length, applicationIds: applications.map((a: any) => String(a.id ?? a._id)) },
     });
 
     return { candidates, total, page, limit, totalPages: Math.ceil(total / limit) };
@@ -88,6 +115,17 @@ export class RecruiterService {
     });
 
     return { ...mapped, expiresAt: grant.expiresAt };
+  }
+
+  /** Overview reads touch no student data, but are logged so the trail is complete. */
+  private logListing(recruiterId: string, action: string, grants: any[]) {
+    return this.auditService.logAction({
+      actorId: recruiterId,
+      actorRole: UserRole.RECRUITER,
+      action,
+      resourceType: 'RecruiterAccessGrant',
+      metadata: { driveIds: grants.map((g) => String(g.driveId?._id ?? g.driveId)) },
+    });
   }
 
   private async mapCandidateData(application: any, releasedFields: string[]) {

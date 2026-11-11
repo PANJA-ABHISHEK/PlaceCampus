@@ -16,7 +16,7 @@ const chain = (value: unknown) => ({
   exec: vi.fn().mockResolvedValue(value),
 });
 
-interface Student { id: string; department?: string; isDemoData?: boolean; accountStatus?: string; school?: string }
+interface Student { id: string; department?: string; isDemoData?: boolean; accountStatus?: string; school?: string; noProfile?: boolean }
 interface Fac { id: string; department?: string; isDemoData?: boolean; employmentStatus?: string; accountStatus?: string }
 
 describe('AssignmentAdminService.plan (mentor allocation)', () => {
@@ -48,7 +48,7 @@ describe('AssignmentAdminService.plan (mentor allocation)', () => {
           provide: getModelToken(StudentProfile.name),
           useValue: {
             find: vi.fn(() =>
-              chain(students.map((s) => ({ userId: s.id, registrationNumber: `R${s.id}`, department: s.department, isDemoData: s.isDemoData, source: { school: s.school } }))),
+              chain(students.filter((s) => !s.noProfile).map((s) => ({ userId: s.id, registrationNumber: `R${s.id}`, department: s.department, isDemoData: s.isDemoData, source: { school: s.school } }))),
             ),
           },
         },
@@ -136,5 +136,14 @@ describe('AssignmentAdminService.plan (mentor allocation)', () => {
     faculty = [{ id: 'f1', department: 'CSE' }, { id: 'f2', department: 'MBA' }];
     const plan = await service.plan({ departmentCodes: ['MBA'] });
     expect(plan.planned.map((p) => p.studentId)).toEqual(['b']);
+  });
+
+  it('counts students without a profile and reports them instead of dropping them', async () => {
+    students = [{ id: 'a', department: 'CSE' }, { id: 'self', noProfile: true }];
+    faculty = [{ id: 'f1', department: 'CSE' }];
+    const plan = await service.plan();
+    expect(plan.totals.students).toBe(2);
+    expect(plan.planned.map((p) => p.studentId)).toEqual(['a']);
+    expect(plan.unassigned).toEqual([expect.objectContaining({ studentId: 'self', reason: 'NO_STUDENT_RECORD' })]);
   });
 });

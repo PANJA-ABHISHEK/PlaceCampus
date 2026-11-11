@@ -1,4 +1,5 @@
 import { Module, Global } from '@nestjs/common';
+import { AdminConfigurationController } from './admin-configuration.controller.js';
 
 /**
  * CommonModule — shared providers, guards, interceptors, filters, pipes.
@@ -7,6 +8,7 @@ import { Module, Global } from '@nestjs/common';
  */
 @Global()
 @Module({
+  controllers: [AdminConfigurationController],
   providers: [],
   exports: [],
 })

@@ -33,6 +33,10 @@ export class User {
   @Prop({ trim: true })
   department?: string;
 
+  /** Company or organization for externally registered recruiter accounts. */
+  @Prop({ trim: true, maxlength: 120 })
+  companyName?: string;
+
   @Prop({ default: true })
   isActive: boolean;
 

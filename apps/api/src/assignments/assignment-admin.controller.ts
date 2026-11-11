@@ -46,7 +46,7 @@ export class AssignmentAdminController {
   @Post('allocation/commit')
   @ApiOperation({ summary: 'Allocate one active primary mentor to every eligible student' })
   commit(@Body() dto: AllocationDto, @CurrentUser() user: any) {
-    return this.admin.commit(dto, actorOf(user));
+    return this.admin.commit(dto, actorOf(user), { notify: true });
   }
 
   @Get('faculty/:facultyUserId/mentees')

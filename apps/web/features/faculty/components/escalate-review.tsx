@@ -33,13 +33,13 @@ export function EscalateReview({ evidenceId }: { evidenceId: string }) {
 
   if (!open) {
     return (
-      <button type="button" onClick={() => setOpen(true)} className="flex w-full items-center gap-3 rounded-md border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50">
-        <ArrowUpRight className="h-5 w-5" aria-hidden="true" /> Escalate to coordinator
+      <button type="button" onClick={() => setOpen(true)} className="flex h-12 w-full items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-[#10264A] transition-colors hover:bg-slate-50">
+        <ArrowUpRight className="h-5 w-5" aria-hidden="true" /> Escalate to Coordinator
       </button>
     );
   }
   return (
-    <form className="space-y-2 rounded-lg border border-slate-200 p-3" onSubmit={(e) => { e.preventDefault(); escalate.mutate(); }}>
+    <form className="space-y-2 rounded-xl border border-slate-200 p-3" onSubmit={(e) => { e.preventDefault(); escalate.mutate(); }}>
       <select required value={reasonCode} onChange={(e) => setReasonCode(e.target.value)} className="h-9 w-full rounded-md border border-slate-200 px-2 text-sm" aria-label="Escalation reason">
         <option value="">Reason…</option>
         {REASONS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}

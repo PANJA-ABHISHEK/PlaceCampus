@@ -7,11 +7,9 @@ import { VerificationRecord } from './schemas/verification-record.schema.js';
 import { EvidenceService } from '../evidence/evidence.service.js';
 import { StorageService } from '../storage/storage.service.js';
 import { DocumentExtractorService } from './providers/document-extractor.service.js';
-import {
-  AiProviderService,
-  VerificationAIResult,
-} from './providers/ai-provider.service.js';
+import { AiAnalysisService } from './ai/ai-analysis.service.js';
 import { VerificationEngineService } from './providers/verification-engine.service.js';
+import { ExtractionStoreService } from './extraction-store.service.js';
 import { EvidenceStatus } from '@placecampus/shared-types';
 
 export interface VerifyEvidenceJob {
@@ -30,8 +28,9 @@ export class VerificationProcessor {
     private readonly evidenceService: EvidenceService,
     private readonly storageService: StorageService,
     private readonly extractorService: DocumentExtractorService,
-    private readonly aiService: AiProviderService,
+    private readonly aiService: AiAnalysisService,
     private readonly engineService: VerificationEngineService,
+    private readonly extractionStore: ExtractionStoreService,
   ) {}
 
   @Process('verify-evidence')
@@ -61,29 +60,40 @@ export class VerificationProcessor {
       // 3. Get Document Path
       const absolutePath = await this.storageService.getFilePath(documentKey);
 
-      // 4. Extract Text
+      // 4. Extract Text (PDF text layer, OCR for scanned pages and images)
       const extraction = await this.extractorService.extractText(
         absolutePath,
         evidence.document?.mimeType || 'application/octet-stream',
       );
+      const extractionDoc = await this.extractionStore.save({
+        evidenceId,
+        studentId,
+        version: attemptCount + 1,
+        fileId: evidence.document?.id,
+        result: extraction,
+      });
 
-      // 5. AI Analysis
-      let aiResult: VerificationAIResult | null = null;
-      let aiError: Error | null = null;
+      // 4b. Fingerprint duplicate detection
+      const duplicates = await this.extractionStore.findDuplicates(evidenceId, studentId, extraction);
 
-      if (extraction.hasText) {
-        try {
-          aiResult = await this.aiService.analyzeEvidence(
-            extraction.text,
-            evidence.title,
-            evidence.type,
-          );
-        } catch (error: any) {
-          aiError = error;
-          this.logger.error(
-            `AI analysis error for ${evidenceId}: ${error.message}`,
-          );
-        }
+      // 5. AI document analysis (advisory; adapter returns DISABLED when off or unconfigured)
+      let ai: Awaited<ReturnType<AiAnalysisService['analyze']>> | null = null;
+      try {
+        ai = await this.aiService.analyze(
+          {
+            evidenceId,
+            studentId,
+            version: attemptCount + 1,
+            type: evidence.type,
+            title: evidence.title,
+            issuer: evidence.issuer,
+            issuedDate: evidence.issuedDate,
+          },
+          extraction,
+        );
+      } catch (error: any) {
+        // Persistence problems must not block review; the engine treats this as "AI unavailable".
+        this.logger.error(`AI analysis step failed for ${evidenceId}: ${error.message}`);
       }
 
       // 6. Deterministic Rules Engine
@@ -91,8 +101,8 @@ export class VerificationProcessor {
         this.engineService.evaluate(
           { evidenceId, title: evidence.title, type: evidence.type },
           extraction,
-          aiResult,
-          aiError,
+          ai ? ai.outcome : { status: 'FAILED' },
+          duplicates,
         );
 
       // 7. Save Verification Record
@@ -101,18 +111,25 @@ export class VerificationProcessor {
         studentId,
         attemptNumber: attemptCount + 1,
         extractionMethod: extraction.method,
+        extractionStatus: extraction.status,
+        extractionId: extractionDoc.id,
         extractedTextMetadata: {
           wordCount: extraction.wordCount,
           hasText: extraction.hasText,
+          charCount: extraction.charCount,
+          pageCount: extraction.pageCount,
+          ocrConfidence: extraction.ocrConfidence,
         },
-        aiProvider: 'configured-provider',
-        modelVersion: aiResult?.modelVersion || 'unknown',
-        aiResult,
+        duplicateMatches: duplicates.length ? duplicates : undefined,
+        aiProvider: ai?.outcome.provider ?? 'none',
+        modelVersion: ai?.outcome.model ?? 'none',
+        aiStatus: ai?.outcome.status ?? 'FAILED',
+        aiAnalysisId: ai?.analysisId,
+        aiResult: ai?.legacy ?? undefined,
         ruleResults,
         finalDecision,
         reasons,
         processingDurationMs: Date.now() - startTime,
-        errorInformation: aiError?.message,
       });
       await record.save();
 

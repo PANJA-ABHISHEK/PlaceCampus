@@ -28,7 +28,7 @@ import {
   type WindowState,
 } from "../lib/drive-meta";
 
-function RecruitmentIllustration() {
+export function RecruitmentIllustration() {
   return (
     <svg viewBox="0 0 250 160" className="h-full w-full drop-shadow-[0_18px_24px_rgba(234,88,12,0.14)]" aria-hidden="true">
       <g stroke="hsl(24 95% 53%)" strokeWidth="4" strokeLinecap="round">

@@ -40,7 +40,7 @@ export const ACTION_META: Record<RowAction, { label: string; className: string }
 };
 
 export function DemoBadge() {
-  return <span className="inline-flex rounded-md bg-violet-50 px-2 py-0.5 text-xs font-semibold text-violet-700 ring-1 ring-violet-200">Demo data</span>;
+  return <span className="inline-flex rounded-md bg-orange-50 px-2 py-0.5 text-xs font-semibold text-[#C54C0B] ring-1 ring-orange-200">Demo data</span>;
 }
 
 export function Stat({ label, value, tone }: { label: string; value: number | string; tone?: string }) {

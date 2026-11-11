@@ -21,6 +21,8 @@ import {
 import { SkillsService } from './skills.service.js';
 import { SkillNormalizationService } from './skill-normalization.service.js';
 import { SkillsController } from './skills.controller.js';
+import { AdminSkillsController } from './admin-skills.controller.js';
+import { AuditModule } from '../audit/audit.module.js';
 import {
   VerificationRecord,
   VerificationRecordSchema,
@@ -32,6 +34,7 @@ import {
 
 @Module({
   imports: [
+    AuditModule,
     MongooseModule.forFeature([
       { name: Skill.name, schema: SkillSchema },
       { name: SkillCluster.name, schema: SkillClusterSchema },
@@ -43,7 +46,7 @@ import {
       { name: Evidence.name, schema: EvidenceSchema },
     ]),
   ],
-  controllers: [SkillsController],
+  controllers: [SkillsController, AdminSkillsController],
   providers: [SkillsService, SkillNormalizationService],
   exports: [SkillsService, SkillNormalizationService],
 })

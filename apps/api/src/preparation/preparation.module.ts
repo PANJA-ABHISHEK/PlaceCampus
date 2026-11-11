@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { AssessmentsModule } from '../assessments/assessments.module.js';
 import { MatchingModule } from '../matching/matching.module.js';
+import { DrivesModule } from '../drives/drives.module.js';
 import { PreparationController } from './preparation.controller.js';
 import { PreparationService } from './preparation.service.js';
 import {
@@ -15,6 +16,7 @@ import {
       { name: PreparationPlan.name, schema: PreparationPlanSchema },
     ]),
     MatchingModule,
+    DrivesModule,
     AssessmentsModule,
   ],
   controllers: [PreparationController],

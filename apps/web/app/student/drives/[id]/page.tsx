@@ -39,6 +39,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { ApiError } from "@/lib/api-client";
+import { GapItem } from "@/features/drives/components/drive-insights";
 import {
   useCreatePreparationPlan,
   usePreparationPlans,
@@ -113,11 +114,10 @@ export default function StudentDriveDetailPage() {
       return true;
     }) || [];
 
-  const highImpactGaps =
-    matchResult?.skills.filter((s) => s.priority === GapPriority.HIGH) || [];
-  const mediumImpactGaps =
-    matchResult?.skills.filter((s) => s.priority === GapPriority.MEDIUM) || [];
-  // const lowImpactGaps = matchResult?.skills.filter(s => s.priority === GapPriority.LOW) || [];
+  // Unmet requirements carry a rank (1 = most urgent) from the matching engine.
+  const rankedGaps = (matchResult?.skills ?? [])
+    .filter((s) => s.rank)
+    .sort((a, b) => (a.rank ?? 0) - (b.rank ?? 0));
 
   const handleApply = async () => {
     if (!eligibility?.eligible) {
@@ -266,43 +266,19 @@ export default function StudentDriveDetailPage() {
 
                 {matchResult ? (
                   <>
-                    {(highImpactGaps.length > 0 ||
-                      mediumImpactGaps.length > 0) && (
-                      <div className="mb-6 p-5 bg-red-50 border border-red-100 rounded-xl">
-                        <h4 className="font-semibold text-red-800 mb-3 flex items-center gap-2">
-                          <AlertCircle className="w-4 h-4" /> Priority Gaps
-                          Discovered
+                    {rankedGaps.length > 0 && (
+                      <div className="mb-6 rounded-xl border border-orange-100 bg-orange-50/50 p-5">
+                        <h4 className="mb-1 flex items-center gap-2 font-semibold text-[#10264A]">
+                          <AlertCircle className="h-4 w-4 text-[#FF6500]" /> Your gaps for this drive, most urgent first
                         </h4>
-                        <ul className="space-y-2 text-sm">
-                          {highImpactGaps.map((gap) => (
-                            <li
-                              key={gap.skillId}
-                              className="flex items-start gap-2 text-red-700"
-                            >
-                              <span className="px-1.5 py-0.5 rounded bg-red-200 font-bold text-[10px] mt-0.5">
-                                HIGH
-                              </span>
-                              <span>
-                                <strong>{gap.skillName}</strong>:{" "}
-                                {gap.explanation}
-                              </span>
-                            </li>
+                        <p className="mb-3 text-sm text-slate-600">
+                          Work through them in order. Each one says exactly what closes it.
+                        </p>
+                        <ol className="space-y-2.5 bg-transparent">
+                          {rankedGaps.map((gap) => (
+                            <GapItem key={gap.skillId} gap={gap} />
                           ))}
-                          {mediumImpactGaps.map((gap) => (
-                            <li
-                              key={gap.skillId}
-                              className="flex items-start gap-2 text-yellow-700"
-                            >
-                              <span className="px-1.5 py-0.5 rounded bg-yellow-200 font-bold text-[10px] mt-0.5">
-                                MEDIUM
-                              </span>
-                              <span>
-                                <strong>{gap.skillName}</strong>:{" "}
-                                {gap.explanation}
-                              </span>
-                            </li>
-                          ))}
-                        </ul>
+                        </ol>
                       </div>
                     )}
 

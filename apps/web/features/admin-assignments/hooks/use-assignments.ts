@@ -186,6 +186,7 @@ export function useEndAssignment() {
 
 export const REASON_LABEL: Record<string, string> = {
   DEPARTMENT_UNMAPPED: "Department not mapped",
+  NO_STUDENT_RECORD: "No institutional record (self-registered)",
   NO_FACULTY_IN_DEPARTMENT: "No faculty in department",
   ONLY_CONFLICTED_FACULTY: "Only conflicted faculty",
   ACCOUNT_DEACTIVATED: "Account deactivated",

@@ -30,6 +30,14 @@ export class RegisterDto {
   password: string;
 }
 
+export class RecruiterRegisterDto extends RegisterDto {
+  @ApiProperty({ example: 'Northstar Technologies', description: 'Recruiter company or organization' })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(120)
+  companyName: string;
+}
+
 export class LoginDto {
   @ApiProperty({ example: 'john@example.com', description: 'Email address' })
   @IsEmail()

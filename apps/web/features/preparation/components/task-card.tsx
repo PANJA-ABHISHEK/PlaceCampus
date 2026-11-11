@@ -2,8 +2,10 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { format } from "date-fns";
 import {
   ArrowUpRight,
+  CalendarCheck,
   Check,
   ChevronDown,
   ClipboardCheck,
@@ -23,6 +25,25 @@ import {
   ITEM_STATUS_ORDER,
   PRIORITY_META,
 } from "../lib/prep-meta";
+
+/** The item's checkpoint date; red once it has passed without completion. */
+function DueChip({ due, done }: { due: string; done: boolean }) {
+  const date = new Date(due);
+  const [now] = React.useState(() => Date.now());
+  const overdue = !done && date.getTime() < now;
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1",
+        overdue ? "bg-rose-50 text-rose-700 ring-rose-200" : "bg-sky-50 text-sky-800 ring-sky-200",
+      )}
+    >
+      <CalendarCheck className="h-3 w-3" aria-hidden="true" />
+      {overdue ? "Overdue · was due " : "Due "}
+      {format(date, "d MMM")}
+    </span>
+  );
+}
 
 export function TaskCard({
   item,
@@ -91,6 +112,7 @@ export function TaskCard({
             <span className="rounded-full bg-[hsl(var(--muted))] px-2 py-0.5 text-[11px] font-semibold text-[hsl(var(--foreground)/0.7)]">
               Level {item.currentLevel} → {item.requiredLevel}
             </span>
+            {item.dueDate && <DueChip due={item.dueDate} done={done || item.status === "SKIPPED"} />}
           </div>
           <p className="text-sm leading-relaxed text-[hsl(var(--foreground)/0.75)]">{item.explanation}</p>
 

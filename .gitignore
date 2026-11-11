@@ -45,3 +45,6 @@ redis-data/
 # Local runtime data and tool caches
 uploads/
 .corepack-cache/
+
+# Tesseract OCR language data (downloaded on first use)
+.cache/
