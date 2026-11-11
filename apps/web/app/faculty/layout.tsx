@@ -64,6 +64,11 @@ export default function FacultyLayout({ children }: { children: React.ReactNode 
     );
   }
 
+  // The interview room is full-screen: no portal chrome. Only faculty may run interviews.
+  if (pathname.startsWith("/faculty/interviews/room/")) {
+    return user?.role === UserRole.FACULTY ? <>{children}</> : null;
+  }
+
   const name = user?.fullName || "Faculty";
   const subtitle = [user?.designation, user?.department && `${user.department} Department`].filter(Boolean);
   const title = pathname === "/faculty/dashboard"

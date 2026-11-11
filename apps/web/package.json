@@ -36,6 +36,7 @@
     "react-dom": "19.3.0",
     "react-hook-form": "^7.54.0",
     "recharts": "^2.15.0",
+    "socket.io-client": "^4.8.1",
     "sonner": "^2.0.8",
     "swiper": "^11.2.10",
     "tailwind-merge": "^2.6.0",
