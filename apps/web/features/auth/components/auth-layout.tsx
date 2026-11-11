@@ -20,7 +20,7 @@ interface AuthLayoutProps {
  */
 export function AuthLayout({ children }: AuthLayoutProps) {
   const pathname = usePathname();
-  // The login card holds the role grid, so it is wider and spaced tighter to fit one screen.
+  // Only the login pages show the LPU logo beside PlaceCampus.
   const isLogin = pathname === CAMPUS_LOGIN_ROUTE || pathname === RECRUITER_LOGIN_ROUTE;
 
   return (
@@ -42,17 +42,12 @@ export function AuthLayout({ children }: AuthLayoutProps) {
           <div className="absolute inset-0 bg-[radial-gradient(hsl(var(--primary)/0.10)_1px,transparent_1px)] [background-size:22px_22px] [mask-image:radial-gradient(ellipse_70%_60%_at_50%_45%,transparent_35%,black)]" />
         </div>
 
-        <div
-          className={cn(
-            'm-auto flex w-full flex-col items-center',
-            isLogin ? 'max-w-[35rem] py-5 [@media(max-height:780px)]:py-3' : 'max-w-[30rem] py-8',
-          )}
-        >
+        <div className="m-auto flex w-full max-w-[30rem] flex-col items-center py-8">
           <div
             className={cn(
               // The logo pair sits a little left of centre, as requested.
-              'flex -translate-x-5 items-center justify-center gap-4 sm:-translate-x-12 sm:gap-7',
-              isLogin ? 'mb-4 [@media(max-height:780px)]:mb-2' : 'mb-7',
+              'mb-7 flex items-center justify-center gap-4 sm:gap-7',
+              isLogin && '-translate-x-5 sm:-translate-x-12',
             )}
           >
             {isLogin && (
@@ -81,12 +76,7 @@ export function AuthLayout({ children }: AuthLayoutProps) {
               />
             </Link>
           </div>
-          <div
-            className={cn(
-              'w-full rounded-3xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] shadow-[0_24px_60px_-28px_rgba(255,107,26,0.35),0_8px_24px_-12px_rgba(11,31,68,0.10)]',
-              isLogin ? 'p-5 sm:p-7 xl:px-8 xl:py-7 [@media(max-height:780px)]:sm:py-5' : 'p-6 sm:p-8 xl:p-9',
-            )}
-          >
+          <div className="w-full rounded-3xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-6 shadow-[0_24px_60px_-28px_rgba(255,107,26,0.35),0_8px_24px_-12px_rgba(11,31,68,0.10)] sm:p-8 xl:p-9">
             <div key={pathname} className={cn('auth-form-content flex flex-col gap-7', styles.formEnter)}>
               {children}
             </div>
