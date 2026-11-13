@@ -2,6 +2,9 @@ import {
   Controller,
   Get,
   Post,
+  Patch,
+  Put,
+  Delete,
   Body,
   Param,
   UseGuards,
@@ -11,22 +14,34 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { InterviewsService } from './interviews.service.js';
+import { RtcConfigService } from './rtc-config.service.js';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
 import { RolesGuard } from '../auth/guards/roles.guard.js';
 import { Roles } from '../auth/decorators/roles.decorator.js';
-import { UserRole, InterviewRubric } from '@placecampus/shared-types';
+import { UserRole } from '@placecampus/shared-types';
 import { ParseObjectIdPipe } from '../common/pipes/parse-object-id.pipe.js';
 import {
   CancelInterviewDto,
   CreateInterviewSlotDto,
 } from './dto/interview-slot.dto.js';
+import {
+  AddInterviewQuestionsDto,
+  EvaluateInterviewDto,
+  RescheduleInterviewDto,
+  ScheduleInterviewDto,
+  UpdateFacultyNotesDto,
+  UpdateInterviewQuestionDto,
+} from './dto/mock-interview.dto.js';
 
 @ApiTags('Interviews')
 @ApiBearerAuth()
 @Controller()
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class InterviewsController {
-  constructor(private readonly interviewsService: InterviewsService) {}
+  constructor(
+    private readonly interviewsService: InterviewsService,
+    private readonly rtcConfig: RtcConfigService,
+  ) {}
 
   /* ---------------------------- Student ---------------------------- */
 
@@ -38,6 +53,7 @@ export class InterviewsController {
 
   @Get('student/interviews/:id')
   @Roles(UserRole.STUDENT)
+  @ApiOperation({ summary: 'One interview, including faculty feedback once evaluated' })
   async getStudentInterviewById(
     @Param('id', ParseObjectIdPipe) id: string,
     @Req() req: any,
@@ -82,6 +98,27 @@ export class InterviewsController {
     return this.interviewsService.getFacultyInterviews(req.user.id);
   }
 
+  @Get('faculty/interviews/summary')
+  @Roles(UserRole.FACULTY)
+  @ApiOperation({ summary: 'Counts for the faculty interview dashboard' })
+  async getFacultySummary(@Req() req: any) {
+    return this.interviewsService.getFacultySummary(req.user.id);
+  }
+
+  @Get('faculty/interview-question-bank')
+  @Roles(UserRole.FACULTY)
+  @ApiOperation({ summary: 'Built-in interview questions grouped by category' })
+  getQuestionBank() {
+    return this.interviewsService.getQuestionBank();
+  }
+
+  @Post('faculty/interviews')
+  @Roles(UserRole.FACULTY)
+  @ApiOperation({ summary: 'Schedule a mock interview with an assigned student' })
+  async scheduleInterview(@Body() dto: ScheduleInterviewDto, @Req() req: any) {
+    return this.interviewsService.scheduleInterview(req.user.id, dto);
+  }
+
   @Get('faculty/interviews/:id')
   @Roles(UserRole.FACULTY)
   async getFacultyInterviewById(
@@ -89,6 +126,28 @@ export class InterviewsController {
     @Req() req: any,
   ) {
     return this.interviewsService.getFacultyInterviewById(id, req.user.id);
+  }
+
+  @Post('faculty/interviews/:id/reschedule')
+  @Roles(UserRole.FACULTY)
+  @HttpCode(HttpStatus.OK)
+  async rescheduleInterview(
+    @Param('id', ParseObjectIdPipe) id: string,
+    @Body() dto: RescheduleInterviewDto,
+    @Req() req: any,
+  ) {
+    return this.interviewsService.rescheduleInterview(id, req.user.id, dto);
+  }
+
+  @Post('faculty/interviews/:id/cancel')
+  @Roles(UserRole.FACULTY)
+  @HttpCode(HttpStatus.OK)
+  async cancelInterview(
+    @Param('id', ParseObjectIdPipe) id: string,
+    @Body() dto: CancelInterviewDto,
+    @Req() req: any,
+  ) {
+    return this.interviewsService.cancelByFaculty(id, req.user.id, dto);
   }
 
   @Post('faculty/interviews/:id/start')
@@ -99,6 +158,17 @@ export class InterviewsController {
     @Req() req: any,
   ) {
     return this.interviewsService.startInterview(id, req.user.id);
+  }
+
+  @Post('faculty/interviews/:id/end')
+  @Roles(UserRole.FACULTY)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'End the live call; the interview then awaits evaluation' })
+  async endInterview(
+    @Param('id', ParseObjectIdPipe) id: string,
+    @Req() req: any,
+  ) {
+    return this.interviewsService.endInterview(id, req.user.id);
   }
 
   @Post('faculty/interviews/:id/no-show')
@@ -113,12 +183,56 @@ export class InterviewsController {
 
   @Post('faculty/interviews/:id/evaluate')
   @Roles(UserRole.FACULTY)
+  @ApiOperation({ summary: 'Submit the structured evaluation and complete the interview' })
   async evaluateInterview(
     @Param('id', ParseObjectIdPipe) id: string,
-    @Body() payload: { rubricScores: InterviewRubric; feedback: string },
+    @Body() dto: EvaluateInterviewDto,
     @Req() req: any,
   ) {
-    return this.interviewsService.evaluateInterview(id, req.user.id, payload);
+    return this.interviewsService.evaluateInterview(id, req.user.id, dto);
+  }
+
+  @Post('faculty/interviews/:id/questions')
+  @Roles(UserRole.FACULTY)
+  async addQuestions(
+    @Param('id', ParseObjectIdPipe) id: string,
+    @Body() dto: AddInterviewQuestionsDto,
+    @Req() req: any,
+  ) {
+    return this.interviewsService.addQuestions(id, req.user.id, dto.questions);
+  }
+
+  @Patch('faculty/interviews/:id/questions/:questionId')
+  @Roles(UserRole.FACULTY)
+  @ApiOperation({ summary: 'Mark a question as asked and/or record private feedback on it' })
+  async updateQuestion(
+    @Param('id', ParseObjectIdPipe) id: string,
+    @Param('questionId', ParseObjectIdPipe) questionId: string,
+    @Body() dto: UpdateInterviewQuestionDto,
+    @Req() req: any,
+  ) {
+    return this.interviewsService.updateQuestion(id, req.user.id, questionId, dto);
+  }
+
+  @Delete('faculty/interviews/:id/questions/:questionId')
+  @Roles(UserRole.FACULTY)
+  async removeQuestion(
+    @Param('id', ParseObjectIdPipe) id: string,
+    @Param('questionId', ParseObjectIdPipe) questionId: string,
+    @Req() req: any,
+  ) {
+    return this.interviewsService.removeQuestion(id, req.user.id, questionId);
+  }
+
+  @Put('faculty/interviews/:id/notes')
+  @Roles(UserRole.FACULTY)
+  @ApiOperation({ summary: 'Save private interviewer notes (never shown to the student)' })
+  async updateNotes(
+    @Param('id', ParseObjectIdPipe) id: string,
+    @Body() dto: UpdateFacultyNotesDto,
+    @Req() req: any,
+  ) {
+    return this.interviewsService.updateNotes(id, req.user.id, dto.notes);
   }
 
   @Get('faculty/interview-slots')
@@ -145,5 +259,21 @@ export class InterviewsController {
     @Req() req: any,
   ) {
     return this.interviewsService.cancelSlot(id, req.user.id, dto);
+  }
+
+  /* ------------------------- Video room (both) ------------------------- */
+
+  @Get('interviews/rooms/:roomId')
+  @Roles(UserRole.FACULTY, UserRole.STUDENT)
+  @ApiOperation({ summary: 'Interview details for a participant opening the video room' })
+  async getRoom(@Param('roomId') roomId: string, @Req() req: any) {
+    return this.interviewsService.getRoomDetails(roomId, req.user.id, req.user.role);
+  }
+
+  @Get('interviews/rtc-config')
+  @Roles(UserRole.FACULTY, UserRole.STUDENT)
+  @ApiOperation({ summary: 'ICE servers with short-lived TURN credentials' })
+  getRtcConfig(@Req() req: any) {
+    return this.rtcConfig.forUser(req.user.id);
   }
 }
