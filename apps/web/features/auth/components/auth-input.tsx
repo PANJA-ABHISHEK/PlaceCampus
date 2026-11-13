@@ -5,7 +5,7 @@ import * as React from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
-import { Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff, type LucideIcon } from 'lucide-react';
 import { AuthFeedback } from './auth-feedback';
 import styles from './auth-motion.module.css';
 
@@ -14,12 +14,13 @@ interface AuthInputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   error?: string;
   /** Shows a success border (e.g. confirmed password matches). */
   success?: boolean;
+  leadingIcon?: LucideIcon;
   /** Position in the staggered form entrance; omit to skip the entrance. */
   revealIndex?: number;
 }
 
 export const AuthInput = React.forwardRef<HTMLInputElement, AuthInputProps>(
-  ({ label, error, success, revealIndex, className, type, ...props }, ref) => {
+  ({ label, error, success, revealIndex, leadingIcon: LeadingIcon, className, type, ...props }, ref) => {
     const generatedId = React.useId();
     const inputId = props.id ?? generatedId;
     const [showPassword, setShowPassword] = React.useState(false);
@@ -60,6 +61,7 @@ export const AuthInput = React.forwardRef<HTMLInputElement, AuthInputProps>(
                 'border-[hsl(var(--color-success)/0.6)] hover:border-[hsl(var(--color-success)/0.8)]',
               error &&
                 'border-destructive hover:border-destructive focus:border-destructive focus:ring-[hsl(var(--destructive)/0.14)] focus-visible:ring-[hsl(var(--destructive)/0.14)]',
+              LeadingIcon && 'pl-11',
               isPassword && 'pr-12',
               className,
             )}
@@ -68,6 +70,12 @@ export const AuthInput = React.forwardRef<HTMLInputElement, AuthInputProps>(
             aria-invalid={error ? true : props['aria-invalid']}
             aria-describedby={describedBy || undefined}
           />
+          {LeadingIcon && (
+            <LeadingIcon
+              aria-hidden="true"
+              className="pointer-events-none absolute left-3.5 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-[hsl(var(--muted-foreground))]"
+            />
+          )}
           {isPassword && (
             <button
               type="button"
