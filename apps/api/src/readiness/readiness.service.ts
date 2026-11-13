@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import {
@@ -119,6 +119,78 @@ export class ReadinessService {
           .exec(),
       ]);
 
+    const scored = scoreReadiness({ profile, skillProfile, attempts, projects, interviews });
+
+    // Check if anything actually changed to prevent duplicate snapshots
+    const latestSnapshot = await this.snapshotModel
+      .findOne({ studentId })
+      .sort({ calculatedAt: -1 })
+      .lean()
+      .exec();
+
+    if (latestSnapshot && sameScores(latestSnapshot, scored)) {
+      this.logger.log(
+        `Skipping duplicate readiness snapshot for student ${studentId}`,
+      );
+      return { ...latestSnapshot, id: latestSnapshot._id?.toString() };
+    }
+
+    const newSnapshot = new this.snapshotModel({
+      studentId,
+      ...scored,
+      calculatedAt: new Date().toISOString(),
+    });
+    await newSnapshot.save();
+    return newSnapshot.toJSON();
+  }
+
+  // Exact testing method exposed for unit test validation
+  calculateExactFormula(
+    verifiedSkills: number,
+    assessments: number,
+    academics: number,
+    projects: number,
+    interviews: number,
+  ) {
+    const total =
+      verifiedSkills * READINESS_WEIGHTS.verifiedSkills +
+      assessments * READINESS_WEIGHTS.assessments +
+      academics * READINESS_WEIGHTS.academics +
+      projects * READINESS_WEIGHTS.projects +
+      interviews * READINESS_WEIGHTS.interviews;
+
+    return Math.round(total * 10) / 10;
+  }
+}
+
+/** Raw inputs for one student, as loaded by the single or batch path. */
+export interface ReadinessInputs {
+  profile: any;
+  skillProfile: any;
+  attempts: any[];
+  projects: any[];
+  interviews: any[];
+}
+
+export type ScoredReadiness = ReturnType<typeof scoreReadiness>;
+
+/** True when a stored snapshot already has exactly these scores (no new snapshot needed). */
+export function sameScores(latest: any, scored: ScoredReadiness) {
+  return (
+    latest.overallScore === scored.overallScore &&
+    latest.verifiedSkillsScore === scored.verifiedSkillsScore &&
+    latest.assessmentsScore === scored.assessmentsScore &&
+    latest.academicsScore === scored.academicsScore &&
+    latest.projectsScore === scored.projectsScore &&
+    latest.interviewsScore === scored.interviewsScore
+  );
+}
+
+/**
+ * The readiness formula: pure, synchronous, no I/O. Shared by the
+ * per-student recompute and the batch run so both give identical snapshots.
+ */
+export function scoreReadiness({ profile, skillProfile, attempts, projects, interviews }: ReadinessInputs) {
     // Calculate Verified Skills Score
     let verifiedSkillsScore = 0;
     let hasSkills = false;
@@ -257,30 +329,7 @@ export class ReadinessService {
         areasToImprove.push('Project portfolio depth');
     }
 
-    // Check if anything actually changed to prevent duplicate snapshots
-    const latestSnapshot = await this.snapshotModel
-      .findOne({ studentId })
-      .sort({ calculatedAt: -1 })
-      .lean()
-      .exec();
-
-    if (
-      latestSnapshot &&
-      latestSnapshot.overallScore === overallScore &&
-      latestSnapshot.verifiedSkillsScore === verifiedSkillsScore &&
-      latestSnapshot.assessmentsScore === assessmentsScore &&
-      latestSnapshot.academicsScore === academicsScore &&
-      latestSnapshot.projectsScore === projectsScore &&
-      latestSnapshot.interviewsScore === interviewsScore
-    ) {
-      this.logger.log(
-        `Skipping duplicate readiness snapshot for student ${studentId}`,
-      );
-      return { ...latestSnapshot, id: latestSnapshot._id?.toString() };
-    }
-
-    const snapshotData = {
-      studentId,
+    return {
       overallScore,
       status,
       verifiedSkillsScore,
@@ -331,29 +380,5 @@ export class ReadinessService {
         strengths,
         areasToImprove,
       },
-      calculatedAt: new Date().toISOString(),
     };
-
-    const newSnapshot = new this.snapshotModel(snapshotData);
-    await newSnapshot.save();
-    return newSnapshot.toJSON();
-  }
-
-  // Exact testing method exposed for unit test validation
-  calculateExactFormula(
-    verifiedSkills: number,
-    assessments: number,
-    academics: number,
-    projects: number,
-    interviews: number,
-  ) {
-    const total =
-      verifiedSkills * READINESS_WEIGHTS.verifiedSkills +
-      assessments * READINESS_WEIGHTS.assessments +
-      academics * READINESS_WEIGHTS.academics +
-      projects * READINESS_WEIGHTS.projects +
-      interviews * READINESS_WEIGHTS.interviews;
-
-    return Math.round(total * 10) / 10;
-  }
 }
