@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { RecruiterService } from './recruiter.service.js';
-import { RecruiterController } from './recruiter.controller.js';
+import { RecruiterController, RecruiterDashboardController } from './recruiter.controller.js';
 import { RecruiterAccessModule } from '../recruiter-access/recruiter-access.module.js';
 import { DrivesModule } from '../drives/drives.module.js';
 import { ApplicationsModule } from '../applications/applications.module.js';
@@ -15,7 +15,7 @@ import { AuditModule } from '../audit/audit.module.js';
     StudentsModule,
     AuditModule,
   ],
-  controllers: [RecruiterController],
+  controllers: [RecruiterController, RecruiterDashboardController],
   providers: [RecruiterService]
 })
 export class RecruiterModule {}
