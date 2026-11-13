@@ -58,6 +58,10 @@ export class PreparationItem {
   @Prop({ type: PreparationAssessmentCheckpointSchema })
   assessmentCheckpoint?: PreparationAssessmentCheckpoint;
 
+  /** Checkpoint date: the item should be complete by then. */
+  @Prop()
+  dueDate?: Date;
+
   @Prop()
   completedAt?: Date;
 }
@@ -86,6 +90,10 @@ export class PreparationPlan {
 
   @Prop({ type: String })
   previousPlanId?: string;
+
+  /** When the whole plan should be finished: the last checkpoint. */
+  @Prop()
+  targetDate?: Date;
 }
 
 export const PreparationPlanSchema = SchemaFactory.createForClass(PreparationPlan);

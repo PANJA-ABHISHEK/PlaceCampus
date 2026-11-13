@@ -1,4 +1,4 @@
-import { PreparationService } from './preparation.service.js';
+import { PreparationService, scheduleCheckpoints } from './preparation.service.js';
 import {
   GapPriority,
   PreparationItemStatus,
@@ -9,6 +9,7 @@ describe('PreparationService', () => {
   const matchingService = { calculateForStudent: vi.fn() };
   const assessmentsService = { getActiveAssessments: vi.fn() };
   const eventEmitter = { emit: vi.fn() };
+  const drivesService = { findOne: vi.fn().mockResolvedValue({ applicationDeadline: null }) };
   const model: any = {
     findOne: vi.fn(),
     find: vi.fn(),
@@ -18,6 +19,7 @@ describe('PreparationService', () => {
     model,
     matchingService as any,
     assessmentsService as any,
+    drivesService as any,
     eventEmitter as any,
   );
 
@@ -110,5 +112,49 @@ describe('PreparationService', () => {
       service.updateItemStatus('plan-1', 'react-5', 'student-1', PreparationItemStatus.COMPLETED),
     ).rejects.toThrow('Archived preparation plans cannot be changed');
     expect(plan.save).not.toHaveBeenCalled();
+  });
+
+  describe('dated checkpoints', () => {
+    const DAY = 24 * 60 * 60 * 1000;
+    const start = new Date(2026, 10, 9, 10, 0);
+    const items = [
+      { priority: GapPriority.HIGH },
+      { priority: GapPriority.MEDIUM },
+      { priority: GapPriority.LOW },
+    ];
+    const daysAfter = (d: Date) => Math.round((d.getTime() - new Date(2026, 10, 9, 23, 59).getTime()) / DAY);
+
+    it('gives every item a later checkpoint by priority when there is no deadline', () => {
+      const { items: scheduled, targetDate } = scheduleCheckpoints(items, start);
+      expect(scheduled.map((i) => daysAfter(i.dueDate))).toEqual([7, 12, 15]);
+      expect(targetDate).toEqual(scheduled[2].dueDate);
+    });
+
+    it('compresses the schedule to finish before the drive deadline', () => {
+      const deadline = new Date(2026, 10, 20, 18, 0); // 11 days away
+      const { items: scheduled, targetDate } = scheduleCheckpoints(items, start, deadline);
+      const days = scheduled.map((i) => daysAfter(i.dueDate));
+      expect(days).toEqual([...days].sort((a, b) => a - b));
+      expect(targetDate!.getTime()).toBeLessThan(deadline.getTime());
+    });
+
+    it('keeps one day per item even when the deadline is very close', () => {
+      const { items: scheduled } = scheduleCheckpoints(items, start, new Date(2026, 10, 10, 12));
+      expect(scheduled.map((i) => daysAfter(i.dueDate))).toEqual([1, 2, 3]);
+    });
+
+    it('stores checkpoint dates and a target date on new plans', async () => {
+      matchingService.calculateForStudent.mockResolvedValue({
+        skills: [
+          { skillId: 'a', skillName: 'SQL', requiredLevel: 2, gapLevel: 2, isOptional: false, priority: GapPriority.HIGH, status: 'MISSING', explanation: '' },
+        ],
+      });
+      model.findOne.mockReturnValue({ exec: vi.fn().mockResolvedValue(null) });
+      model.create.mockResolvedValue({ id: 'p' });
+      await service.createForDrive('drive-1', 'student-1');
+      const created = model.create.mock.calls[0][0];
+      expect(created.items[0].dueDate).toBeInstanceOf(Date);
+      expect(created.targetDate).toEqual(created.items[0].dueDate);
+    });
   });
 });

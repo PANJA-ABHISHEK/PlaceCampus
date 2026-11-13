@@ -17,7 +17,7 @@ import {
 import type { StudentSkillEntry } from "@placecampus/shared-types";
 import { useMySkills } from "@/features/skills/hooks/use-skills";
 import { useMyEvidence } from "@/features/evidence/hooks/use-evidence";
-import { STATUS_GROUPS } from "@/features/evidence/lib/evidence-meta";
+import { STATUS_GROUPS, TYPE_META } from "@/features/evidence/lib/evidence-meta";
 import {
   EvidenceWizard,
   type WizardMode,
@@ -215,6 +215,28 @@ export default function StudentSkillsPage() {
               delay={120}
             />
           </div>
+
+          {/* Which evidence types the verified skills come from */}
+          {(profile?.evidenceTypes?.length ?? 0) > 0 && (
+            <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-[hsl(var(--border))] bg-white px-4 py-3 text-sm">
+              <span className="font-semibold text-[hsl(var(--foreground))]">
+                Built from {profile!.evidenceTypes!.length} evidence type{profile!.evidenceTypes!.length === 1 ? "" : "s"}:
+              </span>
+              {profile!.evidenceTypes!.map((type) => {
+                const meta = TYPE_META[type as keyof typeof TYPE_META];
+                const Icon = meta?.icon;
+                return (
+                  <span
+                    key={type}
+                    className="inline-flex items-center gap-1.5 rounded-full bg-[hsl(var(--primary)/0.08)] px-2.5 py-1 text-xs font-semibold text-[hsl(var(--color-primary-dark))]"
+                  >
+                    {Icon && <Icon className="h-3.5 w-3.5" aria-hidden="true" />}
+                    {meta?.plural ?? type}
+                  </span>
+                );
+              })}
+            </div>
+          )}
 
           {/* Categories */}
           <section aria-labelledby="skill-categories-heading" className="space-y-3">

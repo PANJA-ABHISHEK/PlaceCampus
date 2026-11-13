@@ -156,4 +156,32 @@ describe('MatchingEngine', () => {
     expect(dsaResult.gapLevel).toBe(2);
     expect(dsaResult.priority).toBe(GapPriority.HIGH); // >= 2 levels is HIGH
   });
+
+  it('ranks unmet requirements by urgency and gives each a concrete next step', () => {
+    const drive = getDrive();
+    drive.requirements.skills = [
+      { skillId: 'java-id', minimumLevel: 3, isOptional: false }, // satisfied (4)
+      { skillId: 'sql-id', minimumLevel: 3, isOptional: false }, // gap of 1 → MEDIUM
+      { skillId: 'dsa-id', minimumLevel: 5, isOptional: false }, // gap of 2 → HIGH
+      { skillId: 'react-id', minimumLevel: 2, isOptional: true }, // optional, missing
+    ];
+    const result = engine.evaluate(getSkillProfile(), drive, getTaxonomy());
+    expect(result.skills.map((s) => [s.skillId, s.rank])).toEqual([
+      ['dsa-id', 1], ['sql-id', 2], ['react-id', 3], ['java-id', undefined],
+    ]);
+    expect(result.skills[0].recommendedAction).toMatch(/from Level 3 to Level 5/);
+    expect(result.skills[2].recommendedAction).toMatch(/^Optional: /);
+    expect(result.skills[3].recommendedAction).toBeUndefined();
+  });
+
+  it('tells the student when evidence for a missing skill is awaiting review', () => {
+    const drive = getDrive();
+    drive.requirements.skills = [{ skillId: 'react-id', minimumLevel: 1, isOptional: false }];
+    const profile = getSkillProfile();
+    profile.skills.push({ skillId: 'react-id', canonicalName: 'React', level: 1, verificationStatus: 'UNVERIFIED', sourceEvidenceIds: [] } as any);
+    const [react] = engine.evaluate(profile, drive, getTaxonomy()).skills;
+    expect(react.status).toBe(SkillMatchStatus.MISSING);
+    expect(react.pendingVerification).toBe(true);
+    expect(react.recommendedAction).toMatch(/awaiting faculty review/);
+  });
 });
