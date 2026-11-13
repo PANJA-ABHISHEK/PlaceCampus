@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
-import { EvidenceItem, VerificationRecord } from "@placecampus/shared-types";
+import { AiAnalysisSummary, EvidenceExtractionSummary, EvidenceItem, VerificationRecord } from "@placecampus/shared-types";
 
 export const FACULTY_KEYS = {
   all: ["faculty", "reviews"] as const,
@@ -13,6 +13,10 @@ export const FACULTY_KEYS = {
 export type ReviewDetailResponse = {
   evidence: EvidenceItem;
   verificationRecord: VerificationRecord | null;
+  /** Latest text extraction (text layer and/or OCR), if one has run. */
+  extraction?: EvidenceExtractionSummary | null;
+  /** Latest AI document analysis (advisory), if one was recorded. */
+  aiAnalysis?: AiAnalysisSummary | null;
 };
 
 /** The caller's own review queue; `filter: "overdue"` limits it to items past their due date. */

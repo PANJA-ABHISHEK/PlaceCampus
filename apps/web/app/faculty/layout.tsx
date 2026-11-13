@@ -64,6 +64,11 @@ export default function FacultyLayout({ children }: { children: React.ReactNode 
     );
   }
 
+  // The interview room is full-screen: no portal chrome. Only faculty may run interviews.
+  if (pathname.startsWith("/faculty/interviews/room/")) {
+    return user?.role === UserRole.FACULTY ? <>{children}</> : null;
+  }
+
   const name = user?.fullName || "Faculty";
   const subtitle = [user?.designation, user?.department && `${user.department} Department`].filter(Boolean);
   const title = pathname === "/faculty/dashboard"
@@ -89,7 +94,7 @@ export default function FacultyLayout({ children }: { children: React.ReactNode 
           </button>
         </div>
 
-        <nav aria-label="Faculty navigation" className="min-h-0 flex-1 space-y-1 overflow-y-auto px-3 py-4">
+        <nav aria-label="Faculty navigation" className="min-h-0 flex-1 space-y-1.5 overflow-y-auto px-3 py-5">
           {navigation.map((item) => {
             const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
             return (
@@ -99,11 +104,11 @@ export default function FacultyLayout({ children }: { children: React.ReactNode 
                 onClick={closeMenu}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-[15px] font-medium transition-colors",
-                  active ? "bg-[#FF6B1A] text-white shadow-[0_8px_18px_-10px_rgba(255,107,26,0.9)]" : "text-[#0B1F44]/80 hover:bg-orange-50 hover:text-[#0B1F44]",
+                  "flex items-center gap-3.5 rounded-xl px-4 py-3 text-[15px] font-medium transition-colors",
+                  active ? "bg-[#FF6500] font-semibold text-white shadow-[0_10px_22px_-12px_rgba(255,101,0,0.9)]" : "text-[#10264A]/80 hover:bg-[#FFF1E8] hover:text-[#10264A]",
                 )}
               >
-                <item.icon className="h-5 w-5" aria-hidden="true" />
+                <item.icon className="h-5 w-5 shrink-0" aria-hidden="true" />
                 {item.name}
                 {item.badge === "unread" && unread > 0 && (
                   <span className={cn("ml-auto flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[11px] font-bold", active ? "bg-white text-[#FF6B1A]" : "bg-[#FF6B1A] text-white")}>
