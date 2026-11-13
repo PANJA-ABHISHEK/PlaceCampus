@@ -84,6 +84,8 @@ export interface StudentProfile {
   linkedinUrl?: string;
   githubUrl?: string;
   portfolioUrl?: string;
+  leetcodeUrl?: string;
+  otherUrl?: string;
   resumeUrl?: string;
   createdAt: Date;
   updatedAt: Date;
@@ -96,6 +98,8 @@ export interface UpdateStudentProfileDto {
   linkedinUrl?: string | null;
   githubUrl?: string | null;
   portfolioUrl?: string | null;
+  leetcodeUrl?: string | null;
+  otherUrl?: string | null;
 }
 
 /** Evidence Types */
@@ -179,19 +183,87 @@ export interface UpdateEvidenceDto {
   externalUrl?: string | null;
 }
 
+/** Text extraction (Master Plan §12): PDF text layer, OCR, or both. */
+export type ExtractionMethod = 'PDF_TEXT' | 'OCR' | 'MIXED' | 'NONE';
+export type ExtractionStatus = 'COMPLETED' | 'PARTIAL' | 'FAILED';
+
+/** Reviewer view of one extraction run, including the extracted text. */
+export interface EvidenceExtractionSummary {
+  id: string;
+  version: number;
+  method: ExtractionMethod;
+  status: ExtractionStatus;
+  text: string;
+  textTruncated: boolean;
+  charCount: number;
+  wordCount: number;
+  ocrConfidence: number | null;
+  pageCount: number;
+  pages: { page: number; source: 'TEXT_LAYER' | 'OCR' | 'NONE'; chars: number; ocrConfidence?: number; error?: string }[];
+  durationMs?: number;
+  error?: string;
+}
+
+/** AI document analysis (Master Plan §12.6). Advisory only; reviewer-facing. */
+export type AiAnalysisStatus = 'SUCCEEDED' | 'INVALID_OUTPUT' | 'REFUSED' | 'FAILED' | 'DISABLED';
+
+export interface DocumentAnalysisResult {
+  documentType: 'CERTIFICATE' | 'INTERNSHIP_LETTER' | 'MARKSHEET' | 'PROJECT_REPORT' | 'ACHIEVEMENT' | 'CODING_PROFILE' | 'OTHER' | 'UNREADABLE';
+  documentTypeConfidence: number;
+  readability: 'GOOD' | 'FAIR' | 'POOR';
+  extracted: Record<string, string | null>;
+  fieldEvidence: { field: string; quote: string; page: number | null }[];
+  skillMentions: {
+    text: string;
+    suggestedSkillId: string | null;
+    matchType: 'EXACT' | 'SYNONYM' | 'INFERRED';
+    relevance: number;
+    suggestedLevelCap: number | null;
+    rationale: string;
+  }[];
+  consistencyFlags: { code: string; detail: string }[];
+  summary: string;
+  uncertainty: string[];
+}
+
+export interface AiAnalysisSummary {
+  id: string;
+  version: number;
+  provider: 'groq' | 'openai' | 'none';
+  model?: string;
+  promptVersion: string;
+  status: AiAnalysisStatus;
+  result: DocumentAnalysisResult | null;
+  postValidation: { droppedSkillIds: string[]; unconfirmedFields: string[]; invalidDates: string[] };
+  latencyMs?: number;
+  skippedReason?: string;
+  createdAt?: string;
+}
+
 /** Verification Record */
 export interface VerificationRecord {
   id: string;
   evidenceId: string;
   studentId: string;
   attemptNumber: number;
-  extractionMethod?: 'PDF_TEXT' | 'IMAGE_OCR' | 'NONE';
+  /** IMAGE_OCR is the legacy value for image OCR before PDF page OCR existed. */
+  extractionMethod?: ExtractionMethod | 'IMAGE_OCR';
+  extractionStatus?: ExtractionStatus;
   extractedTextMetadata?: {
     wordCount: number;
     hasText: boolean;
+    charCount?: number;
+    pageCount?: number;
+    /** 0-100; null when OCR did not run. */
+    ocrConfidence?: number | null;
   };
+  /** Reviewer-only: other evidence with the same file or text. */
+  duplicateMatches?: { evidenceId: string; matchType: 'FILE' | 'TEXT'; sameStudent: boolean }[];
   aiProvider?: string;
   modelVersion?: string;
+  aiStatus?: AiAnalysisStatus;
+  /** Student view only: neutral one-paragraph AI summary. */
+  aiSummary?: string | null;
   aiResult?: any;
   ruleResults?: any;
   finalDecision: EvidenceStatus;
@@ -259,13 +331,17 @@ export interface StudentSkillEntry {
   level: number;
   verificationStatus: 'VERIFIED' | 'UNVERIFIED';
   sourceEvidenceIds: string[];
-  lastVerifiedAt: string;
+  /** Evidence types (CERTIFICATION, PROJECT, …) behind this skill. */
+  sourceTypes?: string[];
+  lastVerifiedAt?: string;
 }
 
 export interface StudentSkillProfile {
   id: string;
   studentId: string;
   skills: StudentSkillEntry[];
+  /** Distinct evidence types that contributed verified skills. */
+  evidenceTypes?: string[];
   updatedAt: string;
 }
 
@@ -349,21 +425,179 @@ export const MockInterviewStatus = {
 } as const;
 export type MockInterviewStatus = typeof MockInterviewStatus[keyof typeof MockInterviewStatus];
 
+/** Rubric scores on a 0–10 scale (used by readiness). */
 export interface InterviewRubric {
   technicalKnowledge?: number;
   problemSolving?: number;
   communication?: number;
   projectDepth?: number;
+  conceptualUnderstanding?: number;
+  confidence?: number;
 }
 
 /** Interview formats faculty can offer. */
 export const INTERVIEW_TYPES = [
   'Technical',
   'HR',
-  'System Design',
+  'DSA',
+  'Project Discussion',
   'Behavioral',
+  'System Design',
 ] as const;
 export type InterviewType = (typeof INTERVIEW_TYPES)[number];
+
+/** Types offered when faculty schedule an interview directly. */
+export const SCHEDULABLE_INTERVIEW_TYPES = [
+  'Technical',
+  'HR',
+  'DSA',
+  'Project Discussion',
+  'Behavioral',
+] as const satisfies readonly InterviewType[];
+
+export const INTERVIEW_DURATIONS = [15, 30, 45, 60] as const;
+
+export const INTERVIEW_QUESTION_CATEGORIES = [
+  'DSA',
+  'Data Structures',
+  'Algorithms',
+  'DBMS',
+  'Operating Systems',
+  'Computer Networks',
+  'OOP',
+  'Java',
+  'React',
+  'Node.js',
+  'Projects',
+  'HR and Behavioral',
+] as const;
+export type InterviewQuestionCategory = (typeof INTERVIEW_QUESTION_CATEGORIES)[number];
+
+/** A question attached to one interview. `feedback` is only returned to the faculty member. */
+export interface InterviewQuestion {
+  id: string;
+  text: string;
+  category: InterviewQuestionCategory;
+  asked: boolean;
+  askedAt?: string;
+  feedback?: string;
+}
+
+export interface InterviewQuestionInput {
+  text: string;
+  category: InterviewQuestionCategory;
+}
+
+export interface QuestionBankEntry {
+  text: string;
+  category: InterviewQuestionCategory;
+}
+
+export const INTERVIEW_ASSESSMENTS = ['EXCELLENT', 'GOOD', 'AVERAGE', 'NEEDS_IMPROVEMENT'] as const;
+export type InterviewAssessment = (typeof INTERVIEW_ASSESSMENTS)[number];
+
+/** The five 1–5 criteria of a post-interview evaluation. */
+export const EVALUATION_CRITERIA = [
+  'technicalKnowledge',
+  'problemSolving',
+  'communication',
+  'conceptualUnderstanding',
+  'confidence',
+] as const;
+export type EvaluationCriterion = (typeof EVALUATION_CRITERIA)[number];
+
+export interface EvaluateInterviewDto {
+  technicalKnowledge: number;
+  problemSolving: number;
+  communication: number;
+  conceptualUnderstanding: number;
+  confidence: number;
+  strengths: string;
+  improvements: string;
+  facultyComments?: string;
+  recommendedTopics?: string[];
+  assessment: InterviewAssessment;
+}
+
+/** Structured evaluation saved when the faculty member scores an interview. */
+export interface InterviewFeedback extends EvaluateInterviewDto {
+  id: string;
+  interviewId: string;
+  facultyId: string;
+  studentId: string;
+  /** Mean of the five criteria (1–5), rounded to one decimal place on the server. */
+  overallScore: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ScheduleInterviewDto {
+  studentId: string;
+  title: string;
+  type: InterviewType;
+  scheduledAt: string;
+  durationMinutes: number;
+  instructions?: string;
+  questions?: InterviewQuestionInput[];
+}
+
+export interface RescheduleInterviewDto {
+  scheduledAt: string;
+  durationMinutes?: number;
+  reason?: string;
+}
+
+export interface FacultyInterviewSummary {
+  total: number;
+  upcoming: number;
+  inProgress: number;
+  completed: number;
+  pendingEvaluations: number;
+}
+
+/** ICE servers for the in-app interview room; TURN credentials are short-lived. */
+export interface RtcConfigResponse {
+  iceServers: { urls: string | string[]; username?: string; credential?: string }[];
+  /** When the TURN credentials stop working (ISO time), if TURN is configured. */
+  expiresAt?: string;
+}
+
+/* ---- Interview room signaling (Socket.IO namespace `/interviews`) ---- */
+
+export type InterviewRoomRole = 'FACULTY' | 'STUDENT';
+
+export interface RoomParticipantInfo {
+  userId: string;
+  role: InterviewRoomRole;
+  fullName: string;
+}
+
+export interface RoomMediaState {
+  audio: boolean;
+  video: boolean;
+  screen: boolean;
+}
+
+/** Sent to a client after `interview:join` succeeds, and whenever the room changes. */
+export interface RoomState {
+  interviewId: string;
+  you: RoomParticipantInfo;
+  /** The other participant, when connected. */
+  peer: (RoomParticipantInfo & { media: RoomMediaState; waiting: boolean }) | null;
+  /** True once the faculty member has admitted the student into the call. */
+  admitted: boolean;
+  status: MockInterviewStatus;
+  startedAt?: string;
+}
+
+export interface RoomChatMessage {
+  id: string;
+  fromUserId: string;
+  fromName: string;
+  role: InterviewRoomRole;
+  text: string;
+  sentAt: string;
+}
 
 /** Public summary of a user attached to an interview or slot. */
 export interface InterviewParticipant {
@@ -390,9 +624,27 @@ export interface MockInterview {
   notes?: string;
   rubricScores?: InterviewRubric;
   feedback?: string;
+  /** Set by faculty when scheduling directly (slot bookings have none). */
+  title?: string;
+  instructions?: string;
+  /** Faculty see every question; students only see questions already asked. */
+  questions?: InterviewQuestion[];
+  /** Private faculty notes. Never returned to students. */
+  facultyNotes?: string;
+  /** Set when the faculty member ends the live call; evaluation may still be pending. */
+  endedAt?: string;
+  rescheduledAt?: string;
+  /** Unguessable id of the built-in video room; only sent to the two participants. */
+  roomId?: string;
+  /** True when the interview uses the built-in PlaceCampus video room. */
+  inAppRoom?: boolean;
+  /** Live: the student is connected to the waiting room right now (faculty view only). */
+  studentWaiting?: boolean;
+  /** Included in detail responses once evaluated. */
+  evaluation?: InterviewFeedback | null;
   /** Included in list/detail responses. */
   interviewer?: InterviewParticipant | null;
-  student?: InterviewParticipant | null;
+  student?: (InterviewParticipant & { registrationNumber?: string }) | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -593,6 +845,12 @@ export interface SkillMatchItem {
   gapLevel: number;
   priority?: GapPriority;
   explanation: string;
+  /** 1 = most urgent. Set on every unmet requirement; satisfied skills have none. */
+  rank?: number;
+  /** The concrete next step that closes this gap. */
+  recommendedAction?: string;
+  /** Evidence claiming this skill is waiting for faculty review. */
+  pendingVerification?: boolean;
 }
 
 export interface SkillMatchResult {
@@ -817,6 +1075,8 @@ export interface PreparationItem {
   status: PreparationItemStatus;
   recommendedActions: string[];
   assessmentCheckpoint?: PreparationAssessmentCheckpoint;
+  /** Checkpoint date: this item should be complete by then. */
+  dueDate?: string;
   completedAt?: string;
 }
 
@@ -828,6 +1088,8 @@ export interface PreparationPlan {
   status: PreparationPlanStatus;
   items: PreparationItem[];
   completionPercentage: number;
+  /** Date the whole plan should be finished (the drive's deadline when it allows). */
+  targetDate?: string;
   previousPlanId?: string;
   createdAt: string;
   updatedAt: string;
@@ -868,7 +1130,7 @@ export interface AnalyticsReadiness {
   mean: number | null;
   median: number | null;
   byStatus: Array<{ status: string; count: number }>;
-  byDepartment: Array<{ department: string; count: number; average: number }>;
+  byDepartment: Array<{ group: string; count: number; average: number }>;
   byGraduationYear: Array<{ graduationYear: number | string; count: number; average: number }>;
   factorBreakdown: Array<{ key: string; averageScore: number; averageContribution: number; coverageCount: number }>;
   coverage: { averageFactorsPresent: number; studentsMissingFactors: number };
@@ -1033,6 +1295,10 @@ export interface FacultyDashboard {
     pendingReviews: number;
     upcomingInterviews: number;
     overdueReviews: number;
+    /** Items returned to the student and not yet resubmitted. */
+    awaitingResubmission: number;
+    /** Decisions this reviewer recorded since the start of the month. */
+    reviewedThisMonth: number;
   };
   reviewQueue: FacultyReviewQueueItem[];
   upcomingInterviews: FacultyUpcomingInterview[];
@@ -1045,4 +1311,76 @@ export interface FacultyStudentDetail {
   skills: { name: string; level: number }[];
   evidence: { id: string; title: string; type: EvidenceType; status: EvidenceStatus; createdAt: string; reviewedByMe: boolean }[];
   interviews: { id: string; type: string; status: MockInterviewStatus; scheduledAt: string }[];
+}
+
+/**
+ * DRIVE SKILL SUPPLY AGAINST DEMAND
+ * Demand is the drive's skill requirements; supply is the verified skills of
+ * the students the drive is open to (its eligible pool) and of its applicants.
+ */
+export interface DriveSkillSupplyRow {
+  skillId: string;
+  skillName: string;
+  requiredLevel: number;
+  isOptional: boolean;
+  /** Students verified at or above the required level. */
+  meetsLevel: number;
+  /** Students verified, but below the required level. */
+  belowLevel: number;
+  /** Students with no verified evidence of the skill. */
+  missing: number;
+  /** Students whose evidence for the skill is still under review. */
+  pendingReview: number;
+  /** meetsLevel as a percentage of the pool. */
+  supplyRate: number;
+  /** Required skills only: SHORTAGE under 25%, LIMITED under 60%, otherwise ADEQUATE. */
+  supplyStatus: 'SHORTAGE' | 'LIMITED' | 'ADEQUATE';
+  /** Applicants (of those who applied) meeting the level. */
+  applicantsMeetingLevel: number;
+}
+
+export interface DriveSkillSupplyReport {
+  drive: {
+    id: string;
+    companyName: string;
+    roleTitle: string;
+    status: string;
+    applicationDeadline?: string;
+  };
+  /** Students considered: active students who pass the drive's eligibility rules except skills. */
+  poolSize: number;
+  /** Students who pass every eligibility rule, skills included. */
+  fullyEligible: number;
+  applicants: number;
+  /** Students meeting every required skill at its level. */
+  meetingAllRequired: number;
+  skills: DriveSkillSupplyRow[];
+  /** Required skills sorted by lowest supply first. */
+  shortages: string[];
+  generatedAt: string;
+}
+
+/**
+ * RECRUITER ACCESS LOG (every recruiter read of student data, allowed or denied)
+ */
+export interface RecruiterAccessLogEntry {
+  id: string;
+  action: string;
+  success: boolean;
+  recruiter: { id: string; name: string; email?: string } | null;
+  drive: { id: string; companyName: string; roleTitle: string } | null;
+  student: { id: string; name: string } | null;
+  resourceType: string;
+  resourceId?: string;
+  createdAt: string;
+}
+
+export interface RecruiterAccessLogPage {
+  entries: RecruiterAccessLogEntry[];
+  total: number;
+  page: number;
+  limit: number;
+  /** Counts over the same filter: allowed reads and denied attempts. */
+  allowed: number;
+  denied: number;
 }
