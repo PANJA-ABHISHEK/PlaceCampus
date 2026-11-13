@@ -5,8 +5,9 @@ export type AuditLogDocument = AuditLog & Document;
 
 @Schema({ timestamps: { createdAt: true, updatedAt: false }, collection: 'audit_logs' })
 export class AuditLog {
-  @Prop({ required: true, type: MongooseSchema.Types.ObjectId, ref: 'User' })
-  actorId: string;
+  /** The acting user; absent for automated system actions (e.g. automatic mentor allocation). */
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User' })
+  actorId?: string;
 
   @Prop({ required: true })
   actorRole: string;
