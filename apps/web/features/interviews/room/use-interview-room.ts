@@ -457,14 +457,82 @@ export function useInterviewRoom({ roomId, localStream, initialMedia }: UseInter
     if (!res.ok) throw new Error(res.error ?? "Could not admit the student");
   }, []);
 
+  /**
+   * Switches camera or microphone mid-call: the new track replaces the old one in
+   * the local stream and on the RTP sender, so no renegotiation is needed.
+   */
+  const switchDevice = React.useCallback(
+    async (kind: "audio" | "video", deviceId: string) => {
+      const fresh = await navigator.mediaDevices.getUserMedia(
+        kind === "audio"
+          ? { audio: { deviceId: { exact: deviceId }, echoCancellation: true, noiseSuppression: true } }
+          : { video: { deviceId: { exact: deviceId }, width: { ideal: 1280 }, height: { ideal: 720 } } },
+      );
+      const next = kind === "audio" ? fresh.getAudioTracks()[0] : fresh.getVideoTracks()[0];
+      if (!next) return;
+      const old = kind === "audio" ? localStream.getAudioTracks()[0] : localStream.getVideoTracks()[0];
+      next.enabled = old ? old.enabled : true;
+      if (old) {
+        localStream.removeTrack(old);
+        old.stop();
+      }
+      localStream.addTrack(next);
+      // While screen sharing, the camera change applies once sharing stops.
+      if (kind === "video" && screenTrackRef.current) return;
+      const sender = pcRef.current?.getTransceivers().find((t) => t.receiver.track?.kind === kind)?.sender;
+      await sender?.replaceTrack(next);
+    },
+    [localStream],
+  );
+
+  /* ------------------------- Connection quality (stats) ------------------------- */
+
+  const [quality, setQuality] = React.useState<ConnectionQuality>("unknown");
+  React.useEffect(() => {
+    if (phase !== "connected" && phase !== "reconnecting") return;
+    let lastLost = 0;
+    let lastReceived = 0;
+    const sample = async () => {
+      const pc = pcRef.current;
+      const stats = await pc?.getStats();
+      if (!pc || !stats) return setQuality("unknown");
+      let rtt: number | undefined;
+      let lost = 0;
+      let received = 0;
+      stats.forEach((s) => {
+        if (s.type === "candidate-pair" && s.state === "succeeded" && s.nominated && typeof s.currentRoundTripTime === "number") rtt = s.currentRoundTripTime;
+        if (s.type === "inbound-rtp") {
+          lost += s.packetsLost ?? 0;
+          received += s.packetsReceived ?? 0;
+        }
+      });
+      const dLost = Math.max(0, lost - lastLost);
+      const dTotal = Math.max(1, dLost + received - lastReceived);
+      lastLost = lost;
+      lastReceived = received;
+      const loss = dLost / dTotal;
+      if (pc.connectionState !== "connected") setQuality("poor");
+      else if ((rtt ?? 0) < 0.15 && loss < 0.02) setQuality("good");
+      else if ((rtt ?? 0) < 0.4 && loss < 0.08) setQuality("fair");
+      else setQuality("poor");
+    };
+    void sample();
+    const timer = setInterval(() => void sample(), 3_000);
+    return () => clearInterval(timer);
+  }, [phase]);
+
   const leave = React.useCallback(() => {
     terminalRef.current = true;
     socketRef.current?.emit("interview:leave");
     socketRef.current?.disconnect();
     closePeer();
+    // Release the camera, microphone and any screen share straight away.
+    localStream.getTracks().forEach((t) => t.stop());
+    screenTrackRef.current?.stop();
+    screenTrackRef.current = null;
     setEndReason("left");
     setPhase("ended");
-  }, [closePeer]);
+  }, [closePeer, localStream]);
 
   return {
     phase,
@@ -487,5 +555,11 @@ export function useInterviewRoom({ roomId, localStream, initialMedia }: UseInter
     sendChat,
     admit,
     leave,
+    switchDevice,
+    /** From RTCPeerConnection stats: round-trip time and packet loss. */
+    quality: phase === "connected" || phase === "reconnecting" ? quality : ("unknown" as ConnectionQuality),
+    localStream,
   };
 }
+
+export type ConnectionQuality = "good" | "fair" | "poor" | "unknown";

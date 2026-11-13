@@ -3,7 +3,7 @@
 import * as React from "react";
 import { SwitchRoleLink } from "@/features/auth/components/switch-role-link";
 import { useAuth } from "@/features/auth/components/auth-provider";
-import { redirect, usePathname } from "next/navigation";
+import { redirect, usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import {
@@ -71,6 +71,7 @@ export default function PlacementHeadLayout({
   const { user, authenticated, loading, clearAuth } = useAuth();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
   const pathname = usePathname();
+  const router = useRouter();
 
   React.useEffect(() => {
     if (!loading && !authenticated) {
@@ -96,6 +97,7 @@ export default function PlacementHeadLayout({
 
   const handleLogout = () => {
     clearAuth();
+    router.replace("/login");
   };
 
   const currentPage =
@@ -134,7 +136,7 @@ export default function PlacementHeadLayout({
 
       <nav
         className={cn(
-          "fixed inset-y-0 left-0 z-40 w-64 bg-white border-r border-[hsl(var(--border))] transform transition-transform duration-300 ease-in-out md:relative md:translate-x-0 flex flex-col",
+          "fixed inset-y-0 left-0 z-40 flex w-64 shrink-0 flex-col border-r border-[hsl(var(--border))] bg-white transform transition-transform duration-300 ease-in-out md:sticky md:top-0 md:h-screen md:translate-x-0",
           isMobileMenuOpen ? "translate-x-0" : "-translate-x-full",
         )}
       >
@@ -146,20 +148,6 @@ export default function PlacementHeadLayout({
           >
             <Image src="/images/placecampus-logo-trimmed.png" alt="PlaceCampus" width={1200} height={269} priority className="h-9 w-auto object-contain" />
           </Link>
-        </div>
-
-        <div className="p-4 border-b border-[hsl(var(--border))] flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-[hsl(var(--primary)/0.1)] text-[hsl(var(--primary))] flex items-center justify-center font-bold">
-            {getInitials(user?.fullName || "Placement Head")}
-          </div>
-          <div className="flex flex-col">
-            <span className="text-sm font-bold text-heading truncate">
-              {user?.fullName}
-            </span>
-            <span className="text-xs text-[hsl(var(--muted-foreground))]">
-              Placement Head
-            </span>
-          </div>
         </div>
 
         <div className="flex-1 overflow-y-auto py-4 px-3 space-y-1">
@@ -188,13 +176,14 @@ export default function PlacementHeadLayout({
           })}
         </div>
 
-        <div className="p-4 border-t border-[hsl(var(--border))]">
+        <div className="space-y-2 border-t border-[hsl(var(--border))] p-3">
           <SwitchRoleLink />
           <button
+            type="button"
             onClick={handleLogout}
-            className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-red-600 transition-colors hover:bg-red-50"
+            className="flex min-h-10 w-full items-center gap-3 rounded-xl px-3 text-[13px] font-semibold text-[#B54735] transition hover:bg-[#FFF3F1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300"
           >
-            <LogOut className="h-[18px] w-[18px]" aria-hidden="true" /> Logout
+            <LogOut className="h-[17px] w-[17px]" aria-hidden="true" />Logout
           </button>
         </div>
       </nav>

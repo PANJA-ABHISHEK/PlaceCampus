@@ -32,6 +32,7 @@ import {
   displayStatus,
   isUpcoming,
   rubricAverage,
+  START_WINDOW_MS,
   startTime,
   typeLabel,
 } from "@/features/interviews/lib/interview-meta";
@@ -145,7 +146,10 @@ function UpcomingCard({ interview, now, onCancel }: { interview: MockInterview; 
           </p>
         )}
         {inApp && !roomOpen && interview.status === "SCHEDULED" && (
-          <p className="text-xs text-[hsl(var(--muted-foreground))]">The interview room opens 15 minutes before the start.</p>
+          <p className="text-xs font-medium text-[hsl(var(--muted-foreground))]">
+            You can join from {formatDay(new Date(startTime(interview) - START_WINDOW_MS).toISOString())} at{" "}
+            {formatTime(new Date(startTime(interview) - START_WINDOW_MS).toISOString())} (15 minutes before the start).
+          </p>
         )}
         {!inApp && !joinable && interview.meetingUrl && (
           <p className="text-xs text-[hsl(var(--muted-foreground))]">

@@ -37,7 +37,7 @@ export function FinalCtaSection() {
                 asChild
                 className="h-14 w-full border-none bg-white px-8 text-base text-[hsl(var(--color-primary-700))] shadow-lg shadow-black/10 hover:bg-[hsl(var(--color-primary-50))] sm:w-auto"
               >
-                <Link href="/register">
+                <Link href="/login">
                   Check My Readiness
                   <ArrowRight className="ml-2 h-5 w-5" />
                 </Link>

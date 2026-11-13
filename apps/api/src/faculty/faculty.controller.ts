@@ -13,7 +13,6 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import type { Response } from 'express';
-import { createReadStream } from 'fs';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
 import { RolesGuard } from '../auth/guards/roles.guard.js';
 import { Roles } from '../auth/decorators/roles.decorator.js';
@@ -144,18 +143,16 @@ export class FacultyController {
       );
     }
 
-    const absolutePath = await this.storageService.getFilePath(
+    const documentBuffer = await this.storageService.getFileBuffer(
       (documentMeta as any).key,
     );
-
-    const fileStream = createReadStream(absolutePath);
 
     res.set({
       'Content-Type': documentMeta.mimeType,
       'Content-Disposition': `inline; filename="${documentMeta.originalName}"`,
     });
 
-    return new StreamableFile(fileStream);
+    return new StreamableFile(documentBuffer);
   }
 }
 

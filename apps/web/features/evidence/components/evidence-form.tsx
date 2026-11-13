@@ -34,6 +34,17 @@ const schema = z.object({
 
 type FormData = z.infer<typeof schema>;
 
+const EVIDENCE_FILE_TYPES: Record<string, string[]> = {
+  '.pdf': ['application/pdf'],
+  '.jpg': ['image/jpeg'],
+  '.jpeg': ['image/jpeg'],
+  '.png': ['image/png'],
+  '.doc': ['application/msword'],
+  '.docx': ['application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+  '.ppt': ['application/vnd.ms-powerpoint'],
+  '.pptx': ['application/vnd.openxmlformats-officedocument.presentationml.presentation'],
+};
+
 export function EvidenceForm() {
   const router = useRouter();
   const createMutation = useCreateEvidence();
@@ -64,10 +75,11 @@ export function EvidenceForm() {
         toast.error("File too large: Please upload a file smaller than 10MB.");
         return;
       }
-      // Validation: MIME types
-      const allowed = ["application/pdf", "image/jpeg", "image/png"];
-      if (!allowed.includes(file.type)) {
-        toast.error("Invalid file type: Only PDF, JPG, and PNG are supported.");
+      // Validate the selected extension and its reported MIME type.
+      const extension = file.name.slice(file.name.lastIndexOf('.')).toLowerCase();
+      const expectedMimeTypes = EVIDENCE_FILE_TYPES[extension];
+      if (!expectedMimeTypes || (file.type && !expectedMimeTypes.includes(file.type))) {
+        toast.error("Invalid file type: Upload a PDF, JPG, PNG, DOC, DOCX, PPT, or PPTX file.");
         return;
       }
       setSelectedFile(file);
@@ -223,13 +235,13 @@ export function EvidenceForm() {
                 Click to upload or drag and drop
               </p>
               <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
-                PDF, JPG, or PNG (max. 10MB)
+                PDF, JPG, PNG, DOC, DOCX, PPT, or PPTX (max. 10MB)
               </p>
               <input
                 type="file"
                 ref={fileInputRef}
                 onChange={handleFileChange}
-                accept=".pdf,image/jpeg,image/png"
+                accept={Object.keys(EVIDENCE_FILE_TYPES).join(',')}
                 className="hidden"
               />
             </div>

@@ -145,7 +145,7 @@ export function HeroSection() {
               asChild
               className="w-full sm:w-auto text-base h-14 px-8 shadow-lg shadow-[hsl(var(--primary)/0.2)]"
             >
-              <Link href="/register">
+              <Link href="/login">
                 Check My Readiness
                 <ArrowRight className="ml-2 h-5 w-5" />
               </Link>

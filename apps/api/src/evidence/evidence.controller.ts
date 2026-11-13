@@ -22,7 +22,7 @@ import {
   ApiBody,
 } from '@nestjs/swagger';
 import type { Response } from 'express';
-import { createReadStream } from 'fs';
+import { extname } from 'path';
 import { EvidenceService } from './evidence.service.js';
 import { StorageService } from '../storage/storage.service.js';
 import { CreateEvidenceDto, UpdateEvidenceDto } from './dto/evidence.dto.js';
@@ -91,12 +91,23 @@ export class EvidenceController {
     FileInterceptor('file', {
       limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
       fileFilter: (req, file, cb) => {
-        // Validate MIME type
-        const allowedMimeTypes = ['application/pdf', 'image/jpeg', 'image/png'];
-        if (!allowedMimeTypes.includes(file.mimetype)) {
+        // Allow common evidence documents and images; keep the extension and
+        // MIME checks paired so arbitrary binary files are rejected.
+        const allowedTypes: Record<string, string> = {
+          '.pdf': 'application/pdf',
+          '.jpg': 'image/jpeg',
+          '.jpeg': 'image/jpeg',
+          '.png': 'image/png',
+          '.doc': 'application/msword',
+          '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          '.ppt': 'application/vnd.ms-powerpoint',
+          '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+        };
+        const extension = extname(file.originalname).toLowerCase();
+        if (allowedTypes[extension] !== file.mimetype) {
           return cb(
             new BadRequestException(
-              'Invalid file type. Only PDF, JPG, and PNG are allowed.',
+              'Invalid file type. Upload PDF, JPG, PNG, DOC, DOCX, PPT, or PPTX files.',
             ),
             false,
           );
@@ -164,17 +175,13 @@ export class EvidenceController {
       );
     }
 
-    const absolutePath = await this.storageService.getFilePath(
-      documentMeta.key,
-    );
-
-    const fileStream = createReadStream(absolutePath);
+    const documentBuffer = await this.storageService.getFileBuffer(documentMeta.key);
 
     res.set({
       'Content-Type': documentMeta.mimeType,
       'Content-Disposition': `inline; filename="${documentMeta.originalName}"`,
     });
 
-    return new StreamableFile(fileStream);
+    return new StreamableFile(documentBuffer);
   }
 }

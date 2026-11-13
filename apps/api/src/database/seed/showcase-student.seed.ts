@@ -664,7 +664,12 @@ async function run() {
     evidence.document = meta as any;
 
     const absolutePath = await storage.getFilePath(meta.key);
-    const extraction = await extractor.extractText(absolutePath, 'application/pdf');
+    let extraction: Awaited<ReturnType<typeof extractor.extractText>>;
+    try {
+      extraction = await extractor.extractText(absolutePath, 'application/pdf');
+    } finally {
+      await storage.releaseFilePath(absolutePath);
+    }
     const extractionDoc = await extractionStore.save({
       evidenceId: evidence.id,
       studentId: userId,

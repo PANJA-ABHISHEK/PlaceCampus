@@ -49,7 +49,17 @@ import {
 
 /* Same limits the API enforces in EvidenceController / evidence DTOs. */
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
-const ALLOWED_MIME = ["application/pdf", "image/jpeg", "image/png"];
+const ALLOWED_FILE_TYPES: Record<string, string[]> = {
+  ".pdf": ["application/pdf"],
+  ".jpg": ["image/jpeg"],
+  ".jpeg": ["image/jpeg"],
+  ".png": ["image/png"],
+  ".doc": ["application/msword"],
+  ".docx": ["application/vnd.openxmlformats-officedocument.wordprocessingml.document"],
+  ".ppt": ["application/vnd.ms-powerpoint"],
+  ".pptx": ["application/vnd.openxmlformats-officedocument.presentationml.presentation"],
+};
+const EVIDENCE_FILE_ACCEPT = Object.keys(ALLOWED_FILE_TYPES).join(",");
 const DESCRIPTION_MAX = 1000;
 
 const TYPE_ORDER: EvidenceType[] = [
@@ -104,8 +114,10 @@ const formatBytes = (bytes: number) =>
     : `${(bytes / 1024 / 1024).toFixed(2)} MB`;
 
 function validateFile(file: File) {
-  if (!ALLOWED_MIME.includes(file.type))
-    return "Only PDF, JPG and PNG files are supported.";
+  const extension = file.name.slice(file.name.lastIndexOf(".")).toLowerCase();
+  const expectedMimeTypes = ALLOWED_FILE_TYPES[extension];
+  if (!expectedMimeTypes || (file.type && !expectedMimeTypes.includes(file.type)))
+    return "Upload a PDF, JPG, PNG, DOC, DOCX, PPT, or PPTX file.";
   if (file.size > MAX_FILE_BYTES) return "File is larger than 10 MB.";
   return null;
 }
@@ -582,7 +594,7 @@ function WizardBody({
                   {isDragging ? "Drop your file here" : "Drag and drop your document here"}
                 </p>
                 <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
-                  PDF, JPG or PNG · up to 10 MB
+                  PDF, JPG, PNG, DOC, DOCX, PPT or PPTX · up to 10 MB
                 </p>
                 <span className="mt-4 inline-flex items-center gap-2 rounded-xl border border-[hsl(var(--border))] bg-white px-4 py-2 text-sm font-semibold text-[hsl(var(--foreground))] shadow-[var(--shadow-xs)]">
                   Browse Files
@@ -626,7 +638,7 @@ function WizardBody({
             <input
               ref={fileInputRef}
               type="file"
-              accept=".pdf,image/jpeg,image/png"
+              accept={EVIDENCE_FILE_ACCEPT}
               className="hidden"
               onChange={(event) => {
                 pickFile(event.target.files?.[0]);
