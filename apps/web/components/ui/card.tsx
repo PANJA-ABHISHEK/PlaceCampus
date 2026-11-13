@@ -79,7 +79,7 @@ export {
   Card,
   CardHeader,
   CardFooter,
-  CardTitle,
+  CardTitle, 
   CardDescription,
   CardContent,
 };
