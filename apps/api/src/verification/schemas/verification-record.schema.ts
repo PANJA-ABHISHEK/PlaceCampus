@@ -15,14 +15,29 @@ export class VerificationRecord extends Document {
   @Prop({ required: true, default: 1 })
   attemptNumber: number;
 
-  @Prop({ enum: ['PDF_TEXT', 'IMAGE_OCR', 'NONE'] })
+  /** IMAGE_OCR is the legacy value written before PDF page OCR existed. */
+  @Prop({ enum: ['PDF_TEXT', 'OCR', 'MIXED', 'IMAGE_OCR', 'NONE'] })
   extractionMethod: string;
+
+  @Prop({ enum: ['COMPLETED', 'PARTIAL', 'FAILED'] })
+  extractionStatus?: string;
+
+  /** The evidence_extractions document holding the text for this attempt. */
+  @Prop()
+  extractionId?: string;
 
   @Prop({ type: Object })
   extractedTextMetadata: {
     wordCount: number;
     hasText: boolean;
+    charCount?: number;
+    pageCount?: number;
+    ocrConfidence?: number | null;
   };
+
+  /** Other evidence with the same file or text (reviewer-only). */
+  @Prop({ type: [Object], default: undefined })
+  duplicateMatches?: { evidenceId: string; matchType: 'FILE' | 'TEXT'; sameStudent: boolean }[];
 
   @Prop()
   aiProvider: string;
@@ -30,8 +45,16 @@ export class VerificationRecord extends Document {
   @Prop()
   modelVersion: string;
 
+  /** Compatibility view of the AI analysis (read by skill aggregation and the review UI). */
   @Prop({ type: Object })
   aiResult: any;
+
+  @Prop({ enum: ['SUCCEEDED', 'INVALID_OUTPUT', 'REFUSED', 'FAILED', 'DISABLED'] })
+  aiStatus?: string;
+
+  /** The ai_analyses document for this attempt. */
+  @Prop()
+  aiAnalysisId?: string;
 
   @Prop({ type: Object })
   ruleResults: any;
