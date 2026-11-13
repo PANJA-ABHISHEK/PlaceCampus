@@ -70,6 +70,11 @@ export default function StudentLayout({
     );
   }
 
+  // The interview room is full-screen: no portal chrome.
+  if (pathname.startsWith("/student/interviews/room/")) {
+    return user?.role === UserRole.STUDENT ? <>{children}</> : null;
+  }
+
   const handleLogout = async () => {
     await clearAuth();
     router.replace("/login");

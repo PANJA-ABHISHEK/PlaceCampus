@@ -4,9 +4,8 @@ import * as React from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { format } from "date-fns";
 import { Loader2, X } from "lucide-react";
-import type { MockInterviewStatus } from "@placecampus/shared-types";
 import { cn } from "@/lib/utils";
-import { STATUS_META } from "../lib/interview-meta";
+import { DISPLAY_STATUS_META, STATUS_META, type DisplayStatus } from "../lib/interview-meta";
 
 /** "Mon, 10 Nov 2026" and "2:30 PM", in the viewer's local time. */
 export function formatDay(iso: string) {
@@ -20,10 +19,13 @@ export function InterviewStatusBadge({
   status,
   className,
 }: {
-  status: MockInterviewStatus;
+  status: DisplayStatus;
   className?: string;
 }) {
-  const meta = STATUS_META[status];
+  const meta =
+    status === "WAITING" || status === "PENDING_EVALUATION"
+      ? DISPLAY_STATUS_META[status]
+      : STATUS_META[status];
   const Icon = meta.icon;
   return (
     <span

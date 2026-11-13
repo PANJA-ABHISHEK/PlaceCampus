@@ -2,16 +2,23 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
-  ArrowRight,
   CalendarClock,
   CalendarPlus,
   CircleAlert,
   ClipboardCheck,
-  Clock,
+  ClipboardList,
   DoorOpen,
   ExternalLink,
+  Eye,
+  Layers,
+  Loader2,
+  Play,
+  Radio,
+  RotateCcw,
+  Search,
   UserRound,
   Video,
   XCircle,
@@ -19,15 +26,19 @@ import {
 } from "lucide-react";
 import type { InterviewSlot, MockInterview } from "@placecampus/shared-types";
 import {
+  useCancelFacultyInterview,
   useCancelInterviewSlot,
   useFacultyInterviewSlots,
+  useFacultyInterviewSummary,
   useFacultyInterviews,
+  useStartInterview,
 } from "@/features/interviews/hooks/use-interviews";
 import {
-  canFacultyStartOrEvaluate,
-  isUpcoming,
-  rubricAverage,
+  canEnterRoom,
+  displayStatus,
   startTime,
+  typeLabel,
+  type DisplayStatus,
 } from "@/features/interviews/lib/interview-meta";
 import {
   InterviewStatusBadge,
@@ -36,13 +47,15 @@ import {
   formatTime,
 } from "@/features/interviews/components/interview-ui";
 import { CreateSlotDialog } from "@/features/interviews/components/create-slot-dialog";
+import { ScheduleInterviewDialog } from "@/features/interviews/components/schedule-interview-dialog";
+import { RescheduleInterviewDialog } from "@/features/interviews/components/reschedule-interview-dialog";
 import { HeroWaves, lightHeroClassName } from "@/components/brand/hero-waves";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ApiError } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
 import { useNow } from "@/features/interviews/hooks/use-now";
 
-function StatCard({ label, value, icon: Icon, tile }: { label: string; value: number; icon: LucideIcon; tile: string }) {
+function StatCard({ label, value, icon: Icon, tile }: { label: string; value: number | undefined; icon: LucideIcon; tile: string }) {
   return (
     <div className="pc-enter flex items-center gap-4 rounded-2xl border border-[hsl(var(--border)/0.8)] bg-white p-5 shadow-[var(--shadow-card)]">
       <span className={cn("flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl", tile)}>
@@ -50,43 +63,83 @@ function StatCard({ label, value, icon: Icon, tile }: { label: string; value: nu
       </span>
       <div>
         <p className="text-sm font-medium text-[hsl(var(--foreground)/0.75)]">{label}</p>
-        <p className="text-2xl font-bold tabular-nums text-[hsl(var(--foreground))]">{value}</p>
+        <p className="text-2xl font-bold tabular-nums text-[hsl(var(--foreground))]">{value ?? "–"}</p>
       </div>
     </div>
   );
 }
 
-function InterviewRow({ interview, now }: { interview: MockInterview; now: number }) {
-  const average = rubricAverage(interview.rubricScores);
-  const needsEvaluation =
-    (interview.status === "SCHEDULED" || interview.status === "IN_PROGRESS") &&
-    canFacultyStartOrEvaluate(interview, now);
+type Filter = "all" | "upcoming" | "live" | "pending" | "completed" | "cancelled";
+const FILTERS: { id: Filter; label: string }[] = [
+  { id: "all", label: "All" },
+  { id: "upcoming", label: "Upcoming" },
+  { id: "live", label: "In progress" },
+  { id: "pending", label: "Pending evaluation" },
+  { id: "completed", label: "Completed" },
+  { id: "cancelled", label: "Cancelled" },
+];
+
+function matchesFilter(status: DisplayStatus, filter: Filter) {
+  switch (filter) {
+    case "all": return true;
+    case "upcoming": return status === "SCHEDULED" || status === "WAITING";
+    case "live": return status === "IN_PROGRESS";
+    case "pending": return status === "PENDING_EVALUATION";
+    case "completed": return status === "COMPLETED";
+    case "cancelled": return status === "CANCELLED" || status === "NO_SHOW";
+  }
+}
+
+function InterviewActions({
+  interview,
+  now,
+  onReschedule,
+  onCancel,
+}: {
+  interview: MockInterview;
+  now: number;
+  onReschedule: () => void;
+  onCancel: () => void;
+}) {
+  const router = useRouter();
+  const start = useStartInterview();
+  const roomHref = interview.roomId ? `/faculty/interviews/room/${interview.roomId}` : null;
+  const roomOpen = canEnterRoom(interview, now);
+  const live = interview.status === "IN_PROGRESS" && !interview.endedAt;
+  const scheduled = interview.status === "SCHEDULED";
+  const icon = "inline-flex h-9 w-9 items-center justify-center rounded-lg transition-colors disabled:cursor-not-allowed disabled:opacity-35";
+
   return (
-    <li className="border-b border-[hsl(var(--border)/0.6)] last:border-0">
-      <Link
-        href={`/faculty/interviews/${interview.id}`}
-        className="group flex flex-col gap-2 px-5 py-4 transition-colors hover:bg-[hsl(var(--primary)/0.03)] sm:flex-row sm:items-center sm:gap-4"
-      >
-        <div className="min-w-0 flex-1">
-          <p className="font-semibold text-[hsl(var(--foreground))] group-hover:text-[hsl(var(--primary))]">
-            {interview.student?.fullName ?? "Student"}
-          </p>
-          <p className="text-sm text-[hsl(var(--muted-foreground))]">
-            {interview.type} · {formatDay(interview.scheduledAt)} at {formatTime(interview.scheduledAt)} · {interview.durationMinutes ?? 60} min
-          </p>
-        </div>
-        {average != null && (
-          <span className="text-sm font-semibold tabular-nums text-[hsl(var(--foreground))]">{average} / 10</span>
-        )}
-        {needsEvaluation && (
-          <span className="rounded-full bg-[hsl(var(--primary)/0.1)] px-2.5 py-1 text-xs font-semibold text-[hsl(var(--color-primary-700))]">
-            Ready to run
-          </span>
-        )}
-        <InterviewStatusBadge status={interview.status} />
-        <ArrowRight className="hidden h-4 w-4 text-[hsl(var(--muted-foreground))] transition-transform group-hover:translate-x-0.5 sm:block" aria-hidden="true" />
+    <div className="flex items-center justify-end gap-1">
+      <Link href={`/faculty/interviews/${interview.id}`} aria-label="View details" title="View details" className={cn(icon, "text-[hsl(var(--foreground)/0.7)] hover:bg-[hsl(var(--muted))]")}>
+        <Eye className="h-4 w-4" />
       </Link>
-    </li>
+      {roomHref && (scheduled || live) && (
+        <button
+          type="button"
+          aria-label={live ? "Rejoin interview" : "Start interview"}
+          title={roomOpen ? (live ? "Rejoin interview" : "Start interview") : "Opens 15 minutes before the start"}
+          disabled={!roomOpen || start.isPending}
+          onClick={() =>
+            live
+              ? router.push(roomHref)
+              : start.mutate(interview.id, {
+                  onSuccess: () => router.push(roomHref),
+                  onError: (e) => toast.error("Couldn't start", { description: e instanceof ApiError ? e.message : undefined }),
+                })
+          }
+          className={cn(icon, "bg-[hsl(var(--primary))] text-white hover:bg-[hsl(var(--color-primary-600))]")}
+        >
+          {start.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+        </button>
+      )}
+      <button type="button" aria-label="Reschedule" title="Reschedule" disabled={!scheduled} onClick={onReschedule} className={cn(icon, "text-[hsl(var(--foreground)/0.7)] hover:bg-[hsl(var(--muted))]")}>
+        <RotateCcw className="h-4 w-4" />
+      </button>
+      <button type="button" aria-label="Cancel interview" title="Cancel" disabled={!scheduled} onClick={onCancel} className={cn(icon, "text-red-600 hover:bg-red-50")}>
+        <XCircle className="h-4 w-4" />
+      </button>
+    </div>
   );
 }
 
@@ -104,7 +157,7 @@ function SlotRow({ slot, now, onCancel }: { slot: InterviewSlot; now: number; on
         <p className="text-xs text-[hsl(var(--muted-foreground))]">{formatDay(slot.startsAt)}</p>
       </div>
       <div className="min-w-0 flex-1">
-        <p className="font-semibold text-[hsl(var(--foreground))]">{slot.type} · {slot.durationMinutes} min</p>
+        <p className="font-semibold text-[hsl(var(--foreground))]">{typeLabel(slot.type)} · {slot.durationMinutes} min</p>
         <p className="flex items-center gap-1.5 truncate text-sm text-[hsl(var(--muted-foreground))]">
           {slot.status === "BOOKED" ? (
             <>
@@ -125,11 +178,7 @@ function SlotRow({ slot, now, onCancel }: { slot: InterviewSlot; now: number; on
         {slot.status === "OPEN" ? "Open" : slot.status === "BOOKED" ? "Booked" : "Cancelled"}
       </span>
       {slot.status !== "CANCELLED" && !past && (
-        <button
-          type="button"
-          onClick={onCancel}
-          className="inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-sm font-semibold text-red-600 transition-colors hover:bg-red-50"
-        >
+        <button type="button" onClick={onCancel} className="inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-sm font-semibold text-red-600 transition-colors hover:bg-red-50">
           <XCircle className="h-4 w-4" aria-hidden="true" />
           Cancel
         </button>
@@ -140,39 +189,45 @@ function SlotRow({ slot, now, onCancel }: { slot: InterviewSlot; now: number; on
 
 export default function FacultyInterviewsPage() {
   const interviewsQuery = useFacultyInterviews();
+  const summaryQuery = useFacultyInterviewSummary();
   const slotsQuery = useFacultyInterviewSlots();
   const cancelSlot = useCancelInterviewSlot();
-  const [createOpen, setCreateOpen] = React.useState(false);
-  const [cancelTarget, setCancelTarget] = React.useState<InterviewSlot | null>(null);
+  const cancelInterview = useCancelFacultyInterview();
+  const [scheduleOpen, setScheduleOpen] = React.useState(false);
+  const [slotDialogOpen, setSlotDialogOpen] = React.useState(false);
+  const [cancelSlotTarget, setCancelSlotTarget] = React.useState<InterviewSlot | null>(null);
+  const [cancelTarget, setCancelTarget] = React.useState<MockInterview | null>(null);
+  const [rescheduleTarget, setRescheduleTarget] = React.useState<MockInterview | null>(null);
+  const [filter, setFilter] = React.useState<Filter>("all");
+  const [query, setQuery] = React.useState("");
   const now = useNow();
+
+  // Keep "Waiting" fresh while a student sits in the waiting room.
+  const { refetch } = interviewsQuery;
+  React.useEffect(() => {
+    const t = setInterval(() => void refetch(), 20_000);
+    return () => clearInterval(t);
+  }, [refetch]);
 
   const interviews = React.useMemo(() => interviewsQuery.data ?? [], [interviewsQuery.data]);
   const slots = React.useMemo(() => slotsQuery.data ?? [], [slotsQuery.data]);
-
-  const upcoming = interviews.filter((iv) => isUpcoming(iv, now)).sort((a, b) => startTime(a) - startTime(b));
-  const past = interviews.filter((iv) => !isUpcoming(iv, now)).sort((a, b) => startTime(b) - startTime(a));
   const activeSlots = slots.filter((s) => s.status !== "CANCELLED" && new Date(s.startsAt).getTime() > now);
-  const awaiting = upcoming.filter((iv) => canFacultyStartOrEvaluate(iv, now)).length;
 
-  const confirmCancel = (reason: string) => {
-    if (!cancelTarget) return;
-    cancelSlot.mutate(
-      { id: cancelTarget.id, reason },
-      {
-        onSuccess: () => {
-          toast.success(cancelTarget.status === "BOOKED" ? "Interview cancelled" : "Slot removed", {
-            description: cancelTarget.status === "BOOKED" ? "The student has been notified." : undefined,
-          });
-          setCancelTarget(null);
-        },
-        onError: (error) =>
-          toast.error("Couldn't cancel", {
-            description: error instanceof ApiError ? error.message : "Please try again.",
-          }),
-      },
-    );
-  };
+  const rows = React.useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return interviews
+      .map((iv) => ({ iv, status: displayStatus(iv, now) }))
+      .filter(({ iv, status }) => matchesFilter(status, filter) && (!q || [iv.student?.fullName, iv.student?.registrationNumber, iv.title, iv.type].some((v) => v?.toLowerCase().includes(q))))
+      .sort((a, b) => {
+        // Live and upcoming first (soonest first), then the rest newest first.
+        const rank = (s: DisplayStatus) => (s === "IN_PROGRESS" || s === "WAITING" ? 0 : s === "SCHEDULED" ? 1 : s === "PENDING_EVALUATION" ? 2 : 3);
+        const r = rank(a.status) - rank(b.status);
+        if (r) return r;
+        return rank(a.status) <= 1 ? startTime(a.iv) - startTime(b.iv) : startTime(b.iv) - startTime(a.iv);
+      });
+  }, [interviews, filter, query, now]);
 
+  const waiting = rows.filter((r) => r.status === "WAITING");
   const loading = interviewsQuery.isLoading || slotsQuery.isLoading;
   const failed = interviewsQuery.isError || slotsQuery.isError;
 
@@ -187,105 +242,224 @@ export default function FacultyInterviewsPage() {
               <span className="text-[hsl(var(--primary))]">Interviews</span>
             </h1>
             <p className="text-[15px] leading-relaxed text-[hsl(var(--foreground)/0.8)]">
-              Open time slots for students to book, run the interview on your meeting link, and score it with the rubric.
+              Schedule live video interviews with your students, run them in the PlaceCampus room, and evaluate each one.
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => setCreateOpen(true)}
-            className="relative inline-flex shrink-0 items-center justify-center gap-2 self-start rounded-xl bg-[hsl(var(--primary))] px-6 py-3.5 text-base font-semibold text-white shadow-[0_10px_24px_-10px_hsl(var(--primary)/0.8)] transition-all hover:-translate-y-0.5 hover:bg-[hsl(var(--color-primary-600))] active:scale-[0.98] md:self-center"
-          >
-            <CalendarPlus className="h-5 w-5" aria-hidden="true" />
-            Open a Slot
-          </button>
+          <div className="flex flex-wrap gap-2 self-start md:self-center">
+            <button
+              type="button"
+              onClick={() => setSlotDialogOpen(true)}
+              className="relative inline-flex items-center gap-2 rounded-xl border border-[hsl(var(--border))] bg-white px-4 py-3.5 text-sm font-semibold text-[hsl(var(--foreground))] transition-colors hover:border-[hsl(var(--primary)/0.5)]"
+            >
+              <DoorOpen className="h-4 w-4" aria-hidden="true" />
+              Open a Slot
+            </button>
+            <button
+              type="button"
+              onClick={() => setScheduleOpen(true)}
+              className="relative inline-flex items-center gap-2 rounded-xl bg-[hsl(var(--primary))] px-6 py-3.5 text-base font-semibold text-white shadow-[0_10px_24px_-10px_hsl(var(--primary)/0.8)] transition-all hover:-translate-y-0.5 hover:bg-[hsl(var(--color-primary-600))] active:scale-[0.98]"
+            >
+              <CalendarPlus className="h-5 w-5" aria-hidden="true" />
+              Schedule Interview
+            </button>
+          </div>
         </div>
       </section>
 
       {loading ? (
         <div className="space-y-4" aria-busy="true">
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {Array.from({ length: 4 }, (_, i) => <Skeleton key={i} className="h-[88px] rounded-2xl" />)}
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+            {Array.from({ length: 5 }, (_, i) => <Skeleton key={i} className="h-[88px] rounded-2xl" />)}
           </div>
-          <Skeleton className="h-[200px] rounded-2xl" />
+          <Skeleton className="h-[260px] rounded-2xl" />
         </div>
       ) : failed ? (
         <div className="flex flex-col items-center gap-3 rounded-2xl border border-red-200 bg-red-50/60 px-6 py-12 text-center">
           <CircleAlert className="h-8 w-8 text-red-600" aria-hidden="true" />
           <p className="font-semibold text-red-900">We couldn&apos;t load your interviews</p>
-          <button type="button" onClick={() => { interviewsQuery.refetch(); slotsQuery.refetch(); }} className="rounded-xl bg-white px-4 py-2 text-sm font-semibold text-red-700 ring-1 ring-red-200">Retry</button>
+          <button type="button" onClick={() => { interviewsQuery.refetch(); slotsQuery.refetch(); summaryQuery.refetch(); }} className="rounded-xl bg-white px-4 py-2 text-sm font-semibold text-red-700 ring-1 ring-red-200">Retry</button>
         </div>
       ) : (
         <>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <StatCard label="Open slots" value={activeSlots.filter((s) => s.status === "OPEN").length} icon={DoorOpen} tile="bg-emerald-50 text-emerald-600" />
-            <StatCard label="Upcoming interviews" value={upcoming.length} icon={CalendarClock} tile="bg-blue-50 text-blue-600" />
-            <StatCard label="Ready to run" value={awaiting} icon={Clock} tile="bg-[hsl(var(--primary)/0.1)] text-[hsl(var(--primary))]" />
-            <StatCard label="Completed" value={interviews.filter((iv) => iv.status === "COMPLETED").length} icon={ClipboardCheck} tile="bg-violet-50 text-violet-600" />
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+            <StatCard label="Total Mock Interviews" value={summaryQuery.data?.total} icon={Layers} tile="bg-slate-100 text-slate-700" />
+            <StatCard label="Upcoming" value={summaryQuery.data?.upcoming} icon={CalendarClock} tile="bg-blue-50 text-blue-600" />
+            <StatCard label="In Progress" value={summaryQuery.data?.inProgress} icon={Radio} tile="bg-amber-50 text-amber-600" />
+            <StatCard label="Completed" value={summaryQuery.data?.completed} icon={ClipboardCheck} tile="bg-emerald-50 text-emerald-600" />
+            <StatCard label="Pending Evaluations" value={summaryQuery.data?.pendingEvaluations} icon={ClipboardList} tile="bg-[hsl(var(--primary)/0.1)] text-[hsl(var(--primary))]" />
           </div>
 
-          <section aria-labelledby="fac-upcoming" className="space-y-3">
-            <h2 id="fac-upcoming" className="text-xl font-bold text-[hsl(var(--foreground))]">Upcoming Interviews</h2>
-            {upcoming.length === 0 ? (
-              <p className="rounded-2xl border border-dashed border-[hsl(var(--border))] bg-white px-6 py-8 text-center text-sm text-[hsl(var(--muted-foreground))]">
-                No booked interviews yet. Open a slot so students can book you.
+          {waiting.length > 0 && (
+            <div className="flex flex-col gap-2 rounded-2xl border border-violet-200 bg-violet-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between" role="status">
+              <p className="text-sm font-semibold text-violet-900">
+                {waiting.map((w) => w.iv.student?.fullName ?? "A student").join(", ")} {waiting.length === 1 ? "is" : "are"} in the waiting room.
               </p>
+              <Link href={`/faculty/interviews/room/${waiting[0]!.iv.roomId}`} className="inline-flex h-9 w-fit items-center gap-2 rounded-lg bg-violet-600 px-4 text-sm font-semibold text-white hover:bg-violet-700">
+                <Video className="h-4 w-4" aria-hidden="true" /> Open room
+              </Link>
+            </div>
+          )}
+
+          <section aria-labelledby="fac-table" className="space-y-3">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <h2 id="fac-table" className="text-xl font-bold text-[hsl(var(--foreground))]">Interview Management</h2>
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[hsl(var(--muted-foreground))]" aria-hidden="true" />
+                <input
+                  type="search"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Search student, reg. no or title"
+                  aria-label="Search interviews"
+                  className="h-10 w-full rounded-xl border border-[hsl(var(--border))] bg-white pl-9 pr-3 text-sm outline-none focus:border-[hsl(var(--primary))] lg:w-72"
+                />
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2" role="group" aria-label="Filter interviews">
+              {FILTERS.map((f) => (
+                <button
+                  key={f.id}
+                  type="button"
+                  aria-pressed={filter === f.id}
+                  onClick={() => setFilter(f.id)}
+                  className={cn("rounded-full px-3.5 py-1.5 text-sm font-semibold transition-colors", filter === f.id ? "bg-[#10264A] text-white" : "bg-white text-[hsl(var(--foreground)/0.75)] ring-1 ring-[hsl(var(--border))] hover:ring-[hsl(var(--primary)/0.4)]")}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+
+            {interviews.length === 0 ? (
+              <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-[hsl(var(--primary)/0.3)] bg-white px-6 py-12 text-center">
+                <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[hsl(var(--primary)/0.1)] text-[hsl(var(--primary))]">
+                  <Video className="h-7 w-7" aria-hidden="true" />
+                </span>
+                <p className="font-semibold text-[hsl(var(--foreground))]">No mock interviews yet</p>
+                <p className="max-w-[26rem] text-sm text-[hsl(var(--muted-foreground))]">Schedule an interview with one of your students. They&apos;ll get a notification with the time and instructions.</p>
+                <button type="button" onClick={() => setScheduleOpen(true)} className="mt-1 inline-flex h-10 items-center gap-2 rounded-xl bg-[hsl(var(--primary))] px-4 text-sm font-semibold text-white">
+                  <CalendarPlus className="h-4 w-4" aria-hidden="true" /> Schedule Interview
+                </button>
+              </div>
+            ) : rows.length === 0 ? (
+              <p className="rounded-2xl border border-dashed border-[hsl(var(--border))] bg-white px-6 py-8 text-center text-sm text-[hsl(var(--muted-foreground))]">No interviews match this filter.</p>
             ) : (
-              <ul className="overflow-hidden rounded-2xl border border-[hsl(var(--border)/0.8)] bg-white shadow-[var(--shadow-card)]">
-                {upcoming.map((iv) => <InterviewRow key={iv.id} interview={iv} now={now} />)}
-              </ul>
+              <div className="overflow-x-auto rounded-2xl border border-[hsl(var(--border)/0.8)] bg-white shadow-[var(--shadow-card)]">
+                <table className="w-full min-w-[860px] text-left text-sm">
+                  <thead className="border-b border-[hsl(var(--border)/0.7)] bg-[hsl(var(--muted)/0.4)] text-xs uppercase tracking-wide text-[hsl(var(--foreground)/0.65)]">
+                    <tr>
+                      <th scope="col" className="px-5 py-3 font-semibold">Student</th>
+                      <th scope="col" className="px-3 py-3 font-semibold">Reg. No</th>
+                      <th scope="col" className="px-3 py-3 font-semibold">Interview Type</th>
+                      <th scope="col" className="px-3 py-3 font-semibold">Date &amp; Time</th>
+                      <th scope="col" className="px-3 py-3 font-semibold">Duration</th>
+                      <th scope="col" className="px-3 py-3 font-semibold">Status</th>
+                      <th scope="col" className="px-5 py-3 text-right font-semibold">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map(({ iv, status }) => (
+                      <tr key={iv.id} className="border-b border-[hsl(var(--border)/0.6)] last:border-0 hover:bg-[hsl(var(--primary)/0.02)]">
+                        <td className="px-5 py-3.5">
+                          <Link href={`/faculty/interviews/${iv.id}`} className="font-semibold text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))]">
+                            {iv.student?.fullName ?? "Student"}
+                          </Link>
+                          {iv.title && <p className="max-w-[16rem] truncate text-xs text-[hsl(var(--muted-foreground))]">{iv.title}</p>}
+                        </td>
+                        <td className="px-3 py-3.5 tabular-nums text-[hsl(var(--foreground)/0.8)]">{iv.student?.registrationNumber ?? "—"}</td>
+                        <td className="px-3 py-3.5">{typeLabel(iv.type)}</td>
+                        <td className="px-3 py-3.5 whitespace-nowrap">
+                          <p className="font-medium">{formatDay(iv.scheduledAt)}</p>
+                          <p className="text-xs text-[hsl(var(--muted-foreground))]">{formatTime(iv.scheduledAt)}</p>
+                        </td>
+                        <td className="px-3 py-3.5 whitespace-nowrap">{iv.durationMinutes ?? 60} min</td>
+                        <td className="px-3 py-3.5"><InterviewStatusBadge status={status} /></td>
+                        <td className="px-5 py-3.5">
+                          <InterviewActions interview={iv} now={now} onReschedule={() => setRescheduleTarget(iv)} onCancel={() => setCancelTarget(iv)} />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </section>
 
           <section aria-labelledby="fac-slots" className="space-y-3">
             <div className="flex items-center justify-between">
-              <h2 id="fac-slots" className="text-xl font-bold text-[hsl(var(--foreground))]">My Slots</h2>
-              <button type="button" onClick={() => setCreateOpen(true)} className="inline-flex items-center gap-1.5 text-sm font-semibold text-[hsl(var(--primary))] hover:underline">
-                <CalendarPlus className="h-4 w-4" aria-hidden="true" />
+              <div>
+                <h2 id="fac-slots" className="text-xl font-bold text-[hsl(var(--foreground))]">Open Slots</h2>
+                <p className="text-sm text-[hsl(var(--muted-foreground))]">Times any student can book. {activeSlots.filter((s) => s.status === "OPEN").length} open.</p>
+              </div>
+              <button type="button" onClick={() => setSlotDialogOpen(true)} className="inline-flex items-center gap-1.5 text-sm font-semibold text-[hsl(var(--primary))] hover:underline">
+                <DoorOpen className="h-4 w-4" aria-hidden="true" />
                 Open a slot
               </button>
             </div>
             {slots.length === 0 ? (
-              <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-[hsl(var(--primary)/0.3)] bg-white px-6 py-10 text-center">
-                <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[hsl(var(--primary)/0.1)] text-[hsl(var(--primary))]">
-                  <Video className="h-7 w-7" aria-hidden="true" />
-                </span>
-                <p className="font-semibold text-[hsl(var(--foreground))]">No slots yet</p>
-                <p className="max-w-[26rem] text-sm text-[hsl(var(--muted-foreground))]">Open a time with your meeting link. Students will see it and can book it right away.</p>
-              </div>
+              <p className="rounded-2xl border border-dashed border-[hsl(var(--border))] bg-white px-6 py-8 text-center text-sm text-[hsl(var(--muted-foreground))]">
+                No open slots. Use Schedule Interview to invite a specific student, or open a slot any student can book.
+              </p>
             ) : (
               <ul className="overflow-hidden rounded-2xl border border-[hsl(var(--border)/0.8)] bg-white shadow-[var(--shadow-card)]">
-                {slots.map((slot) => <SlotRow key={slot.id} slot={slot} now={now} onCancel={() => setCancelTarget(slot)} />)}
+                {slots.map((slot) => <SlotRow key={slot.id} slot={slot} now={now} onCancel={() => setCancelSlotTarget(slot)} />)}
               </ul>
             )}
           </section>
-
-          {past.length > 0 && (
-            <section aria-labelledby="fac-past" className="space-y-3">
-              <h2 id="fac-past" className="text-xl font-bold text-[hsl(var(--foreground))]">Past Interviews</h2>
-              <ul className="overflow-hidden rounded-2xl border border-[hsl(var(--border)/0.8)] bg-white shadow-[var(--shadow-card)]">
-                {past.map((iv) => <InterviewRow key={iv.id} interview={iv} now={now} />)}
-              </ul>
-            </section>
-          )}
         </>
       )}
 
-      <CreateSlotDialog open={createOpen} onOpenChange={setCreateOpen} />
+      <ScheduleInterviewDialog open={scheduleOpen} onOpenChange={setScheduleOpen} />
+      <CreateSlotDialog open={slotDialogOpen} onOpenChange={setSlotDialogOpen} />
+      <RescheduleInterviewDialog interview={rescheduleTarget} onOpenChange={(o) => !o && setRescheduleTarget(null)} />
       <ReasonDialog
         open={!!cancelTarget}
-        title={cancelTarget?.status === "BOOKED" ? "Cancel this booked interview?" : "Remove this slot?"}
+        title="Cancel this interview?"
+        description={cancelTarget ? `${cancelTarget.student?.fullName ?? "The student"}'s ${typeLabel(cancelTarget.type)} on ${formatDay(cancelTarget.scheduledAt)} at ${formatTime(cancelTarget.scheduledAt)} will be cancelled and they will be notified.` : ""}
+        reasonLabel="Reason for the student (optional)"
+        confirmLabel="Cancel interview"
+        isPending={cancelInterview.isPending}
+        onConfirm={(reason) =>
+          cancelTarget &&
+          cancelInterview.mutate(
+            { id: cancelTarget.id, reason },
+            {
+              onSuccess: () => {
+                toast.success("Interview cancelled", { description: "The student has been notified." });
+                setCancelTarget(null);
+              },
+              onError: (error) => toast.error("Couldn't cancel", { description: error instanceof ApiError ? error.message : "Please try again." }),
+            },
+          )
+        }
+        onOpenChange={(open) => !open && setCancelTarget(null)}
+      />
+      <ReasonDialog
+        open={!!cancelSlotTarget}
+        title={cancelSlotTarget?.status === "BOOKED" ? "Cancel this booked interview?" : "Remove this slot?"}
         description={
-          cancelTarget
-            ? cancelTarget.status === "BOOKED"
-              ? `${cancelTarget.student?.fullName ?? "The student"} booked this ${cancelTarget.type} interview on ${formatDay(cancelTarget.startsAt)} at ${formatTime(cancelTarget.startsAt)}. They will be notified, with your reason if you give one.`
-              : `${cancelTarget.type} slot on ${formatDay(cancelTarget.startsAt)} at ${formatTime(cancelTarget.startsAt)} will no longer be bookable.`
+          cancelSlotTarget
+            ? cancelSlotTarget.status === "BOOKED"
+              ? `${cancelSlotTarget.student?.fullName ?? "The student"} booked this ${cancelSlotTarget.type} interview on ${formatDay(cancelSlotTarget.startsAt)} at ${formatTime(cancelSlotTarget.startsAt)}. They will be notified, with your reason if you give one.`
+              : `${cancelSlotTarget.type} slot on ${formatDay(cancelSlotTarget.startsAt)} at ${formatTime(cancelSlotTarget.startsAt)} will no longer be bookable.`
             : ""
         }
-        reasonLabel={cancelTarget?.status === "BOOKED" ? "Reason for the student (optional)" : "Note (optional)"}
-        confirmLabel={cancelTarget?.status === "BOOKED" ? "Cancel interview" : "Remove slot"}
+        reasonLabel={cancelSlotTarget?.status === "BOOKED" ? "Reason for the student (optional)" : "Note (optional)"}
+        confirmLabel={cancelSlotTarget?.status === "BOOKED" ? "Cancel interview" : "Remove slot"}
         isPending={cancelSlot.isPending}
-        onConfirm={confirmCancel}
-        onOpenChange={(open) => !open && setCancelTarget(null)}
+        onConfirm={(reason) =>
+          cancelSlotTarget &&
+          cancelSlot.mutate(
+            { id: cancelSlotTarget.id, reason },
+            {
+              onSuccess: () => {
+                toast.success(cancelSlotTarget.status === "BOOKED" ? "Interview cancelled" : "Slot removed");
+                setCancelSlotTarget(null);
+              },
+              onError: (error) => toast.error("Couldn't cancel", { description: error instanceof ApiError ? error.message : "Please try again." }),
+            },
+          )
+        }
+        onOpenChange={(open) => !open && setCancelSlotTarget(null)}
       />
     </div>
   );

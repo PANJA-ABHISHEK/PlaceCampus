@@ -26,6 +26,16 @@ class ApiClient {
     this.accessToken = token;
   }
 
+  /** The current access token, for non-HTTP clients such as the interview-room socket. */
+  getAccessToken() {
+    return this.accessToken;
+  }
+
+  /** Origin of the API server (e.g. http://localhost:4000), for Socket.IO. */
+  get origin() {
+    return new URL(this.baseUrl).origin;
+  }
+
   private buildUrl(path: string, params?: Record<string, string>): string {
     const url = new URL(`${this.baseUrl}${path}`);
     if (params) {
