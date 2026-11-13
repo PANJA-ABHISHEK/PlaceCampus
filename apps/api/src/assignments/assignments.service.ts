@@ -115,6 +115,29 @@ export class AssignmentsService implements OnModuleInit, OnApplicationBootstrap 
       .exec();
   }
 
+  /** The student's active primary mentor (contact details for the student portal), or null. */
+  async mentorFor(studentId: string) {
+    const assignment = await this.assignmentModel
+      .findOne({ studentId, ...activeFilter(), purposes: FacultyAssignmentPurpose.MENTOR })
+      .lean()
+      .exec();
+    if (!assignment) return null;
+    const faculty = await this.userModel
+      .findById(assignment.facultyUserId)
+      .select('fullName email department designation')
+      .lean()
+      .exec();
+    if (!faculty) return null;
+    return {
+      facultyUserId: String(faculty._id),
+      fullName: faculty.fullName,
+      email: faculty.email,
+      department: faculty.department ?? null,
+      designation: faculty.designation ?? null,
+      since: assignment.validFrom,
+    };
+  }
+
   async isAssigned(facultyUserId: string, studentId: string) {
     const found = await this.assignmentModel
       .exists({ facultyUserId, studentId, ...activeFilter() })

@@ -19,6 +19,8 @@ import { AuditService } from '../audit/audit.service.js';
 import { AVAILABLE_FACULTY, activeFilter } from './assignments.service.js';
 
 export const DEFAULT_MENTEE_TARGET = 40;
+/** Actor recorded for automatic runs (assignedBy 'system'; audit entries carry no user). */
+export const SYSTEM_ACTOR = { userId: 'system', role: 'system' } as const;
 const CHUNK = 200;
 
 export interface AssignmentHistoryEntry {
@@ -46,7 +48,12 @@ export interface Actor {
   role: string;
 }
 
-type UnassignedReason = 'DEPARTMENT_UNMAPPED' | 'NO_FACULTY_IN_DEPARTMENT' | 'ONLY_CONFLICTED_FACULTY' | 'ACCOUNT_DEACTIVATED';
+type UnassignedReason =
+  | 'DEPARTMENT_UNMAPPED'
+  | 'NO_FACULTY_IN_DEPARTMENT'
+  | 'ONLY_CONFLICTED_FACULTY'
+  | 'ACCOUNT_DEACTIVATED'
+  | 'NO_STUDENT_RECORD';
 
 export interface PlannedAssignment {
   studentId: string;
@@ -76,22 +83,32 @@ export class AssignmentAdminService {
   /* Shared data loading                                                 */
   /* ------------------------------------------------------------------ */
 
-  private async students(departmentCodes?: string[]) {
-    const profiles = await this.profileModel
-      .find(departmentCodes?.length ? { department: { $in: departmentCodes } } : {})
-      .select('userId registrationNumber department program source batch derived isDemoData')
-      .lean()
-      .exec();
-    const ids = profiles.map((p) => p.userId).filter((id) => Types.ObjectId.isValid(id));
+  /**
+   * Every student account, joined to its profile when one exists. Students
+   * without a profile (self-registered, never opened their profile) are kept
+   * so they are counted and surface in the exception queue instead of vanishing.
+   */
+  private async students() {
     const users = await this.userModel
-      .find({ _id: { $in: ids }, role: UserRole.STUDENT })
+      .find({ role: UserRole.STUDENT })
       .select('fullName accountStatus isDemoData')
       .lean()
       .exec();
-    const byId = new Map(users.map((u) => [String(u._id), u]));
-    return profiles
-      .filter((p) => byId.has(p.userId))
-      .map((p) => ({ ...p, user: byId.get(p.userId)! }));
+    const profiles = await this.profileModel
+      .find({ userId: { $in: users.map((u) => String(u._id)) } })
+      .select('userId registrationNumber department program source batch derived isDemoData')
+      .lean()
+      .exec();
+    const byUser = new Map(profiles.map((p) => [String(p.userId), p]));
+    return users.map((u) => {
+      const profile = byUser.get(String(u._id));
+      return {
+        ...(profile ?? { isDemoData: u.isDemoData }),
+        userId: String(u._id),
+        hasProfile: !!profile,
+        user: u,
+      } as Partial<NonNullable<typeof profile>> & { userId: string; hasProfile: boolean; user: typeof u; isDemoData?: boolean };
+    });
   }
 
   private async faculty() {
@@ -173,6 +190,10 @@ export class AssignmentAdminService {
       const base = { studentId: s.userId, registrationNumber: s.registrationNumber, fullName: s.user.fullName, school: s.source?.school, department: s.department };
       if (s.user.accountStatus === 'DEACTIVATED') {
         unassigned.push({ ...base, reason: 'ACCOUNT_DEACTIVATED' });
+        continue;
+      }
+      if (!s.hasProfile) {
+        unassigned.push({ ...base, reason: 'NO_STUDENT_RECORD' });
         continue;
       }
       if (!s.department) {
@@ -275,27 +296,33 @@ export class AssignmentAdminService {
    * MENTOR assignment per planned student, in transactional chunks. The partial
    * unique index guarantees no student ever gets two active primary mentors.
    */
-  async commit(opts: { departmentCodes?: string[]; target?: number }, actor: Actor) {
+  async commit(
+    opts: { departmentCodes?: string[]; target?: number },
+    actor: Actor,
+    behaviour: { notify?: boolean; auditAction?: string; trigger?: string } = {},
+  ) {
     const result = await this.plan(opts);
     const runId = randomUUID();
-    let created = 0;
     let skipped = 0;
+    const createdPairs: PlannedAssignment[] = [];
     for (let i = 0; i < result.planned.length; i += CHUNK) {
-      const chunk = result.planned.slice(i, i + CHUNK).map((p) => ({
+      const slice = result.planned.slice(i, i + CHUNK);
+      const chunk = slice.map((p) => ({
         facultyUserId: p.facultyUserId, studentId: p.studentId, purposes: [FacultyAssignmentPurpose.MENTOR], status: 'ACTIVE',
         source: 'ALLOCATION', allocationRunId: runId, assignedBy: actor.userId, validFrom: new Date(),
+        reason: behaviour.trigger ? `Automatic allocation (${behaviour.trigger})` : undefined,
       }));
       try {
         await this.withTransaction(async (session) => {
           await this.assignmentModel.insertMany(chunk, session ? { session } : {});
         });
-        created += chunk.length;
+        createdPairs.push(...slice);
       } catch {
         // A concurrent manual assignment won the race for some students: insert the rest individually.
-        for (const doc of chunk) {
+        for (const [index, doc] of chunk.entries()) {
           try {
             await this.assignmentModel.create(doc);
-            created++;
+            createdPairs.push(slice[index]);
           } catch (error: any) {
             if (error?.code === 11000) skipped++;
             else throw error;
@@ -303,12 +330,43 @@ export class AssignmentAdminService {
         }
       }
     }
+    const created = createdPairs.length;
     await this.audit.logAction({
-      actorId: actor.userId, actorRole: actor.role, action: 'ASSIGNMENT_ALLOCATION_COMMITTED', resourceType: 'FACULTY_ASSIGNMENT',
-      metadata: { runId, target: result.target, created, skipped, totals: result.totals, unassignedByReason: result.unassignedByReason, departments: result.departments },
+      actorId: actor.userId === SYSTEM_ACTOR.userId ? undefined : actor.userId, actorRole: actor.role,
+      action: behaviour.auditAction ?? 'ASSIGNMENT_ALLOCATION_COMMITTED', resourceType: 'FACULTY_ASSIGNMENT',
+      metadata: { runId, trigger: behaviour.trigger, target: result.target, created, skipped, totals: result.totals, unassignedByReason: result.unassignedByReason, departments: result.departments },
     });
+    if (behaviour.notify && createdPairs.length) await this.notifyAllocated(createdPairs);
     const { planned, unassigned, ...summary } = result;
     return { runId, created, skipped, ...summary, unassigned: unassigned.slice(0, 500) };
+  }
+
+  /**
+   * Automatic mentor allocation: the same balanced, department-scoped plan as
+   * the admin "Allocate" button, run by the system when new students, faculty
+   * or department mappings appear. Already-mentored students are untouched and
+   * the partial unique index prevents double mentors under concurrency.
+   */
+  async autoAllocate(trigger: string) {
+    return this.commit({}, SYSTEM_ACTOR, {
+      notify: true,
+      auditAction: 'ASSIGNMENT_AUTO_ALLOCATED',
+      trigger,
+    });
+  }
+
+  /** Tells each student and mentor about a new allocation (reuses the assignment.changed notifications). */
+  private async notifyAllocated(pairs: PlannedAssignment[]) {
+    const ids = [...new Set(pairs.flatMap((p) => [p.studentId, p.facultyUserId]))].filter((id) => Types.ObjectId.isValid(id));
+    const people = await this.userModel.find({ _id: { $in: ids } }).select('fullName').lean().exec();
+    const name = new Map(people.map((p) => [String(p._id), p.fullName]));
+    for (const p of pairs) {
+      this.events.emit('assignment.changed', {
+        studentId: p.studentId, studentName: name.get(p.studentId) ?? 'A student',
+        newFacultyId: p.facultyUserId, newFacultyName: name.get(p.facultyUserId) ?? 'A faculty member',
+        purposes: [FacultyAssignmentPurpose.MENTOR],
+      });
+    }
   }
 
   /* ------------------------------------------------------------------ */

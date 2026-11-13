@@ -3,6 +3,8 @@ import { FacultyService } from './faculty.service.js';
 import { getModelToken } from '@nestjs/mongoose';
 import { Evidence } from '../evidence/schemas/evidence.schema.js';
 import { VerificationRecord } from '../verification/schemas/verification-record.schema.js';
+import { EvidenceExtraction } from '../verification/schemas/evidence-extraction.schema.js';
+import { AiAnalysis } from '../verification/schemas/ai-analysis.schema.js';
 import { StorageService } from '../storage/storage.service.js';
 import { EvidenceStatus } from '@placecampus/shared-types';
 import { ReviewAction } from './dto/review-decision.dto.js';
@@ -58,6 +60,24 @@ describe('FacultyService', () => {
         {
           provide: getModelToken(VerificationRecord.name),
           useValue: mockRecordModel,
+        },
+        {
+          provide: getModelToken(AiAnalysis.name),
+          useValue: {
+            findById: vi.fn().mockReturnValue({ lean: vi.fn().mockReturnValue({ exec: vi.fn().mockResolvedValue(null) }) }),
+            findOne: vi.fn().mockReturnValue({
+              sort: vi.fn().mockReturnValue({ lean: vi.fn().mockReturnValue({ exec: vi.fn().mockResolvedValue(null) }) }),
+            }),
+          },
+        },
+        {
+          provide: getModelToken(EvidenceExtraction.name),
+          useValue: {
+            findById: vi.fn().mockReturnValue({ lean: vi.fn().mockReturnValue({ exec: vi.fn().mockResolvedValue(null) }) }),
+            findOne: vi.fn().mockReturnValue({
+              sort: vi.fn().mockReturnValue({ lean: vi.fn().mockReturnValue({ exec: vi.fn().mockResolvedValue(null) }) }),
+            }),
+          },
         },
         { provide: getModelToken(User.name), useValue: lookup() },
         { provide: getModelToken(StudentProfile.name), useValue: lookup() },
@@ -227,6 +247,25 @@ describe('FacultyService', () => {
 
       await service.getPendingReviews({ userId: 'admin1', role: 'admin' });
       expect(mockEvidenceModel.find.mock.calls.at(-1)[0].reviewerId).toBeUndefined();
+    });
+  });
+
+  describe('reviewCounts', () => {
+    it('counts own resubmission items and decisions since the start of the month', async () => {
+      mockEvidenceModel.countDocuments = vi.fn().mockResolvedValue(2);
+      mockRecordModel.countDocuments = vi.fn().mockResolvedValue(12);
+
+      const counts = await service.reviewCounts('faculty123', new Date(2026, 10, 9, 15, 30));
+
+      expect(counts).toEqual({ awaitingResubmission: 2, reviewedThisMonth: 12 });
+      expect(mockEvidenceModel.countDocuments).toHaveBeenCalledWith({
+        reviewerId: 'faculty123',
+        status: EvidenceStatus.RESUBMISSION_REQUESTED,
+      });
+      expect(mockRecordModel.countDocuments).toHaveBeenCalledWith({
+        reviewedBy: 'faculty123',
+        reviewedAt: { $gte: new Date(2026, 10, 1).toISOString() },
+      });
     });
   });
 });

@@ -9,6 +9,8 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Evidence } from '../evidence/schemas/evidence.schema.js';
 import { VerificationRecord } from '../verification/schemas/verification-record.schema.js';
+import { EvidenceExtraction } from '../verification/schemas/evidence-extraction.schema.js';
+import { AiAnalysis } from '../verification/schemas/ai-analysis.schema.js';
 import { EvidenceStatus, UserRole } from '@placecampus/shared-types';
 import { ReviewDecisionDto, ReviewAction } from './dto/review-decision.dto.js';
 import { StorageService } from '../storage/storage.service.js';
@@ -46,6 +48,10 @@ export class FacultyService {
     @InjectModel(Evidence.name) private evidenceModel: Model<Evidence>,
     @InjectModel(VerificationRecord.name)
     private recordModel: Model<VerificationRecord>,
+    @InjectModel(EvidenceExtraction.name)
+    private extractionModel: Model<EvidenceExtraction>,
+    @InjectModel(AiAnalysis.name)
+    private analysisModel: Model<AiAnalysis>,
     @InjectModel(User.name) private userModel: Model<UserDocument>,
     @InjectModel(StudentProfile.name)
     private profileModel: Model<StudentProfileDocument>,
@@ -76,15 +82,15 @@ export class FacultyService {
       this.userModel.find({ _id: { $in: ids } }).select('fullName').lean().exec(),
       this.profileModel
         .find({ userId: { $in: ids } })
-        .select('userId registrationNumber')
+        .select('userId registrationNumber department')
         .lean()
         .exec(),
     ]);
-    const reg = new Map(profiles.map((p: any) => [String(p.userId), p.registrationNumber]));
+    const profileByUser = new Map(profiles.map((p: any) => [String(p.userId), p]));
     return new Map(
       users.map((u: any) => [
         String(u._id),
-        { id: String(u._id), fullName: u.fullName, registrationNumber: reg.get(String(u._id)) },
+        { id: String(u._id), fullName: u.fullName, registrationNumber: profileByUser.get(String(u._id))?.registrationNumber, department: profileByUser.get(String(u._id))?.department ?? null },
       ]),
     );
   }
@@ -109,6 +115,21 @@ export class FacultyService {
         new Date(e.reviewDueAt).getTime() < now,
       student: refs?.get(String(e.studentId)) ?? null,
     };
+  }
+
+  /**
+   * Queue counts not covered by the dashboard's pending/overdue figures:
+   * items waiting on a student resubmission, and decisions this reviewer
+   * recorded since the start of the current month.
+   */
+  async reviewCounts(facultyId: string, now = new Date()) {
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const [awaitingResubmission, reviewedThisMonth] = await Promise.all([
+      this.evidenceModel.countDocuments({ reviewerId: facultyId, status: EvidenceStatus.RESUBMISSION_REQUESTED }),
+      // `reviewedAt` is stored as an ISO string, which sorts chronologically.
+      this.recordModel.countDocuments({ reviewedBy: facultyId, reviewedAt: { $gte: monthStart.toISOString() } }),
+    ]);
+    return { awaitingResubmission, reviewedThisMonth };
   }
 
   async getPendingReviews(viewer: ReviewViewer, query: any = {}): Promise<any[]> {
@@ -155,10 +176,50 @@ export class FacultyService {
       .lean()
       .exec();
 
+    const extraction = record?.extractionId
+      ? await this.extractionModel.findById(record.extractionId).lean().exec()
+      : await this.extractionModel.findOne({ evidenceId }).sort({ version: -1, createdAt: -1 }).lean().exec();
+
+    const analysis = record?.aiAnalysisId
+      ? await this.analysisModel.findById(record.aiAnalysisId).lean().exec()
+      : await this.analysisModel.findOne({ evidenceId }).sort({ version: -1, createdAt: -1 }).lean().exec();
+
     const refs = await this.studentRefs([evidence.studentId]);
     return {
+      aiAnalysis: analysis
+        ? {
+            id: analysis._id.toString(),
+            version: analysis.version,
+            provider: analysis.provider,
+            model: analysis.model,
+            promptVersion: analysis.promptVersion,
+            status: analysis.status,
+            result: analysis.result ?? null,
+            postValidation: analysis.postValidation,
+            latencyMs: analysis.latencyMs,
+            skippedReason: analysis.status === 'DISABLED' ? analysis.errorDetail : undefined,
+            createdAt: (analysis as any).createdAt,
+          }
+        : null,
       evidence: this.serialize(evidence, refs),
       verificationRecord: record ? { ...record, id: record._id.toString() } : null,
+      extraction: extraction
+        ? {
+            id: extraction._id.toString(),
+            version: extraction.version,
+            method: extraction.method,
+            status: extraction.status,
+            text: extraction.text,
+            textTruncated: extraction.textTruncated,
+            charCount: extraction.charCount,
+            wordCount: extraction.wordCount,
+            ocrConfidence: extraction.ocrConfidence,
+            pageCount: extraction.pageCount,
+            pages: extraction.pages,
+            durationMs: extraction.durationMs,
+            error: extraction.error,
+          }
+        : null,
     };
   }
 

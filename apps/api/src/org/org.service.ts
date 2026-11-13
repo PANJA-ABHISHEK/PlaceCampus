@@ -3,8 +3,10 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Model } from 'mongoose';
 import { UserRole } from '@placecampus/shared-types';
 import { LookupType, OrgLookup, OrgLookupDocument } from './schemas/org-lookup.schema.js';
@@ -58,6 +60,7 @@ export class OrgService {
     @InjectModel(User.name) private userModel: Model<UserDocument>,
     @InjectModel(StudentProfile.name) private profileModel: Model<StudentProfileDocument>,
     private audit: AuditService,
+    @Optional() private events?: EventEmitter2,
   ) {}
 
   /* ------------------------------------------------------------------ */
@@ -225,6 +228,10 @@ export class OrgService {
     await mapping.save();
 
     const applied = await this.applyMapping(mapping.type, mapping.sourceValue, code ?? null);
+    // Students/faculty who just received a department can now get a mentor.
+    if (mapping.type === 'DEPARTMENT' && (applied.students || applied.faculty)) {
+      this.events?.emit('org.mapping_applied', { type: mapping.type, code: code ?? null, applied });
+    }
     await this.audit.logAction({
       actorId: actor.userId, actorRole: actor.role, action: `ORG_MAPPING_${decision.action}`,
       resourceType: 'IMPORT_MAPPING', resourceId: String(mapping._id), reason: decision.reason,

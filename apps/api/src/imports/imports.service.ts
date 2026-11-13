@@ -25,6 +25,7 @@ import { FacultyAssignment, FacultyAssignmentDocument } from '../assignments/sch
 import { OrgService, normalizeSource, Actor } from '../org/org.service.js';
 import { AuditService } from '../audit/audit.service.js';
 import { StorageService } from '../storage/storage.service.js';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 
 export const IMPORT_CHUNK_SIZE = 200;
 export const MAX_IMPORT_ROWS = 10_000;
@@ -70,6 +71,7 @@ export class ImportsService {
     private audit: AuditService,
     private storage: StorageService,
     @Optional() @InjectQueue('imports') private queue?: Queue,
+    @Optional() private events?: EventEmitter2,
   ) {}
 
   private allowedDomains() {
@@ -684,6 +686,8 @@ export class ImportsService {
         actorId: job.confirmedBy ?? job.uploadedBy, actorRole: UserRole.ADMIN, action: 'IMPORT_COMMITTED', resourceType: 'IMPORT_BATCH', resourceId: id,
         success: !p.failed, metadata: { progress: p, status: fresh!.status, isDemoData: job.isDemoData, sourceNotes: job.sourceNotes.map((n) => n.text) },
       });
+      // New students or faculty may now be allocatable (auto mentor allocation listens).
+      if (p.created + p.updated > 0) this.events?.emit('import.committed', { jobId: id, kind: job.kind });
     } catch (error: any) {
       this.logger.error(`Commit ${id} failed: ${error.message}`);
       await this.jobModel.updateOne({ _id: id }, { $set: { status: 'COMMIT_FAILED', failureReason: error.message } }).exec();
