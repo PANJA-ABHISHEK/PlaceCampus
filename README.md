@@ -8,6 +8,7 @@ PlaceCampus connects students, faculty, placement teams and recruiters in one sy
 
 ## Contents
 
+- [Screenshots](#screenshots)
 - [Features by role](#features-by-role)
 - [Tech stack](#tech-stack)
 - [Repository structure](#repository-structure)
@@ -21,6 +22,22 @@ PlaceCampus connects students, faculty, placement teams and recruiters in one sy
 - [Git workflow](#git-workflow)
 - [Project documents](#project-documents)
 - [Known limitations and roadmap](#known-limitations-and-roadmap)
+
+---
+
+## Screenshots
+
+### Landing page
+
+![PlaceCampus landing page](docs/screenshots/placecampus-home.png)
+
+### Sign in
+
+![PlaceCampus sign-in page](docs/screenshots/placecampus-login.png)
+
+### Admin dashboard
+
+![PlaceCampus admin dashboard](docs/screenshots/placecampus-admin-dashboard.png)
 
 ---
 
