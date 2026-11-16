@@ -6,25 +6,6 @@ PlaceCampus connects students, faculty, placement teams and recruiters in one sy
 
 ---
 
-## Contents
-
-- [Screenshots](#screenshots)
-- [Features by role](#features-by-role)
-- [Tech stack](#tech-stack)
-- [Repository structure](#repository-structure)
-- [Getting started](#getting-started)
-- [Demo accounts](#demo-accounts)
-- [Environment variables](#environment-variables)
-- [Authentication and roles](#authentication-and-roles)
-- [Web routes](#web-routes)
-- [API overview](#api-overview)
-- [Testing and quality checks](#testing-and-quality-checks)
-- [Git workflow](#git-workflow)
-- [Project documents](#project-documents)
-- [Known limitations and roadmap](#known-limitations-and-roadmap)
-
----
-
 ## Screenshots
 
 ### Landing page
