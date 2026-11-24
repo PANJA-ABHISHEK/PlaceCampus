@@ -3,36 +3,20 @@
 import * as React from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import {
-  CircleAlert,
-  PartyPopper,
-  RotateCcw,
-  SearchX,
-  Target,
-} from "lucide-react";
-import type { GapPriority, SkillGapStatus } from "@placecampus/shared-types";
+import { ArrowUpRight, ChartNoAxesColumnIncreasing, CircleAlert, PartyPopper, RotateCcw, SearchX, Target } from "lucide-react";
 import { useSkillGaps } from "@/features/skill-gaps/hooks/use-skill-gaps";
+import { AnalysisNotReady, cardClassName } from "@/features/skill-gaps/components/gap-sections";
 import {
-  AnalysisNotReady,
-  PriorityChip,
-  cardClassName,
-} from "@/features/skill-gaps/components/gap-sections";
-import {
-  PRIORITY_META,
-  PRIORITY_ORDER,
-  STATUS_META,
-  STATUS_ORDER,
-  levelLabel,
-  prepProgressBySkill,
-} from "@/features/skill-gaps/lib/gap-meta";
-import {
-  useCreatePreparationPlan,
-  usePreparationPlans,
-} from "@/features/preparation/hooks/use-preparation";
-import {
-  useAssessments,
-  useStudentAssessmentHistory,
-} from "@/features/assessments/hooks/use-assessments";
+  GapCard,
+  GapCardSkeleton,
+  GapFiltersBar,
+  GapSummaryCards,
+  learningStatus,
+  type GapFilters,
+} from "@/features/skill-gaps/components/gap-list";
+import { prepProgressBySkill } from "@/features/skill-gaps/lib/gap-meta";
+import { useCreatePreparationPlan, usePreparationPlans } from "@/features/preparation/hooks/use-preparation";
+import { useAssessments, useStudentAssessmentHistory } from "@/features/assessments/hooks/use-assessments";
 import { useStudentProfile } from "@/features/student/hooks/use-student-profile";
 import { useMyEvidence } from "@/features/evidence/hooks/use-evidence";
 import { getProfileCompletion } from "@/features/student/lib/profile-completion";
@@ -40,46 +24,16 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ApiError } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
 
-type Filter<T extends string> = T | "ALL";
+const INITIAL_FILTERS: GapFilters = { search: "", priority: "ALL", status: "ALL", category: "ALL" };
 
 function GapsSkeleton() {
   return (
     <div className="space-y-4" aria-busy="true">
       <span className="sr-only">Loading skill gaps…</span>
-      <Skeleton className="h-[420px] rounded-2xl" />
-    </div>
-  );
-}
-
-function FilterSelect<T extends string>({
-  label,
-  value,
-  onChange,
-  options,
-}: {
-  label: string;
-  value: Filter<T>;
-  onChange: (value: Filter<T>) => void;
-  options: { value: Filter<T>; label: string }[];
-}) {
-  const id = `filter-${label.toLowerCase().replace(/\s+/g, "-")}`;
-  return (
-    <div className="flex min-w-[150px] flex-1 flex-col gap-1 sm:flex-none">
-      <label htmlFor={id} className="text-xs font-semibold text-[hsl(var(--muted-foreground))]">
-        {label}
-      </label>
-      <select
-        id={id}
-        value={value}
-        onChange={(e) => onChange(e.target.value as Filter<T>)}
-        className="h-10 rounded-xl border border-[hsl(var(--border))] bg-white px-3 text-sm text-[hsl(var(--foreground))] transition-colors hover:border-[hsl(var(--primary)/0.4)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--primary)/0.5)]"
-      >
-        {options.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
+      <Skeleton className="h-[86px] rounded-2xl" />
+      {Array.from({ length: 3 }, (_, i) => (
+        <GapCardSkeleton key={i} />
+      ))}
     </div>
   );
 }
@@ -93,45 +47,39 @@ export default function SkillGapsPage() {
   const evidenceQuery = useMyEvidence();
   const createPlan = useCreatePreparationPlan();
 
-  const [priority, setPriority] = React.useState<Filter<GapPriority>>("ALL");
-  const [status, setStatus] = React.useState<Filter<SkillGapStatus>>("ALL");
-  const [category, setCategory] = React.useState<string>("ALL");
+  const [filters, setFilters] = React.useState<GapFilters>(INITIAL_FILTERS);
   const [creatingFor, setCreatingFor] = React.useState<string | null>(null);
 
   const analysis = gapsQuery.data;
-  const progress = React.useMemo(
-    () => prepProgressBySkill(plansQuery.data),
-    [plansQuery.data],
-  );
+  const gaps = React.useMemo(() => analysis?.gaps ?? [], [analysis]);
+  const progress = React.useMemo(() => prepProgressBySkill(plansQuery.data), [plansQuery.data]);
 
   const categories = React.useMemo(
-    () =>
-      [...new Set((analysis?.gaps ?? []).map((g) => g.category ?? "Uncategorised"))].sort(),
-    [analysis],
+    () => [...new Set(gaps.map((g) => g.category ?? "Uncategorised"))].sort(),
+    [gaps],
   );
 
-  const filtered = React.useMemo(
-    () =>
-      (analysis?.gaps ?? []).filter(
-        (g) =>
-          (priority === "ALL" || g.priority === priority) &&
-          (status === "ALL" || g.status === status) &&
-          (category === "ALL" || (g.category ?? "Uncategorised") === category),
-      ),
-    [analysis, priority, status, category],
-  );
+  const filtered = React.useMemo(() => {
+    const query = filters.search.trim().toLowerCase();
+    return gaps.filter(
+      (g) =>
+        (!query || g.skillName.toLowerCase().includes(query)) &&
+        (filters.priority === "ALL" || g.priority === filters.priority) &&
+        (filters.status === "ALL" || learningStatus(progress.get(g.skillId)) === filters.status) &&
+        (filters.category === "ALL" || (g.category ?? "Uncategorised") === filters.category),
+    );
+  }, [gaps, filters, progress]);
 
-  const handleCreatePlan = (driveId: string) => {
-    setCreatingFor(driveId);
+  const handleCreatePlan = (driveId: string, skillId: string) => {
+    setCreatingFor(skillId);
     createPlan.mutate(driveId, {
-      onSuccess: () => toast.success("Preparation plan created. Your tasks are ready in Preparation."),
+      onSuccess: () => toast.success("Learning plan created. Your tasks are ready in Preparation."),
       onError: (error) =>
-        toast.error(error instanceof ApiError ? error.message : "Could not create the preparation plan."),
+        toast.error(error instanceof ApiError ? error.message : "Could not create the learning plan."),
       onSettled: () => setCreatingFor(null),
     });
   };
 
-  const filtersActive = priority !== "ALL" || status !== "ALL" || category !== "ALL";
   const profileCompletion = profileQuery.data ? getProfileCompletion(profileQuery.data) : undefined;
   const profileStatus = {
     detail: profileQuery.isPending
@@ -196,31 +144,48 @@ export default function SkillGapsPage() {
   };
 
   return (
-    <div className="mx-auto w-full max-w-[1120px] space-y-6">
-      <header className="pc-enter flex flex-col gap-1">
-        <div className="flex items-center gap-3">
-          <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-orange-50 text-[hsl(var(--primary))] ring-1 ring-orange-100">
-            <Target className="h-5 w-5" aria-hidden="true" />
+    <div className="mx-auto w-full max-w-[1120px] space-y-5">
+      <header className="pc-enter relative isolate overflow-hidden rounded-[26px] border border-[#F6DCC7] bg-gradient-to-br from-[#FFF8F1] via-[#FFF1E5] to-[#FFE8D5] p-4 shadow-[0_12px_30px_rgba(153,86,37,0.09)] sm:p-5 lg:p-6">
+        <div aria-hidden="true" className="pointer-events-none absolute right-0 top-0 z-0 hidden h-36 w-56 text-[#F28A3D]/[0.12] sm:block">
+          <ChartNoAxesColumnIncreasing className="absolute bottom-0 right-8 h-28 w-36 stroke-[1.4]" />
+          <ArrowUpRight className="absolute right-5 top-1 h-16 w-16 stroke-[1.5]" />
+        </div>
+        <div className="relative z-10 flex items-center gap-4 sm:gap-5">
+          <span className="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-[18px] bg-gradient-to-br from-[#FF8A24] to-[#F05A00] text-white shadow-[0_7px_15px_rgba(240,90,0,0.24)] sm:h-[60px] sm:w-[60px]">
+            <Target className="h-8 w-8 stroke-[2.1] sm:h-9 sm:w-9" aria-hidden="true" />
           </span>
-          <div>
-            <h1 className="text-2xl font-bold tracking-[-0.03em] text-[hsl(var(--foreground))] md:text-[30px]">
-              Skill Gaps
-            </h1>
-            <p className="mt-0.5 text-sm leading-6 text-[hsl(var(--muted-foreground))]">
-              Your verified skills compared with what open placement drives require.
+          <div className="min-w-0">
+            <h1 className="text-[25px] font-extrabold leading-tight tracking-[-0.035em] text-[#142544] sm:text-[31px] lg:text-[34px]">Skill Gaps</h1>
+            <p className="mt-0.5 max-w-2xl text-sm leading-relaxed text-[#536176] sm:text-[15px]">
+              Identify the skills you need to improve to become placement-ready.
             </p>
           </div>
         </div>
+
+        {gapsQuery.isLoading ? (
+          <div className="relative z-10 mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3" aria-hidden="true">
+            {Array.from({ length: 3 }, (_, i) => <Skeleton key={i} className="h-[88px] rounded-[22px] bg-white/70" />)}
+          </div>
+        ) : analysis?.sufficientData && analysis.drivesAnalyzed > 0 ? (
+          <div className="relative z-10 mt-4">
+            <GapSummaryCards
+              total={gaps.length}
+              high={gaps.filter((g) => g.priority === "HIGH").length}
+              completed={analysis.skillsMet ?? 0}
+              drives={analysis.drivesAnalyzed}
+            />
+          </div>
+        ) : null}
       </header>
 
       {gapsQuery.isLoading ? (
         <GapsSkeleton />
       ) : gapsQuery.isError ? (
-        <div className="flex flex-col items-center gap-3 rounded-2xl border border-red-200 bg-red-50/60 px-6 py-12 text-center dark:border-red-500/30 dark:bg-red-500/10">
+        <div className="flex flex-col items-center gap-3 rounded-2xl border border-red-200 bg-red-50/60 px-6 py-12 text-center">
           <CircleAlert className="h-8 w-8 text-red-600" aria-hidden="true" />
           <div>
-            <p className="font-semibold text-red-900 dark:text-red-200">We couldn&apos;t load your skill gaps</p>
-            <p className="mt-1 text-sm text-red-800/80 dark:text-red-200/80">
+            <p className="font-semibold text-red-900">We couldn&apos;t load your skill gaps</p>
+            <p className="mt-1 text-sm text-red-800/80">
               {gapsQuery.error instanceof Error ? gapsQuery.error.message : "Please try again."}
             </p>
           </div>
@@ -234,15 +199,11 @@ export default function SkillGapsPage() {
           </button>
         </div>
       ) : !analysis || !analysis.sufficientData ? (
-        <AnalysisNotReady
-          profileStatus={profileStatus}
-          evidenceStatus={evidenceStatus}
-          assessmentStatus={assessmentStatus}
-        />
+        <AnalysisNotReady profileStatus={profileStatus} evidenceStatus={evidenceStatus} assessmentStatus={assessmentStatus} />
       ) : analysis.drivesAnalyzed === 0 ? (
         <section className={cn(cardClassName, "pc-enter flex flex-col items-center gap-3 px-6 py-14 text-center")}>
           <SearchX className="h-8 w-8 text-[hsl(var(--muted-foreground))]" aria-hidden="true" />
-          <h2 className="text-xl font-bold text-[hsl(var(--foreground))]">No drive requirements to compare yet</h2>
+          <h2 className="text-xl font-bold text-[#14213D]">No drive requirements to compare yet</h2>
           <p className="max-w-[32rem] text-sm text-[hsl(var(--muted-foreground))]">
             You have {analysis.verifiedSkillCount} verified skill{analysis.verifiedSkillCount === 1 ? "" : "s"}, but
             no published placement drive lists skill requirements right now. Gaps will appear here as soon as one does.
@@ -256,132 +217,43 @@ export default function SkillGapsPage() {
         </section>
       ) : (
         <>
-          {analysis.gaps.length === 0 ? (
+          {gaps.length === 0 ? (
             <section className={cn(cardClassName, "flex flex-col items-center gap-3 px-6 py-12 text-center")}>
               <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600">
                 <PartyPopper className="h-7 w-7" aria-hidden="true" />
               </span>
-              <h2 className="text-xl font-bold text-[hsl(var(--foreground))]">No skill gaps right now</h2>
+              <h2 className="text-xl font-bold text-[#14213D]">No skill gaps right now</h2>
               <p className="max-w-[32rem] text-sm text-[hsl(var(--muted-foreground))]">
                 Your verified skills meet every skill requirement of the {analysis.drivesAnalyzed} open drive
-                {analysis.drivesAnalyzed === 1 ? "" : "s"}.
+                {analysis.drivesAnalyzed === 1 ? "" : "s"}. Keep an eye on new drives as they are published.
               </p>
+              <Link href="/student/drives" className="mt-1 text-sm font-semibold text-[hsl(var(--primary))] hover:underline">
+                Browse placement drives →
+              </Link>
             </section>
           ) : (
-            <section aria-labelledby="gap-list" className="space-y-3.5">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <h2 id="gap-list" className="text-lg font-semibold tracking-tight text-[hsl(var(--foreground))]">Skills to build</h2>
-                  <p className="mt-0.5 text-sm text-[hsl(var(--muted-foreground))]">Current proficiency compared with placement requirements.</p>
-                </div>
-                <p className="text-sm text-[hsl(var(--muted-foreground))]" aria-live="polite">
-                  <span className="font-semibold text-[hsl(var(--foreground))]">{filtered.length}</span> of {analysis.gaps.length} skills
-                </p>
-              </div>
-              <div className={cn(cardClassName, "flex flex-wrap items-end gap-3 p-3.5")}>
-                <FilterSelect<GapPriority>
-                  label="Priority"
-                  value={priority}
-                  onChange={setPriority}
-                  options={[
-                    { value: "ALL", label: "All priorities" },
-                    ...PRIORITY_ORDER.map((p) => ({ value: p, label: PRIORITY_META[p].label })),
-                  ]}
-                />
-                <FilterSelect<SkillGapStatus>
-                  label="Status"
-                  value={status}
-                  onChange={setStatus}
-                  options={[
-                    { value: "ALL", label: "All statuses" },
-                    ...STATUS_ORDER.map((s) => ({ value: s, label: STATUS_META[s].label })),
-                  ]}
-                />
-                {categories.length > 1 && (
-                  <FilterSelect<string>
-                    label="Category"
-                    value={category}
-                    onChange={setCategory}
-                    options={[
-                      { value: "ALL", label: "All categories" },
-                      ...categories.map((c) => ({ value: c, label: c })),
-                    ]}
-                  />
-                )}
-                {filtersActive && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPriority("ALL");
-                      setStatus("ALL");
-                      setCategory("ALL");
-                    }}
-                    className="h-10 self-end rounded-xl px-3 text-sm font-semibold text-[hsl(var(--primary))] hover:bg-[hsl(var(--primary)/0.08)]"
-                  >
-                    Clear filters
-                  </button>
-                )}
-              </div>
+            <section aria-label="Skills to build" className="space-y-3">
+              <GapFiltersBar filters={filters} onChange={setFilters} categories={categories} shown={filtered.length} total={gaps.length} />
 
               {filtered.length === 0 ? (
-                <p className={cn(cardClassName, "px-6 py-10 text-center text-sm text-[hsl(var(--muted-foreground))]")}>
-                  No skill gaps match these filters.
-                </p>
+                <div className={cn(cardClassName, "flex flex-col items-center gap-2 px-6 py-10 text-center")}>
+                  <SearchX className="h-7 w-7 text-[hsl(var(--muted-foreground))]" aria-hidden="true" />
+                  <p className="text-sm font-semibold text-[#14213D]">No skills match these filters</p>
+                  <button type="button" onClick={() => setFilters(INITIAL_FILTERS)} className="text-sm font-semibold text-[hsl(var(--primary))] hover:underline">
+                    Clear filters
+                  </button>
+                </div>
               ) : (
-                <ul className="space-y-2.5">
-                  {filtered.map((gap, index) => (
-                    <li
-                      key={gap.skillId}
-                      className="pc-enter"
-                      style={{ "--pc-delay": `${Math.min(index, 8) * 50}ms` } as React.CSSProperties}
-                    >
-                      {(() => {
-                        const current = gap.currentLevel ?? 0;
-                        const required = Math.max(gap.requiredLevel, 1);
-                        const currentPct = Math.min(100, Math.round((current / required) * 100));
-                        const skillProgress = progress.get(gap.skillId);
-                        const planDrive = gap.drives.find((drive) => !drive.isOptional) ?? gap.drives[0];
-                        return (
-                          <article className="rounded-2xl border border-[hsl(var(--border)/0.8)] bg-white px-4 py-4 shadow-[var(--shadow-card)] transition-shadow duration-200 hover:shadow-[var(--shadow-card-hover)] sm:px-5">
-                            <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-                              <div className="min-w-0 flex-1">
-                                <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
-                                  <h3 className="text-sm font-semibold text-[hsl(var(--foreground))]">{gap.skillName}</h3>
-                                  <span className="text-xs text-[hsl(var(--muted-foreground))]">{gap.category ?? "Uncategorised"}</span>
-                                </div>
-                                <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[hsl(var(--muted-foreground))]">
-                                  <span>Current: <strong className="font-semibold text-[hsl(var(--foreground))]">{levelLabel(gap.currentLevel)}</strong></span>
-                                  <span>Required: <strong className="font-semibold text-[hsl(var(--foreground))]">{levelLabel(gap.requiredLevel)}</strong></span>
-                                  <span>{gap.gapLevel > 0 ? `${gap.gapLevel} level${gap.gapLevel === 1 ? "" : "s"} to close` : STATUS_META[gap.status].label}</span>
-                                </div>
-                                <div className="mt-2 h-1.5 max-w-[360px] overflow-hidden rounded-full bg-slate-100" role="img" aria-label={`${currentPct}% of required proficiency`}>
-                                  <div className="h-full rounded-full bg-[hsl(var(--primary))] transition-[width] duration-500" style={{ width: `${currentPct}%` }} />
-                                </div>
-                              </div>
-                              <div className="flex flex-wrap items-center justify-between gap-2 sm:justify-end">
-                                <PriorityChip priority={gap.priority} />
-                                <Link
-                                  href={skillProgress?.planId ? `/student/preparation/${skillProgress.planId}` : "/student/preparation"}
-                                  className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-[hsl(var(--border))] px-3 text-xs font-semibold text-[hsl(var(--foreground))] transition-colors hover:border-[hsl(var(--primary)/0.35)] hover:text-[hsl(var(--primary))]"
-                                >
-                                  {skillProgress?.planId ? "Continue Preparation" : "Preparation"}
-                                  <span aria-hidden="true">→</span>
-                                </Link>
-                                {!skillProgress?.planId && planDrive && (
-                                  <button
-                                    type="button"
-                                    onClick={() => handleCreatePlan(planDrive.driveId)}
-                                    disabled={creatingFor !== null}
-                                    className="inline-flex h-9 items-center rounded-xl bg-[hsl(var(--primary))] px-3 text-xs font-semibold text-white transition-colors hover:bg-[hsl(var(--color-primary-600))] disabled:opacity-60"
-                                  >
-                                    {creatingFor === planDrive.driveId ? "Creating…" : "Create Plan"}
-                                  </button>
-                                )}
-                              </div>
-                            </div>
-                          </article>
-                        );
-                      })()}
+                <ul className="space-y-3">
+                  {filtered.map((gap) => (
+                    <li key={gap.skillId}>
+                      <GapCard
+                        gap={gap}
+                        progress={progress.get(gap.skillId)}
+                        onCreatePlan={(driveId) => handleCreatePlan(driveId, gap.skillId)}
+                        creating={creatingFor === gap.skillId}
+                        disabled={creatingFor !== null}
+                      />
                     </li>
                   ))}
                 </ul>

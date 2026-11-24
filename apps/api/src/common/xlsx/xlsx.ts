@@ -40,7 +40,8 @@ const LIMITS = {
 /* ZIP                                                                 */
 /* ------------------------------------------------------------------ */
 
-function readZip(buf: Buffer): Map<string, Buffer> {
+/** Also used for other OOXML packages (DOCX resumes); callers map XlsxError to their own messages. */
+export function readZip(buf: Buffer): Map<string, Buffer> {
   if (buf.length < 22 || buf.readUInt32LE(0) !== 0x04034b50) {
     // Encrypted workbooks are OLE containers, not ZIP.
     throw new XlsxError('NOT_XLSX', 'The file is not an .xlsx workbook (or it is password-protected).');
@@ -105,7 +106,7 @@ function crc32(data: Buffer) {
   return (c ^ 0xffffffff) >>> 0;
 }
 
-function writeZip(entries: { name: string; data: Buffer }[]): Buffer {
+export function writeZip(entries: { name: string; data: Buffer }[]): Buffer {
   const locals: Buffer[] = [];
   const central: Buffer[] = [];
   let offset = 0;

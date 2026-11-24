@@ -27,6 +27,7 @@ PlaceCampus connects students, faculty, placement teams and recruiters in one sy
 ### Student
 - **Dashboard:** readiness, skills, applications and upcoming activity at a glance.
 - **Profile:** academic details, resume and profile completion.
+- **AI Resume Analyzer:** upload a PDF or DOCX resume for an *estimated* ATS compatibility score (out of 100, not any ATS vendor's score) with seven weighted category scores, strengths and weaknesses, missing skills and keywords, rewrites for weak bullet points, grammar and formatting notes, and prioritised recommendations. Optionally paste a job description for a separate job compatibility score with matching and missing skills and keywords. Every analysis is saved to a private history with score trends and side-by-side comparison. AI output is validated and checked against the resume text before it is saved.
 - **Evidence:** upload certificates, projects and internships through a multi-step wizard. Each item is checked automatically (OCR, rules and AI-assisted analysis) and sent to faculty when a human needs to look.
 - **Skills:** a verified skill profile built from approved evidence, with technology logos and four categories.
 - **Assessments:** take skill assessments and review results.
@@ -211,6 +212,9 @@ These are the variables the API reads. Everything else in `.env.example` is rese
 | `JWT_REFRESH_EXPIRES_IN` | | Refresh-session lifetime (default `7d`) |
 | `AI_API_KEY` | | Key for AI-assisted evidence analysis. **If unset, a built-in mock analysis is used.** |
 | `AI_PROVIDER`, `AI_MODEL` | | AI provider and model (defaults `openai` and `gpt-4o-mini`) |
+| `RESUME_ANALYZER_ENABLED` | | Set to `false` to turn off the AI Resume Analyzer. It uses the `AI_*` provider above and needs `AI_API_KEY`; without one, analysis requests are refused (no mock scores) |
+| `RESUME_MAX_FILE_MB` | | Resume upload limit in MB (default `5`, ceiling `10`) |
+| `RESUME_ANALYZER_HOURLY_LIMIT` | | Analyses each student may run per hour, per API instance (default `10`) |
 | `DEMO_ACCOUNT_PASSWORD` | | Password given to seeded demo accounts |
 | `ENABLE_DEMO_SEED` | | Must be `true` to allow seeding when `NODE_ENV=production` |
 | `NEXT_PUBLIC_API_URL` | | (web) API base URL (default `http://localhost:4000/api/v1`) |
@@ -254,7 +258,7 @@ A recruiter who tries the campus login, or a campus user who tries the recruiter
 | Area | Routes |
 |---|---|
 | Public | `/` (landing page), `/login`, `/recruiter/login`, `/forgot-password`, `/select-role` |
-| Student | `/student/dashboard`, `/student/profile`, `/student/evidence` (and `/new`, `/[id]`), `/student/skills`, `/student/assessments` (and `/[id]/attempt`), `/student/interviews`, `/student/readiness`, `/student/drives` (and `/[id]`), `/student/applications` (and `/[id]`), `/student/preparation` (and `/[id]`), `/student/notifications` |
+| Student | `/student/dashboard`, `/student/profile`, `/student/resume-analyzer`, `/student/evidence` (and `/new`, `/[id]`), `/student/skills`, `/student/assessments` (and `/[id]/attempt`), `/student/interviews`, `/student/readiness`, `/student/drives` (and `/[id]`), `/student/applications` (and `/[id]`), `/student/preparation` (and `/[id]`), `/student/notifications` |
 | Faculty | `/faculty/dashboard`, `/faculty/reviews` (and `/[id]`), `/faculty/interviews` (and `/[id]`), `/faculty/notifications` |
 | Placement Officer | `/placement/dashboard`, `/placement/drives` (and `/new`, `/[id]`), `/placement/applications` (and `/[id]`), `/placement/notifications` |
 | Placement Head | `/placement-head/dashboard`, `/placement-head/analytics`, `/placement-head/notifications` |
@@ -273,6 +277,7 @@ All routes are under `/api/v1`. Full request and response schemas are in **Swagg
 |---|---|
 | Auth | `POST /auth/login`, `POST /recruiter/auth/login`, `POST /auth/refresh`, `POST /auth/logout`, `GET /auth/me`, `POST /auth/active-role`, `POST /auth/forgot-password` |
 | Students | `GET/PATCH /students/me/profile` |
+| Resume analyzer | `GET/POST/DELETE /resume-analyzer/resume` (multipart `file`), `POST /resume-analyzer/analyses` (optional `targetRole`, `jobDescription`, `jobTitle`), `GET /resume-analyzer/analyses`, `GET/DELETE /resume-analyzer/analyses/:id`, `GET /resume-analyzer/limits` (student only, scoped to the signed-in student) |
 | Evidence | `POST /evidence`, `GET /evidence/me`, `GET/PATCH/DELETE /evidence/:id`, `POST /evidence/:id/document`, `GET /evidence/:id/document/download`, `/evidence/:evidenceId/verification` |
 | Faculty reviews | `GET /faculty/reviews`, `GET /faculty/reviews/:id`, `PATCH /faculty/reviews/:id/approve` / `reject` / `request-resubmission` |
 | Skills | `GET /skills/taxonomy`, `GET /skills/clusters`, `GET /student/skills` |

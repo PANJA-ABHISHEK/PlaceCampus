@@ -35,6 +35,7 @@ import { OrgModule } from './org/org.module.js';
 import { QueuesModule } from './common/queues/queues.module.js';
 import { AssignmentsModule } from './assignments/assignments.module.js';
 import { ImportsModule } from './imports/imports.module.js';
+import { ResumeAnalyzerModule } from './resume-analyzer/resume-analyzer.module.js';
 @Module({
   imports: [
     // ── Configuration ──
@@ -93,6 +94,7 @@ import { ImportsModule } from './imports/imports.module.js';
     OrgModule,
     AssignmentsModule,
     ImportsModule,
+    ResumeAnalyzerModule,
   ],
   controllers: [HealthController],
 })

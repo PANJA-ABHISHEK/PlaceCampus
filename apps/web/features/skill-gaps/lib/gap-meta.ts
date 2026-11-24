@@ -8,7 +8,7 @@ import type {
 /** Priority is a status-style encoding: always shown with its icon and label. */
 export const PRIORITY_META: Record<
   GapPriority,
-  { label: string; icon: LucideIcon; chip: string; bar: string; dot: string }
+  { label: string; icon: LucideIcon; chip: string; bar: string; dot: string; text: string }
 > = {
   HIGH: {
     label: "High",
@@ -16,6 +16,7 @@ export const PRIORITY_META: Record<
     chip: "bg-red-50 text-red-700 ring-red-200 dark:bg-red-500/15 dark:text-red-300 dark:ring-red-500/30",
     bar: "bg-red-500",
     dot: "bg-red-500",
+    text: "text-red-600",
   },
   MEDIUM: {
     label: "Medium",
@@ -23,6 +24,7 @@ export const PRIORITY_META: Record<
     chip: "bg-amber-50 text-amber-800 ring-amber-200 dark:bg-amber-500/15 dark:text-amber-300 dark:ring-amber-500/30",
     bar: "bg-amber-400",
     dot: "bg-amber-400",
+    text: "text-amber-700",
   },
   LOW: {
     label: "Low",
@@ -30,6 +32,7 @@ export const PRIORITY_META: Record<
     chip: "bg-slate-100 text-slate-700 ring-slate-200 dark:bg-slate-500/15 dark:text-slate-300 dark:ring-slate-500/30",
     bar: "bg-slate-400",
     dot: "bg-slate-400",
+    text: "text-slate-600",
   },
 };
 

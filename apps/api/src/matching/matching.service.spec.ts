@@ -73,6 +73,31 @@ describe('MatchingService.getSkillGapAnalysis', () => {
     expect(result.drivesAnalyzed).toBe(2);
   });
 
+  it('counts distinct required skills met everywhere they are required', async () => {
+    const service = build(
+      [
+        { skillId: js, level: 3, verificationStatus: 'VERIFIED' },
+        { skillId: sql, level: 3, verificationStatus: 'VERIFIED' },
+      ],
+      [
+        // SQL is met in both drives: one completed skill, not two.
+        drive('d1', 'Acme', [
+          { skillId: String(js), minimumLevel: 2, isOptional: false },
+          { skillId: String(sql), minimumLevel: 2, isOptional: false },
+        ]),
+        // JavaScript falls short here, so it is still a gap and not completed.
+        drive('d2', 'Globex', [
+          { skillId: String(js), minimumLevel: 4, isOptional: false },
+          { skillId: String(sql), minimumLevel: 3, isOptional: false },
+        ]),
+      ],
+    );
+    const result = await service.getSkillGapAnalysis('s1');
+    expect(result.requirementsMet).toBe(3);
+    expect(result.skillsMet).toBe(1);
+    expect(result.gaps.map((g) => g.skillName)).toEqual(['JavaScript']);
+  });
+
   it('reports insufficient data when the student has no verified skills', async () => {
     const service = build(
       [{ skillId: js, level: 2, verificationStatus: 'UNVERIFIED' }],

@@ -32,6 +32,9 @@ export class StorageService {
 
   constructor() {
     if (this.cloudinaryEnabled) {
+      // The SDK reads CLOUDINARY_URL when it is first imported, which happens
+      // before main.ts loads .env; `true` makes it re-read the environment.
+      cloudinary.config(true);
       cloudinary.config({ secure: true });
     }
     this.ensureUploadDir();

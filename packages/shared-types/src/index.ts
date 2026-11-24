@@ -918,6 +918,8 @@ export interface SkillGapAnalysis {
   /** Required skill requirements across drives, and how many are met. */
   requirementsTotal: number;
   requirementsMet: number;
+  /** Distinct required skills the student meets at the required level in every drive that asks for them. */
+  skillsMet: number;
   gaps: SkillGapItem[];
   driveCoverage: SkillGapDriveCoverage[];
   calculatedAt: string;
@@ -1392,3 +1394,185 @@ export interface RecruiterAccessLogPage {
   allowed: number;
   denied: number;
 }
+
+/**
+ * AI RESUME ANALYZER
+ * The score is an ESTIMATED ATS compatibility score produced by PlaceCampus;
+ * it is not the output of any specific applicant tracking system vendor.
+ */
+export type ResumeFileType = 'PDF' | 'DOCX';
+export type ResumeExtractionMethod = 'PDF_TEXT' | 'OCR' | 'MIXED' | 'DOCX';
+
+export type ResumeSectionKey =
+  | 'SUMMARY'
+  | 'EDUCATION'
+  | 'EXPERIENCE'
+  | 'PROJECTS'
+  | 'SKILLS'
+  | 'CERTIFICATIONS'
+  | 'ACHIEVEMENTS'
+  | 'ACTIVITIES';
+
+export type ResumeCategoryKey =
+  | 'SKILLS_KEYWORDS'
+  | 'EXPERIENCE'
+  | 'EDUCATION'
+  | 'PROJECTS'
+  | 'STRUCTURE_FORMATTING'
+  | 'GRAMMAR_READABILITY'
+  | 'CONTACT_ESSENTIALS';
+
+/** Where feedback applies: a resume section or the document as a whole. */
+export type ResumeFeedbackArea =
+  | 'CONTACT'
+  | 'SUMMARY'
+  | 'EDUCATION'
+  | 'EXPERIENCE'
+  | 'PROJECTS'
+  | 'SKILLS'
+  | 'CERTIFICATIONS'
+  | 'ACHIEVEMENTS'
+  | 'FORMATTING'
+  | 'GENERAL';
+
+export type RecommendationPriority = 'HIGH' | 'MEDIUM' | 'LOW';
+
+/** The student's current resume (one per student; uploading again replaces it). */
+export interface StoredResume {
+  id: string;
+  fileName: string;
+  fileType: ResumeFileType;
+  size: number;
+  pageCount: number | null;
+  wordCount: number;
+  extractionMethod: ResumeExtractionMethod;
+  uploadedAt: string;
+}
+
+/** Measured from the resume text without AI. */
+export interface ResumeSignals {
+  hasEmail: boolean;
+  hasPhone: boolean;
+  hasLinkedIn: boolean;
+  hasGithubOrPortfolio: boolean;
+  sectionsFound: ResumeSectionKey[];
+  essentialSectionsMissing: ResumeSectionKey[];
+  wordCount: number;
+  pageCount: number | null;
+  bulletCount: number;
+  quantifiedBulletCount: number;
+  actionVerbBulletCount: number;
+}
+
+export interface ResumeCategoryScore {
+  key: ResumeCategoryKey;
+  label: string;
+  /** 0-100. */
+  score: number;
+  /** Share of the overall score, in percent (weights sum to 100). */
+  weight: number;
+  rationale: string;
+}
+
+export interface ResumeInsight {
+  title: string;
+  detail: string;
+}
+
+export interface ResumeTextIssue {
+  /** Copied from the resume; verified to appear in it before saving. */
+  quote: string;
+  issue: string;
+  suggestion: string;
+}
+
+export interface ResumeSectionFeedback {
+  area: ResumeFeedbackArea;
+  feedback: string;
+  suggestions: string[];
+}
+
+export interface ResumeRecommendation {
+  priority: RecommendationPriority;
+  area: ResumeFeedbackArea;
+  title: string;
+  detail: string;
+}
+
+/** Job-specific result, kept separate from the general resume score. */
+export interface ResumeJobMatch {
+  /** 0-100 estimated compatibility with this job description. */
+  score: number;
+  scoreRationale: string;
+  /** Share of the job's keywords found in the resume, 0-100 (measured, not AI-estimated). */
+  keywordCoverage: number;
+  jobTitle: string | null;
+  matchingSkills: string[];
+  missingSkills: string[];
+  matchingKeywords: string[];
+  missingKeywords: string[];
+  experienceAnalysis: string;
+  relevantExperience: string[];
+  tailoringSuggestions: string[];
+}
+
+export interface ResumeAnalysis {
+  id: string;
+  resumeId: string;
+  fileName: string;
+  fileType: ResumeFileType;
+  /** 0-100 estimated ATS compatibility score: the weighted mean of the category scores. */
+  overallScore: number;
+  /** The role the resume was assessed against: the student's choice, or inferred from the resume. */
+  targetRole: string;
+  targetRoleInferred: boolean;
+  summary: string;
+  categories: ResumeCategoryScore[];
+  strengths: ResumeInsight[];
+  weaknesses: ResumeInsight[];
+  missingSkills: string[];
+  missingKeywords: string[];
+  formattingIssues: string[];
+  grammarIssues: ResumeTextIssue[];
+  weakBullets: ResumeTextIssue[];
+  sectionFeedback: ResumeSectionFeedback[];
+  recommendations: ResumeRecommendation[];
+  signals: ResumeSignals;
+  jobMatch: ResumeJobMatch | null;
+  /** First part of the job description used, for display in history. */
+  jobDescriptionExcerpt: string | null;
+  model: string;
+  promptVersion: string;
+  createdAt: string;
+}
+
+/** History row. */
+export interface ResumeAnalysisSummary {
+  id: string;
+  fileName: string;
+  fileType: ResumeFileType;
+  overallScore: number;
+  targetRole: string;
+  jobMatchScore: number | null;
+  jobTitle: string | null;
+  jobDescriptionExcerpt: string | null;
+  categories: Pick<ResumeCategoryScore, 'key' | 'label' | 'score'>[];
+  createdAt: string;
+}
+
+export interface AnalyzeResumeDto {
+  /** Optional role to assess against, e.g. "Frontend Developer". */
+  targetRole?: string;
+  /** Optional pasted job description for the job-specific match. */
+  jobDescription?: string;
+  jobTitle?: string;
+}
+
+/** Limits shared by the API and the upload UI. */
+export const RESUME_ANALYZER_LIMITS = {
+  maxFileBytes: 5 * 1024 * 1024,
+  minJobDescriptionChars: 80,
+  maxJobDescriptionChars: 15_000,
+  maxTargetRoleChars: 80,
+  maxJobTitleChars: 120,
+} as const;

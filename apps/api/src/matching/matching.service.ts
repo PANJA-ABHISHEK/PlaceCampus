@@ -108,6 +108,7 @@ export class MatchingService {
     const driveCoverage: SkillGapDriveCoverage[] = [];
     let requirementsTotal = 0;
     let requirementsMet = 0;
+    const satisfiedRequired = new Set<string>();
 
     for (const driveDoc of drives) {
       const drive: any = driveDoc.toObject ? driveDoc.toObject({ virtuals: true }) : driveDoc;
@@ -128,6 +129,7 @@ export class MatchingService {
       });
 
       for (const item of match.skills) {
+        if (item.status === SkillMatchStatus.SATISFIED && !item.isOptional) satisfiedRequired.add(String(item.skillId));
         if (item.status === SkillMatchStatus.SATISFIED || item.status === SkillMatchStatus.NOT_EVALUABLE) continue;
         const key = String(item.skillId);
         const status: SkillGapStatus = item.isOptional
@@ -184,6 +186,11 @@ export class MatchingService {
       drivesAnalyzed: driveCoverage.length,
       requirementsTotal,
       requirementsMet,
+      // Distinct required skills met everywhere they are required (not still a required gap in another drive).
+      skillsMet: [...satisfiedRequired].filter((id) => {
+        const gap = gaps.get(id);
+        return !gap || gap.status === 'OPTIONAL';
+      }).length,
       gaps: sorted,
       driveCoverage,
       calculatedAt: new Date().toISOString(),

@@ -20,6 +20,7 @@ import {
   Menu,
   X,
   BrainCircuit,
+  ScanText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { UserRole } from "@placecampus/shared-types";
@@ -36,6 +37,7 @@ const navigation = [
   { name: "Interviews", href: "/student/interviews", icon: Video },
   { name: "Readiness", href: "/student/readiness", icon: TrendingUp },
   { name: "Skill Gaps", href: "/student/gaps", icon: AlertCircle },
+  { name: "AI Resume Analyzer", href: "/student/resume-analyzer", icon: ScanText },
   { name: "Placement Drives", href: "/student/drives", icon: Briefcase },
   { name: "Applications", href: "/student/applications", icon: Send },
   { name: "Preparation", href: "/student/preparation", icon: BookOpen },
@@ -143,7 +145,7 @@ export default function StudentLayout({
               : "-translate-x-full",
           )}
         >
-          <ul className="space-y-1">
+          <ul className="space-y-0.5">
             {navigation.map((item) => {
               const isActive =
                 pathname === item.href || pathname.startsWith(`${item.href}/`);
@@ -153,24 +155,33 @@ export default function StudentLayout({
                     href={item.href}
                     aria-current={isActive ? "page" : undefined}
                     className={cn(
-                      "group flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-[15px] font-medium transition-colors duration-150",
+                      "group relative flex items-center gap-3 rounded-xl px-2.5 py-2 text-[14.5px] font-medium transition-[background-color,color,box-shadow] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--primary)/0.45)]",
                       isActive
-                        ? "bg-[hsl(var(--primary)/0.1)] font-semibold text-[hsl(var(--primary))]"
-                        : "text-[hsl(var(--foreground)/0.75)] hover:bg-white hover:text-[hsl(var(--foreground))] hover:shadow-[var(--shadow-xs)] max-md:hover:bg-[hsl(var(--muted))]",
+                        ? "bg-[#FFF2E8] font-semibold text-[hsl(var(--color-primary-700))]"
+                        : "text-[#14213D]/75 hover:bg-white hover:text-[#14213D] hover:shadow-[var(--shadow-xs)] max-md:hover:bg-[hsl(var(--muted))]",
                     )}
                     onClick={() => {
                       if (isMobileMenuOpen) setIsMobileMenuOpen(false);
                     }}
                   >
-                    <item.icon
+                    {/* Accent bar marks the current page. */}
+                    <span
                       aria-hidden="true"
                       className={cn(
-                        "h-[18px] w-[18px] shrink-0",
-                        isActive
-                          ? "text-[hsl(var(--primary))]"
-                          : "text-[hsl(var(--muted-foreground))] group-hover:text-[hsl(var(--foreground))]",
+                        "absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-[hsl(var(--primary))] transition-opacity duration-150",
+                        isActive ? "opacity-100" : "opacity-0",
                       )}
                     />
+                    <span
+                      className={cn(
+                        "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors duration-150",
+                        isActive
+                          ? "bg-white text-[hsl(var(--primary))] shadow-[0_2px_6px_-2px_hsl(var(--primary)/0.35)]"
+                          : "text-[hsl(var(--muted-foreground))] group-hover:bg-[#FFF2E8] group-hover:text-[hsl(var(--primary))]",
+                      )}
+                    >
+                      <item.icon aria-hidden="true" className="h-[18px] w-[18px]" />
+                    </span>
                     <span className="truncate">{item.name}</span>
                   </Link>
                 </li>

@@ -127,12 +127,9 @@ export function LoginForm({ portal = 'campus' }: { portal?: 'campus' | 'recruite
                   type="button"
                   aria-pressed={selected}
                   onClick={() => {
-                    if (id === 'recruiter') {
-                      router.push('/recruiter/register');
-                    } else {
-                      setSelectedRole(id);
-                      setServerError(null);
-                    }
+                    // Recruiters sign in here too; account creation is the link under the button.
+                    setSelectedRole(id);
+                    setServerError(null);
                   }}
                   className={cn(
                     'relative flex min-h-[4.35rem] flex-col items-center justify-center gap-1 rounded-[1rem] border px-1.5 py-2 text-center transition-[border-color,background-color,box-shadow,transform] duration-200 hover:-translate-y-0.5 hover:border-[hsl(var(--primary)/0.55)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))] focus-visible:ring-offset-2 [@media(max-height:780px)]:min-h-[3.75rem]',

@@ -13,13 +13,10 @@ import {
   type DocumentAnalyzer,
 } from './document-analyzer.js';
 import { OpenAiCompatibleAnalyzer } from './openai-compatible.analyzer.js';
+import { resolveAiProvider } from '../../common/ai/ai-provider.config.js';
 import { PROMPT_VERSION } from './prompts/document-analysis.v1.js';
 import { postValidate, type PostValidation } from './post-validation.js';
 
-const DEFAULT_MODELS: Record<Exclude<AnalyzerProvider, 'none'>, string> = {
-  groq: 'openai/gpt-oss-120b',
-  openai: 'gpt-4o-mini',
-};
 
 /** Relevance at or above this makes a mapped skill mention count as a claimed skill. */
 export const SKILL_RELEVANCE_THRESHOLD = 0.5;
@@ -89,37 +86,15 @@ export class AiAnalysisService {
 
   /** Selects the adapter from configuration; anything incomplete falls back to `none`. */
   static createAnalyzer(config: ConfigService, logger?: Logger): DocumentAnalyzer {
-    if (config.get<string>('AI_ENABLED', 'true') === 'false') return new NoneAnalyzer();
-    const raw = (config.get<string>('AI_PROVIDER') || '').trim().toLowerCase();
-    const provider: AnalyzerProvider | null = raw.startsWith('groq')
-      ? 'groq'
-      : raw.startsWith('openai')
-        ? 'openai'
-        : raw === 'none' || raw === ''
-          ? 'none'
-          : null;
-    if (provider === null) {
-      logger?.warn(`Unknown AI_PROVIDER "${raw}"; AI analysis is off. Use groq, openai or none.`);
-      return new NoneAnalyzer('NOT_CONFIGURED');
-    }
-    if (provider === 'none') return new NoneAnalyzer();
-    const apiKey = (config.get<string>('AI_API_KEY') || '').trim();
-    if (!apiKey || apiKey.startsWith('your-')) {
-      logger?.warn('AI_API_KEY is not set; AI analysis is off.');
-      return new NoneAnalyzer('NOT_CONFIGURED');
-    }
-    let model = (config.get<string>('AI_MODEL') || '').trim();
-    if (!model || (provider === 'groq' && /^gpt-\d/.test(model))) {
-      if (model) logger?.warn(`AI_MODEL "${model}" is not a ${provider} model; using ${DEFAULT_MODELS[provider]}.`);
-      model = DEFAULT_MODELS[provider];
-    }
+    const resolved = resolveAiProvider(config, logger);
+    if (!resolved.enabled) return new NoneAnalyzer(resolved.reason);
     return new OpenAiCompatibleAnalyzer({
-      provider,
-      apiKey,
-      model,
-      baseUrl: config.get<string>('AI_BASE_URL') || undefined,
-      timeoutMs: Number(config.get('AI_TIMEOUT_MS')) || 120_000,
-      maxRetries: Number(config.get('AI_MAX_RETRIES') ?? 2),
+      provider: resolved.provider,
+      apiKey: resolved.apiKey,
+      model: resolved.model,
+      baseUrl: resolved.baseUrl,
+      timeoutMs: resolved.timeoutMs,
+      maxRetries: resolved.maxRetries,
     });
   }
 
