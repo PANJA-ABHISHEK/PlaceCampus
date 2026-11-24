@@ -199,6 +199,7 @@ These are the variables the API reads. Everything else in `.env.example` is rese
 | `MONGODB_URI` | ✓ | MongoDB connection string |
 | `MONGODB_DNS_SERVERS` | | Comma-separated DNS servers to use when resolving `mongodb+srv` (useful on networks that block SRV lookups) |
 | `REDIS_URL` | ✓ | Redis for background queues, such as evidence verification |
+| `CLOUDINARY_URL` | | Cloudinary credentials for authenticated document storage; local `uploads/` is used when unset |
 | `JWT_SECRET` | ✓ | Signing secret for access tokens |
 | `JWT_REFRESH_SECRET` | ✓ | Secret for refresh tokens |
 | `JWT_EXPIRES_IN` | | Access-token lifetime (default `15m`) |
@@ -336,7 +337,7 @@ These are known gaps between the current code and the master implementation plan
 - **Account provisioning.** The plan calls for Administrator-created accounts with email invitations and no public sign-up. A legacy `/register` page and `POST /auth/register` still exist, and invitation emails are not implemented.
 - **Email delivery.** Forgot-password returns a generic confirmation, but no email is sent yet.
 - **"Remember me"** on the login form is not wired up yet.
-- **File storage** writes uploads to a local `uploads/` folder in development (git-ignored). S3-compatible storage is planned.
+- **File storage** uses authenticated raw assets in Cloudinary when `CLOUDINARY_URL` is configured, and otherwise writes to a local `uploads/` folder (git-ignored). Older local uploads remain readable.
 - **AI analysis** falls back to a mock response when `AI_API_KEY` is not set.
 - **Recruiter cookies.** Recruiter sessions use the same refresh cookie as campus sessions (tagged by audience). The plan calls for separate recruiter cookies.
 
