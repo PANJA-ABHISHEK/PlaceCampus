@@ -13,7 +13,6 @@ import type { Queue } from 'bull';
 import { Model, Types } from 'mongoose';
 import type { ClientSession, Connection } from 'mongoose';
 import { createHash } from 'crypto';
-import { promises as fs } from 'fs';
 import { UserRole } from '@placecampus/shared-types';
 import { ImportJob, ImportJobDocument, ImportKind, ImportMode } from './schemas/import-job.schema.js';
 import { FieldDiff, ImportRow, ImportRowDocument, RowAction, RowIssue } from './schemas/import-row.schema.js';
@@ -186,7 +185,7 @@ export class ImportsService {
 
     let parsed: ReturnType<typeof readWorkbookWithProperties>;
     try {
-      const buffer = await fs.readFile(await this.storage.getFilePath(job.fileKey!));
+      const buffer = await this.storage.getFileBuffer(job.fileKey!);
       parsed = readWorkbookWithProperties(buffer);
     } catch (error: any) {
       return fail(error instanceof XlsxError ? error.message : 'The workbook could not be read.');
