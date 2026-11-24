@@ -25,8 +25,12 @@ describe('RecruiterService', () => {
     applicationsService = {
       findAllForDrivePaginated: vi.fn().mockResolvedValue({ applications: [], total: 0 }),
       findOne: vi.fn(),
+      getCountsByDrive: vi.fn().mockResolvedValue({}),
     };
-    studentsService = { getProfileByUserId: vi.fn() };
+    studentsService = {
+      getProfileByUserId: vi.fn(),
+      getFullNameByUserId: vi.fn(),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -65,6 +69,8 @@ describe('RecruiterService', () => {
       10,
       undefined,
       undefined,
+      {},
+      { studentName: false, studentEmail: false, registrationNumber: false },
     );
   });
 
@@ -77,15 +83,16 @@ describe('RecruiterService', () => {
       total: 1,
     });
     studentsService.getProfileByUserId.mockResolvedValue({
-      userId: { fullName: 'Demo Student', email: 'private@example.test' },
+      userId: 'student1',
     });
+    studentsService.getFullNameByUserId.mockResolvedValue('Demo Student');
 
     const result = await service.getCandidates('recruiter1', 'drive1');
 
     expect(result.candidates[0]).toEqual({
       id: 'application1',
-      studentId: 'student1',
       studentName: 'Demo Student',
+      canManageApplications: false,
     });
     expect(result.candidates[0]).not.toHaveProperty('email');
   });

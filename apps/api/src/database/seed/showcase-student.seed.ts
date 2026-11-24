@@ -34,6 +34,7 @@ import * as bcrypt from 'bcrypt';
 import * as dotenv from 'dotenv';
 import { promises as fs } from 'fs';
 import { resolve } from 'path';
+import { assertSafeDemoSeedTarget } from './seed-safety.js';
 
 dotenv.config({ path: resolve(process.cwd(), '.env') });
 dotenv.config({ path: resolve(process.cwd(), '../../.env') });
@@ -456,6 +457,7 @@ const PAST_INTERVIEWS = [
 ];
 
 async function run() {
+  assertSafeDemoSeedTarget();
   if (process.env.NODE_ENV === 'production' && process.env.ENABLE_DEMO_SEED !== 'true') {
     console.error('Refusing to seed in production without ENABLE_DEMO_SEED=true.');
     process.exit(1);

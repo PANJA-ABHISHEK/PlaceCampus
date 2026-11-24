@@ -34,6 +34,25 @@ export class StudentsService {
     return profile;
   }
 
+  /** Minimal identity lookup for services that have explicit permission to show a student's name. */
+  async getFullNameByUserId(userId: string): Promise<string | undefined> {
+    const user = await this.userModel.findById(userId).select('fullName').lean().exec();
+    return user?.fullName;
+  }
+
+  /** Read-only batch department lookup (never creates profiles) for aggregate reporting. */
+  async getDepartmentsByUserIds(userIds: string[]): Promise<Map<string, string>> {
+    if (!userIds.length) return new Map();
+    const profiles = await this.profileModel.find({ userId: { $in: userIds } }).select('userId department').lean().exec();
+    return new Map(profiles.filter((profile: any) => profile.department).map((profile: any) => [String(profile.userId), String(profile.department)]));
+  }
+
+  /** Minimal contact lookup for services with explicit consent to expose student email. */
+  async getEmailByUserId(userId: string): Promise<string | undefined> {
+    const user = await this.userModel.findById(userId).select('email').lean().exec();
+    return user?.email;
+  }
+
   async updateProfile(
     userId: string,
     updateDto: UpdateStudentProfileDto,

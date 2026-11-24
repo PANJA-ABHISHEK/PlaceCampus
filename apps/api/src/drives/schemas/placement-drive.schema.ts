@@ -44,6 +44,28 @@ export const DriveRequirementSchema =
 
 @Schema({ timestamps: true })
 export class PlacementDrive {
+  /** True for explicitly seeded fictional demonstration records. */
+  @Prop({ default: false, index: true })
+  isDemoData: boolean;
+
+  @Prop({ type: String, index: true })
+  demoDatasetId?: string;
+
+  @Prop({ type: String })
+  companyLogo?: string;
+
+  @Prop({ type: String })
+  companyIndustry?: string;
+
+  @Prop({ type: String })
+  companyDescription?: string;
+
+  @Prop({ type: String })
+  employmentType?: string;
+
+  @Prop({ type: String })
+  demoLifecycleStatus?: 'ACTIVE' | 'UPCOMING' | 'COMPLETED' | 'EXPIRED';
+
   @Prop({ required: true })
   companyName: string;
 

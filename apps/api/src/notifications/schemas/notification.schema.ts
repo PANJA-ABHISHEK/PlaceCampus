@@ -6,6 +6,12 @@ export type NotificationDocument = Notification & Document;
 
 @Schema({ timestamps: true, collection: 'notifications' })
 export class Notification {
+  @Prop({ default: false, index: true })
+  isDemoData: boolean;
+
+  @Prop({ type: String, index: true })
+  demoDatasetId?: string;
+
   @Prop({ type: String, required: true, index: true })
   recipientId: string;
 

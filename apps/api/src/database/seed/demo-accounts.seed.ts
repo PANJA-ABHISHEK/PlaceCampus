@@ -9,6 +9,7 @@ import { FacultyAssignmentPurpose, UserRole } from '@placecampus/shared-types';
 import * as bcrypt from 'bcrypt';
 import * as dotenv from 'dotenv';
 import { resolve } from 'path';
+import { assertSafeDemoSeedTarget } from './seed-safety.js';
 
 // Load .env
 dotenv.config({ path: resolve(process.cwd(), '.env') });
@@ -18,15 +19,7 @@ import { configureMongoDns } from '../../config/dns.config.js';
 configureMongoDns();
 
 async function runSeed() {
-  if (
-    process.env.NODE_ENV === 'production' &&
-    process.env.ENABLE_DEMO_SEED !== 'true'
-  ) {
-    console.error(
-      'ERROR: Seed cannot run in production without ENABLE_DEMO_SEED=true.',
-    );
-    process.exit(1);
-  }
+  assertSafeDemoSeedTarget();
 
   const app = await NestFactory.createApplicationContext(AppModule);
   const userModel = app.get<Model<any>>(getModelToken(User.name));

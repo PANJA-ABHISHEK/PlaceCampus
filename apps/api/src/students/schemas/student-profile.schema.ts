@@ -66,6 +66,19 @@ export class StudentProfile implements Omit<
   @Prop({ type: String })
   resumeUrl?: string;
 
+  /** Optional portfolio detail supplied only when present on the profile. */
+  @Prop({ type: [String], default: undefined })
+  projects?: string[];
+
+  @Prop({ type: [String], default: undefined })
+  skills?: string[];
+
+  @Prop({ type: [String], default: undefined })
+  internshipExperience?: string[];
+
+  @Prop({ type: String, index: true })
+  demoDatasetId?: string;
+
   /** Approved programme lookup code (`program` keeps the display name). */
   @Prop({ type: String })
   programmeCode?: string;

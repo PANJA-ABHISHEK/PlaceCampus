@@ -10,6 +10,8 @@ import { UsersService } from '../users/users.service.js';
 
 export const ALLOWED_RELEASE_FIELDS = [
   'studentName',
+  'studentEmail',
+  'registrationNumber',
   'department',
   'graduationYear',
   'cgpa',
@@ -17,6 +19,8 @@ export const ALLOWED_RELEASE_FIELDS = [
   'skillMatchCoverage',
   'applicationStatus',
   'projects',
+  'internshipExperience',
+  'resumeUrl',
   'linkedinUrl',
   'githubUrl',
   'portfolioUrl',
@@ -178,19 +182,23 @@ export class RecruiterAccessService {
   }
 
   async getActiveGrant(driveId: string, recruiterId: string): Promise<RecruiterAccessGrantDocument | null> {
+    const recruiter = await this.usersService.findById(recruiterId);
     return this.grantModel.findOne({
       driveId,
       recruiterId,
+      ...(recruiter?.isDemoData ? { isDemoData: true } : { isDemoData: { $ne: true } }),
       status: GrantStatus.ACTIVE,
       expiresAt: { $gt: new Date() },
     });
   }
 
   async getMyActiveGrants(recruiterId: string): Promise<RecruiterAccessGrantDocument[]> {
+    const recruiter = await this.usersService.findById(recruiterId);
     return this.grantModel.find({
       recruiterId,
+      ...(recruiter?.isDemoData ? { isDemoData: true } : { isDemoData: { $ne: true } }),
       status: GrantStatus.ACTIVE,
       expiresAt: { $gt: new Date() },
-    }).populate('driveId', 'companyName roleTitle status applicationStart applicationDeadline driveDate createdAt location workMode').exec();
+    }).populate('driveId', 'companyName roleTitle description status applicationStart applicationDeadline driveDate createdAt location workMode package requirements companyLogo companyIndustry companyDescription employmentType demoLifecycleStatus').exec();
   }
 }

@@ -162,14 +162,50 @@ export class ApplicationsService {
       .exec();
   }
 
-  async findAllForDrivePaginated(driveId: string, page: number, limit: number, status?: string, query?: string) {
-    const filter: {
-      driveId: string;
-      status?: string;
-      studentId?: { $in: string[] };
-    } = { driveId };
+  async findAllForDrivePaginated(
+    driveId: string,
+    page: number,
+    limit: number,
+    status?: string,
+    query?: string,
+    candidateFilters: {
+      department?: string;
+      minCgpa?: number;
+      maxCgpa?: number;
+      graduationYear?: number;
+      skill?: string;
+    } = {},
+    searchFields: { studentName?: boolean; studentEmail?: boolean; registrationNumber?: boolean } = { studentName: true },
+  ) {
+    const filter: Record<string, any> = { driveId };
     if (status) {
       filter.status = status;
+    }
+
+    const studentIdClauses: string[][] = [];
+    const { department, minCgpa, maxCgpa, graduationYear } = candidateFilters;
+    if (department || minCgpa != null || maxCgpa != null || graduationYear != null) {
+      const profileFilter: Record<string, any> = {};
+      if (department) {
+        const escapedDepartment = department.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        profileFilter.department = { $regex: escapedDepartment, $options: 'i' };
+      }
+      if (minCgpa != null || maxCgpa != null) {
+        profileFilter.cgpa = {
+          ...(minCgpa != null ? { $gte: minCgpa } : {}),
+          ...(maxCgpa != null ? { $lte: maxCgpa } : {}),
+        };
+      }
+      if (graduationYear != null) profileFilter.graduationYear = graduationYear;
+      const profiles = await this.applicationModel.db
+        .collection('student_profiles')
+        .find(profileFilter, { projection: { userId: 1 } })
+        .toArray();
+      studentIdClauses.push(profiles.map((profile: any) => String(profile.userId)));
+    }
+    if (candidateFilters.skill) {
+      const escapedSkill = candidateFilters.skill.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      filter['matchSnapshot.skills.skillName'] = { $regex: escapedSkill, $options: 'i' };
     }
 
     const normalizedQuery = query?.trim();
@@ -186,22 +222,34 @@ export class ApplicationsService {
         /[.*+?^${}()|[\]\\]/g,
         '\\$&',
       );
-      const matchingUsers = applicantObjectIds.length
+      const userCriteria: Record<string, any>[] = [];
+      if (searchFields.studentName) userCriteria.push({ fullName: { $regex: escapedQuery, $options: 'i' } });
+      if (searchFields.studentEmail) userCriteria.push({ email: { $regex: escapedQuery, $options: 'i' } });
+      const matchingUsers = applicantObjectIds.length && userCriteria.length
         ? await this.applicationModel.db
             .collection('users')
             .find(
               {
                 _id: { $in: applicantObjectIds },
-                fullName: { $regex: escapedQuery, $options: 'i' },
+                $or: userCriteria,
               },
               { projection: { _id: 1 } },
             )
             .toArray()
         : [];
+      const matchingStudentIds = matchingUsers.map((user) => user._id.toString());
+      if (searchFields.registrationNumber) {
+        const matchingProfiles = await this.applicationModel.db
+          .collection('student_profiles')
+          .find({ userId: { $in: applicantIds }, registrationNumber: { $regex: escapedQuery, $options: 'i' } }, { projection: { userId: 1 } })
+          .toArray();
+        matchingStudentIds.push(...matchingProfiles.map((profile: any) => String(profile.userId)));
+      }
+      studentIdClauses.push([...new Set(matchingStudentIds)]);
+    }
 
-      filter.studentId = {
-        $in: matchingUsers.map((user) => user._id.toString()),
-      };
+    if (studentIdClauses.length) {
+      filter.$and = studentIdClauses.map((ids) => ({ studentId: { $in: ids } }));
     }
     
     const skip = (page - 1) * limit;
@@ -214,11 +262,123 @@ export class ApplicationsService {
     return { applications, total };
   }
 
+  /**
+   * Cross-drive candidate listing for recruiters. Every filter carries the drive IDs on which the
+   * underlying field is released, so a filter can never reveal data from a drive that withholds it:
+   * applications on drives outside a filter's scope are excluded while that filter is active.
+   */
+  async findScopedPaginated(options: {
+    driveIds: string[];
+    page: number;
+    limit: number;
+    status?: { value: string; driveIds: string[] };
+    query?: { text: string; studentName: string[]; studentEmail: string[]; registrationNumber: string[] };
+    department?: { value: string; driveIds: string[] };
+    cgpa?: { min?: number; max?: number; driveIds: string[] };
+    graduationYear?: { value: number; driveIds: string[] };
+    skill?: { value: string; driveIds: string[] };
+  }) {
+    const escape = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const and: Record<string, any>[] = [{ driveId: { $in: options.driveIds } }];
+    const profileIds = async (filter: Record<string, any>) => (await this.applicationModel.db
+      .collection('student_profiles')
+      .find(filter, { projection: { userId: 1 } })
+      .toArray()).map((profile: any) => String(profile.userId));
+
+    if (options.status) and.push({ driveId: { $in: options.status.driveIds }, status: options.status.value });
+    if (options.department) {
+      and.push({ driveId: { $in: options.department.driveIds }, studentId: { $in: await profileIds({ department: { $regex: escape(options.department.value), $options: 'i' } }) } });
+    }
+    if (options.cgpa && (options.cgpa.min != null || options.cgpa.max != null)) {
+      const cgpa = { ...(options.cgpa.min != null ? { $gte: options.cgpa.min } : {}), ...(options.cgpa.max != null ? { $lte: options.cgpa.max } : {}) };
+      and.push({ driveId: { $in: options.cgpa.driveIds }, studentId: { $in: await profileIds({ cgpa }) } });
+    }
+    if (options.graduationYear) {
+      and.push({ driveId: { $in: options.graduationYear.driveIds }, studentId: { $in: await profileIds({ graduationYear: options.graduationYear.value }) } });
+    }
+    if (options.skill) {
+      const pattern = { $regex: escape(options.skill.value), $options: 'i' };
+      and.push({
+        driveId: { $in: options.skill.driveIds },
+        $or: [
+          { studentId: { $in: await profileIds({ skills: pattern }) } },
+          { 'matchSnapshot.skills': { $elemMatch: { skillName: pattern, status: 'SATISFIED' } } },
+        ],
+      });
+    }
+    const text = options.query?.text.trim();
+    if (options.query && text) {
+      const pattern = { $regex: escape(text), $options: 'i' };
+      const applicantIds = (await this.applicationModel.distinct('studentId', { driveId: { $in: options.driveIds } }).exec()).map(String);
+      const objectIds = applicantIds.filter((id) => Types.ObjectId.isValid(id)).map((id) => new Types.ObjectId(id));
+      const users = (field: string) => this.applicationModel.db.collection('users')
+        .find({ _id: { $in: objectIds }, [field]: pattern }, { projection: { _id: 1 } }).toArray()
+        .then((rows) => rows.map((row) => String(row._id)));
+      const clauses: Record<string, any>[] = [];
+      if (options.query.studentName.length) clauses.push({ driveId: { $in: options.query.studentName }, studentId: { $in: await users('fullName') } });
+      if (options.query.studentEmail.length) clauses.push({ driveId: { $in: options.query.studentEmail }, studentId: { $in: await users('email') } });
+      if (options.query.registrationNumber.length) {
+        clauses.push({ driveId: { $in: options.query.registrationNumber }, studentId: { $in: await profileIds({ userId: { $in: applicantIds }, registrationNumber: pattern }) } });
+      }
+      and.push(clauses.length ? { $or: clauses } : { _id: null });
+    }
+
+    const filter = { $and: and };
+    const [applications, total] = await Promise.all([
+      this.applicationModel.find(filter).sort({ appliedAt: -1, _id: -1 }).skip((options.page - 1) * options.limit).limit(options.limit).exec(),
+      this.applicationModel.countDocuments(filter).exec(),
+    ]);
+    return { applications, total };
+  }
+
+  /** Lightweight projection used by recruiter analytics over assigned drives only. */
+  async findLeanForDrives(driveIds: string[], filter: Record<string, any> = {}) {
+    if (!driveIds.length) return [];
+    return this.applicationModel
+      .find({ ...filter, driveId: { $in: driveIds } })
+      .select('driveId studentId status appliedAt reviewedAt createdAt updatedAt')
+      .lean()
+      .exec();
+  }
+
+  async findByStudentForDrives(studentId: string, driveIds: string[]) {
+    if (!driveIds.length) return [];
+    return this.applicationModel.find({ studentId, driveId: { $in: driveIds } }).sort({ appliedAt: -1 }).lean().exec();
+  }
+
   async countForDrive(driveId: string, status?: string) {
     return this.applicationModel.countDocuments({
       driveId,
       ...(status ? { status } : {}),
     }).exec();
+  }
+
+  /** One grouped query for recruiter dashboard counts across assigned drives. */
+  async getCountsByDrive(driveIds: string[]) {
+    if (driveIds.length === 0) return {};
+    const rows = await this.applicationModel.aggregate([
+      { $match: { driveId: { $in: driveIds } } },
+      { $group: { _id: { driveId: '$driveId', status: '$status' }, count: { $sum: 1 } } },
+    ]).exec();
+    const result: Record<string, { total: number; [status: string]: number }> = {};
+    for (const driveId of driveIds) result[driveId] = { total: 0 };
+    for (const row of rows) {
+      const driveId = String(row._id.driveId);
+      if (!result[driveId]) continue;
+      result[driveId].total += row.count;
+      result[driveId][row._id.status] = row.count;
+    }
+    return result;
+  }
+
+  async countUniqueStudentsForDrives(driveIds: string[]) {
+    if (!driveIds.length) return 0;
+    const rows = await this.applicationModel.aggregate([
+      { $match: { driveId: { $in: driveIds } } },
+      { $group: { _id: '$studentId' } },
+      { $count: 'count' },
+    ]).exec();
+    return rows[0]?.count ?? 0;
   }
 
   async findOne(id: string) {
@@ -247,6 +407,9 @@ export class ApplicationsService {
         ApplicationStatus.SHORTLISTED,
         ApplicationStatus.REJECTED,
       ],
+      [ApplicationStatus.SHORTLISTED]: [ApplicationStatus.INTERVIEW_SCHEDULED, ApplicationStatus.REJECTED],
+      [ApplicationStatus.INTERVIEW_SCHEDULED]: [ApplicationStatus.OFFER_RELEASED, ApplicationStatus.REJECTED],
+      [ApplicationStatus.OFFER_RELEASED]: [ApplicationStatus.SELECTED, ApplicationStatus.REJECTED],
     };
 
     const allowedNext = validTransitions[app.status] || [];

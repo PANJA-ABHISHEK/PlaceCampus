@@ -6,6 +6,15 @@ export type ApplicationDocument = PlacementApplication & Document;
 
 @Schema({ timestamps: true })
 export class PlacementApplication {
+  @Prop({ default: false, index: true })
+  isDemoData: boolean;
+
+  @Prop({ type: String, index: true })
+  demoDatasetId?: string;
+
+  @Prop({ type: String, maxlength: 2000 })
+  recruiterNotes?: string;
+
   @Prop({ type: String, required: true })
   driveId: string;
 
@@ -49,6 +58,9 @@ export const ApplicationSchema =
 
 // Enforce unique application per student per drive
 ApplicationSchema.index({ studentId: 1, driveId: 1 }, { unique: true });
+// Recruiter listings are scoped by assigned drive and sorted newest first.
+ApplicationSchema.index({ driveId: 1, createdAt: -1 });
+ApplicationSchema.index({ driveId: 1, status: 1, createdAt: -1 });
 
 // Transform output
 ApplicationSchema.set('toJSON', {

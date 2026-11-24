@@ -15,6 +15,8 @@ import { ApiError } from '@/lib/api-client';
 
 const AVAILABLE_FIELDS = [
   { id: 'studentName', label: 'Student Name' },
+  { id: 'studentEmail', label: 'Student Email' },
+  { id: 'registrationNumber', label: 'Registration Number' },
   { id: 'department', label: 'Department' },
   { id: 'graduationYear', label: 'Graduation Year' },
   { id: 'cgpa', label: 'CGPA' },

@@ -67,6 +67,9 @@ export class User {
   @Prop({ default: false, index: true })
   isDemoData: boolean;
 
+  @Prop({ type: String, index: true })
+  demoDatasetId?: string;
+
   /** Set when an administrator issues a temporary password; cleared on change. */
   @Prop({ default: false })
   mustChangePassword: boolean;

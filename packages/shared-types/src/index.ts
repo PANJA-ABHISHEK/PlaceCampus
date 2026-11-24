@@ -760,6 +760,11 @@ export interface PlacementDrive {
   location?: string;
   workMode?: string;
   package?: string;
+  companyLogo?: string;
+  companyIndustry?: string;
+  companyDescription?: string;
+  employmentType?: string;
+  demoLifecycleStatus?: 'ACTIVE' | 'UPCOMING' | 'COMPLETED' | 'EXPIRED';
   applicationStart?: string;
   applicationDeadline?: string;
   driveDate?: string;
@@ -977,6 +982,9 @@ export const ApplicationStatus = {
   APPLIED: 'APPLIED',
   UNDER_REVIEW: 'UNDER_REVIEW',
   SHORTLISTED: 'SHORTLISTED',
+  INTERVIEW_SCHEDULED: 'INTERVIEW_SCHEDULED',
+  OFFER_RELEASED: 'OFFER_RELEASED',
+  SELECTED: 'SELECTED',
   REJECTED: 'REJECTED',
   WITHDRAWN: 'WITHDRAWN',
 } as const;

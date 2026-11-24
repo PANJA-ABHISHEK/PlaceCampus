@@ -17,14 +17,19 @@ import {
   UsersRound,
   type LucideIcon,
 } from 'lucide-react';
-import { DriveStatus, type NotificationItem } from '@placecampus/shared-types';
+import { DriveStatus } from '@placecampus/shared-types';
 import { Button } from '@/components/ui/button';
+import { useAuth } from '@/features/auth/components/auth-provider';
 import { HeroWaves, lightHeroClassName } from '@/components/brand/hero-waves';
 import { cn } from '@/lib/utils';
-import { useNotifications } from '@/features/notifications/hooks/use-notifications';
 import {
+  useRecruiterActivities,
+  useRecruiterDashboardPipeline,
   useRecruiterDashboardSummary,
+  useRecruiterDashboardStats,
+  useRecruiterInterviews,
 } from '@/features/recruiter/hooks/use-recruiter-portal';
+import type { RecruiterActivity, RecruiterInterview, RecruiterPipeline } from '@/features/recruiter/hooks/use-recruiter-portal';
 
 const chartColors = {
   Active: '#ff6b1a',
@@ -61,10 +66,14 @@ function statusClass(status: string) {
 }
 
 export default function RecruiterDashboardPage() {
+  const { user } = useAuth();
   const drivesQuery = useRecruiterDashboardSummary();
+  const statsQuery = useRecruiterDashboardStats();
+  const interviewsQuery = useRecruiterInterviews();
   const grants = React.useMemo(() => drivesQuery.data ?? [], [drivesQuery.data]);
-  const statusGrants = grants.filter((grant) => grant.releasedFields.includes('applicationStatus'));
-  const notificationsQuery = useNotifications({ limit: 5 });
+  const statusGrants = grants.filter((grant) => grant.statusCounts !== null);
+  const pipelineQuery = useRecruiterDashboardPipeline();
+  const activitiesQuery = useRecruiterActivities(6);
   const [now, setNow] = React.useState(0);
 
   React.useEffect(() => {
@@ -73,15 +82,22 @@ export default function RecruiterDashboardPage() {
     return () => { window.clearTimeout(initial); window.clearInterval(timer); };
   }, []);
 
-  const totalCandidates = grants.reduce((sum, grant) => sum + grant.candidateCount, 0);
+  const totalCandidates = statsQuery.data?.totalApplications ?? grants.reduce((sum, grant) => sum + grant.candidateCount, 0);
 
-  const shortlistCount = grants.length === 0
-    ? 0
-    : statusGrants.length === 0
-      ? null
-      : statusGrants.reduce((sum, grant) => sum + (grant.shortlistedCount ?? 0), 0);
+  const knownCounts = statusGrants.reduce((total, grant) => ({
+    applied: total.applied + (grant.statusCounts?.applied ?? 0),
+    underReview: total.underReview + (grant.statusCounts?.underReview ?? 0),
+    shortlisted: total.shortlisted + (grant.statusCounts?.shortlisted ?? 0),
+    interviewScheduled: total.interviewScheduled + (grant.statusCounts?.interviewScheduled ?? 0),
+    offerReleased: total.offerReleased + (grant.statusCounts?.offerReleased ?? 0),
+    selected: total.selected + (grant.statusCounts?.selected ?? 0),
+    rejected: total.rejected + (grant.statusCounts?.rejected ?? 0),
+    withdrawn: total.withdrawn + (grant.statusCounts?.withdrawn ?? 0),
+  }), { applied: 0, underReview: 0, shortlisted: 0, interviewScheduled: 0, offerReleased: 0, selected: 0, rejected: 0, withdrawn: 0 });
+  const shortlistCount = statsQuery.data?.shortlisted ?? (statusGrants.length === 0 ? null : knownCounts.shortlisted);
+  const pendingReviewCount = statsQuery.data?.pendingReviews ?? (statusGrants.length === 0 ? null : knownCounts.applied);
 
-  const expiringSoon = grants.filter((grant) => {
+  const expiringSoon = statsQuery.data?.expiringDriveAccess ?? grants.filter((grant) => {
     const remaining = new Date(grant.expiresAt).getTime() - now;
     return remaining >= 0 && remaining <= 48 * 60 * 60 * 1000;
   }).length;
@@ -90,12 +106,16 @@ export default function RecruiterDashboardPage() {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const counts = { Active: 0, Upcoming: 0, Completed: 0, Expired: 0, Cancelled: 0 };
+    const lifecycleLabel = { ACTIVE: 'Active', UPCOMING: 'Upcoming', COMPLETED: 'Completed', EXPIRED: 'Expired', CANCELLED: 'Cancelled' } as const;
     for (const grant of grants) {
+      if (grant.lifecycle) { counts[lifecycleLabel[grant.lifecycle]] += 1; continue; }
       const expiresAt = new Date(grant.expiresAt).getTime();
       const drive = grant.drive;
       const startsAt = drive.applicationStart ? new Date(drive.applicationStart).getTime() : NaN;
       const deadline = drive.applicationDeadline ? new Date(drive.applicationDeadline).getTime() : NaN;
-      if (drive.status === DriveStatus.CANCELLED) counts.Cancelled += 1;
+      if (drive.demoLifecycleStatus === 'EXPIRED') counts.Expired += 1;
+      else if (drive.demoLifecycleStatus === 'COMPLETED') counts.Completed += 1;
+      else if (drive.status === DriveStatus.CANCELLED) counts.Cancelled += 1;
       else if (!Number.isNaN(expiresAt) && expiresAt <= now) counts.Expired += 1;
       else if (drive.status === DriveStatus.CLOSED || (!Number.isNaN(deadline) && deadline < today.getTime())) counts.Completed += 1;
       else if (drive.status === DriveStatus.DRAFT || (!Number.isNaN(startsAt) && startsAt > now)) counts.Upcoming += 1;
@@ -109,7 +129,11 @@ export default function RecruiterDashboardPage() {
     [grants],
   );
 
-  const activities = (notificationsQuery.data?.items ?? []).slice(0, 4);
+  const activities = (activitiesQuery.data ?? []).slice(0, 5);
+  const upcomingInterviews = React.useMemo(() => (interviewsQuery.data ?? [])
+    .filter((interview) => interview.status === 'SCHEDULED' && new Date(interview.startsAt).getTime() >= now)
+    .sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime())
+    .slice(0, 4), [interviewsQuery.data, now]);
   const chartTotal = grants.length;
 
   if (drivesQuery.isLoading) return <DashboardSkeleton />;
@@ -128,14 +152,20 @@ export default function RecruiterDashboardPage() {
 
   return (
     <div className="-mt-1 space-y-5 sm:-mt-2 lg:-mt-4">
-      <RecruiterHero />
+      <RecruiterHero name={user?.fullName?.trim().split(/\s+/)[0] || 'Recruiter'} />
 
-      <section aria-label="Recruiter overview" className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <MetricCard title="Active Drives" value={grants.length} detail="Drives with active candidate access" icon={<BriefcaseBusiness className="h-5 w-5" />} tone="orange" href="/recruiter/drives" />
-        <MetricCard title="Total Candidates" value={totalCandidates} detail="Applicants across assigned drives" icon={<UsersRound className="h-5 w-5" />} tone="blue" href="/recruiter/candidates" />
-        <MetricCard title="Shortlisted" value={shortlistCount ?? '—'} detail={shortlistCount === null ? 'Application status is not shared for these drives' : statusGrants.length < grants.length ? 'On drives sharing application status' : 'Candidates in your shortlist'} icon={<Star className="h-5 w-5" />} tone="violet" href="/recruiter/shortlists" />
-        <MetricCard title="Expiring Soon" value={expiringSoon} detail="Access expires within 48 hours" icon={<Clock3 className="h-5 w-5" />} tone="green" href="/recruiter/drives" />
+      <section aria-label="Recruiter overview" className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <MetricCard title="Active Drives" value={statsQuery.data?.activeDrives ?? overview.Active} detail="Assigned drives accepting applications" icon={<BriefcaseBusiness className="h-5 w-5" />} tone="orange" href="/recruiter/drives" />
+        <MetricCard title="Total Applicants" value={totalCandidates} detail={`Applications from ${statsQuery.data?.uniqueApplicants ?? '—'} unique students`} icon={<UsersRound className="h-5 w-5" />} tone="blue" href="/recruiter/candidates" />
+        <MetricCard title="Pending Reviews" value={pendingReviewCount ?? '—'} detail={pendingReviewCount === null ? 'Status data is not shared for these drives' : `${statsQuery.data?.newApplications ?? knownCounts.applied} new · ${statsQuery.data?.underReview ?? knownCounts.underReview} under review${statusGrants.length < grants.length ? ' (status-sharing drives)' : ''}`} icon={<Clock3 className="h-5 w-5" />} tone="violet" href="/recruiter/candidates" />
+        <MetricCard title="Shortlisted" value={shortlistCount ?? '—'} detail={shortlistCount === null ? 'Status data is not shared for these drives' : 'Candidates currently shortlisted'} icon={<Star className="h-5 w-5" />} tone="green" href="/recruiter/shortlists" />
+        <MetricCard title="Interviews Scheduled" value={interviewsQuery.isError ? '—' : (interviewsQuery.data ?? []).filter((item) => item.status === 'SCHEDULED').length} detail={interviewsQuery.isError ? 'Interview data could not be loaded' : 'Scheduled interviews for assigned drives'} icon={<CalendarCheck className="h-5 w-5" />} tone="blue" href="/recruiter/interviews" />
+        <MetricCard title="Offers Released" value={statsQuery.data?.offersReleased ?? '—'} detail={statsQuery.data?.statusShared ? 'Applications with offers released' : 'Application status is not shared'} icon={<Send className="h-5 w-5" />} tone="orange" href="/recruiter/candidates" />
+        <MetricCard title="Selected Candidates" value={statsQuery.data?.selected ?? '—'} detail={statsQuery.data?.statusShared ? 'Applications marked selected' : 'Application status is not shared'} icon={<CalendarCheck className="h-5 w-5" />} tone="violet" href="/recruiter/candidates" />
+        <MetricCard title="Expiring Access" value={expiringSoon} detail="Drive access expires within 48 hours" icon={<Clock3 className="h-5 w-5" />} tone="green" href="/recruiter/drives" />
       </section>
+
+      <RecruitmentFunnel pipeline={pipelineQuery.data} isLoading={pipelineQuery.isLoading} isError={pipelineQuery.isError} retry={() => void pipelineQuery.refetch()} />
 
       <div className="grid gap-5 xl:grid-cols-[1.15fr_0.85fr]">
         <section className={panelClassName}>
@@ -157,13 +187,14 @@ export default function RecruiterDashboardPage() {
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <h3 className="truncate font-semibold text-[#142b4d]">{grant.drive.companyName}</h3>
-                      <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold capitalize ${statusClass(grant.drive.status)}`}>{grant.drive.status.toLocaleLowerCase()}</span>
+                      <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold capitalize ${statusClass(grant.drive.status)}`}>{(grant.drive.demoLifecycleStatus || grant.drive.status).toLocaleLowerCase()}</span>
                     </div>
                     <p className="mt-0.5 truncate text-sm text-slate-600">{grant.drive.roleTitle}</p>
                     <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
                       <span className="inline-flex items-center gap-1.5"><CalendarDays className="h-3.5 w-3.5" aria-hidden="true" />Deadline: {dateLabel(grant.drive.applicationDeadline)}</span>
                     </div>
                   </div>
+                  <p className="mr-1 text-xs font-medium text-slate-500">{grant.candidateCount.toLocaleString()} applicants</p>
                   <Link href={`/recruiter/drives/${grant.drive.id}/candidates`} className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 self-start rounded-lg border border-slate-200 px-3 text-sm font-semibold text-[#142b4d] transition hover:border-orange-200 hover:bg-orange-50 hover:text-[#e9570c] sm:self-center">
                     View Details <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
                   </Link>
@@ -175,16 +206,17 @@ export default function RecruiterDashboardPage() {
 
         <div className="grid gap-5 lg:grid-cols-2 xl:grid-cols-1">
           <DriveOverview counts={overview} total={chartTotal} />
-          <RecentActivity items={activities} isLoading={notificationsQuery.isLoading} isError={notificationsQuery.isError} retry={() => void notificationsQuery.refetch()} />
+          <RecentActivity items={activities} isLoading={activitiesQuery.isLoading} isError={activitiesQuery.isError} retry={() => void activitiesQuery.refetch()} />
         </div>
       </div>
+      <UpcomingInterviews items={upcomingInterviews} isLoading={interviewsQuery.isLoading} isError={interviewsQuery.isError} retry={() => void interviewsQuery.refetch()} />
     </div>
   );
 }
 
 function MetricCard({ title, value, detail, icon, tone, href, loading }: {
   title: string; value: number | string; detail: string; icon: React.ReactNode;
-  tone: 'orange' | 'blue' | 'violet' | 'green'; href: string; loading?: boolean;
+  tone: 'orange' | 'blue' | 'violet' | 'green'; href?: string; loading?: boolean;
 }) {
   const tones = {
     orange: { card: 'from-orange-50/90 border-orange-100 group-hover:border-orange-200', icon: 'text-orange-600 ring-orange-100', glow: 'bg-orange-200/40' },
@@ -192,21 +224,22 @@ function MetricCard({ title, value, detail, icon, tone, href, loading }: {
     violet: { card: 'from-violet-50/90 border-violet-100 group-hover:border-violet-200', icon: 'text-violet-600 ring-violet-100', glow: 'bg-violet-200/40' },
     green: { card: 'from-emerald-50/90 border-emerald-100 group-hover:border-emerald-200', icon: 'text-emerald-600 ring-emerald-100', glow: 'bg-emerald-200/40' },
   }[tone];
-  return (
-    <Link href={href} className="group block rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff6b1a] focus-visible:ring-offset-2">
-      <article className={cn('relative h-full overflow-hidden rounded-2xl border bg-gradient-to-br to-white p-5 shadow-[0_4px_18px_-12px_rgba(20,43,77,0.25)] transition-all duration-200 group-hover:-translate-y-0.5 group-hover:shadow-[0_14px_30px_-18px_rgba(20,43,77,0.35)]', tones.card)}>
+  const card = (
+      <article className={cn('relative h-full overflow-hidden rounded-2xl border bg-gradient-to-br to-white p-4 shadow-[0_4px_18px_-12px_rgba(20,43,77,0.25)] transition-all duration-200', tones.card, href && 'group-hover:-translate-y-0.5 group-hover:shadow-[0_14px_30px_-18px_rgba(20,43,77,0.35)]')}>
         <span aria-hidden="true" className={cn('pointer-events-none absolute -bottom-10 -right-10 h-28 w-28 rounded-full blur-2xl', tones.glow)} />
-        <div className="relative flex items-start gap-4">
-          <span className={cn('flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-white shadow-sm ring-1', tones.icon)}>{icon}</span>
+        <div className="relative flex items-start gap-3">
+          <span className={cn('flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white shadow-sm ring-1', tones.icon)}>{icon}</span>
           <div className="min-w-0 flex-1">
             <h2 className="text-sm font-semibold text-[#142b4d]">{title}</h2>
-            {loading ? <div className="mt-2 h-8 w-16 animate-pulse rounded bg-slate-100" /> : <p className="mt-1 text-3xl font-bold tabular-nums tracking-tight text-[#142b4d]">{value}</p>}
-            <p className="mt-1.5 text-xs leading-5 text-slate-500">{detail}</p>
+            {loading ? <div className="mt-2 h-8 w-16 animate-pulse rounded bg-slate-100" /> : <p className="mt-1 text-2xl font-bold tabular-nums tracking-tight text-[#142b4d]">{value}</p>}
+            <p className="mt-1 text-xs leading-4 text-slate-500">{detail}</p>
           </div>
         </div>
       </article>
-    </Link>
   );
+  return href
+    ? <Link href={href} className="group block rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff6b1a] focus-visible:ring-offset-2">{card}</Link>
+    : card;
 }
 
 const panelClassName = 'rounded-2xl border border-slate-200/80 bg-white p-4 shadow-[0_4px_18px_-12px_rgba(20,43,77,0.22)] sm:p-6';
@@ -227,13 +260,66 @@ function SectionHeader({ icon: Icon, title, href, className }: { icon: LucideIco
   );
 }
 
+const funnelStages: Record<string, { label: string; color: string }> = {
+  APPLIED: { label: 'Applied', color: 'bg-sky-500' },
+  UNDER_REVIEW: { label: 'Under review', color: 'bg-violet-500' },
+  SHORTLISTED: { label: 'Shortlisted', color: 'bg-orange-500' },
+  INTERVIEW_SCHEDULED: { label: 'Interview scheduled', color: 'bg-indigo-500' },
+  OFFER_RELEASED: { label: 'Offer released', color: 'bg-emerald-500' },
+  SELECTED: { label: 'Selected', color: 'bg-green-600' },
+};
+
+function RecruitmentFunnel({ pipeline, isLoading, isError, retry }: { pipeline?: RecruiterPipeline; isLoading: boolean; isError: boolean; retry: () => void }) {
+  const max = Math.max(1, ...(pipeline?.stages ?? []).map((stage) => stage.reached));
+  return (
+    <section className={panelClassName}>
+      <SectionHeader icon={Activity} title="Application pipeline" href="/recruiter/analytics" />
+      {isLoading ? (
+        <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-3" aria-busy="true">{[0, 1, 2, 3, 4, 5].map((item) => <div key={item} className="h-[92px] animate-pulse rounded-xl bg-slate-100" />)}</div>
+      ) : isError ? (
+        <div className="mt-4 rounded-xl bg-slate-50 p-4 text-center"><p className="text-sm text-slate-500">Pipeline counts could not be loaded.</p><button type="button" onClick={retry} className="mt-2 text-sm font-semibold text-orange-700 hover:underline">Retry</button></div>
+      ) : !pipeline?.statusShared ? (
+        <p className="mt-4 rounded-xl bg-slate-50 px-4 py-5 text-sm text-slate-600">Application status is not shared for your assigned drives, so pipeline counts are hidden.</p>
+      ) : (
+        <>
+          <dl className="mt-4 flex flex-wrap gap-x-8 gap-y-2 text-sm">
+            <div><dt className="text-xs text-slate-500">Total applications</dt><dd className="text-xl font-bold tabular-nums text-[#142b4d]">{pipeline.totalApplications.toLocaleString()}</dd></div>
+            <div><dt className="text-xs text-slate-500">Overall selection rate</dt><dd className="text-xl font-bold tabular-nums text-[#142b4d]">{pipeline.selectionRate}%</dd></div>
+            <div><dt className="text-xs text-slate-500">Rejected (shown separately)</dt><dd className="text-xl font-bold tabular-nums text-[#142b4d]">{pipeline.rejected.toLocaleString()} <span className="text-xs font-medium text-slate-500">({pipeline.rejectionRate ?? 0}%)</span></dd></div>
+          </dl>
+          <ol className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {pipeline.stages.map((stage, index) => {
+              const meta = funnelStages[stage.status] ?? { label: stage.status, color: 'bg-slate-400' };
+              return (
+                <li key={stage.status} className="rounded-xl border border-slate-100 bg-slate-50/60 p-3.5">
+                  <div className="flex items-center justify-between gap-3"><span className="text-sm font-medium text-slate-600">{index + 1}. {meta.label}</span><span className="text-xl font-bold tabular-nums text-[#142b4d]">{stage.count.toLocaleString()}</span></div>
+                  <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-200"><div className={`h-full rounded-full ${meta.color}`} style={{ width: `${Math.max(stage.reached > 0 ? 4 : 0, (stage.reached / max) * 100)}%` }} /></div>
+                  <p className="mt-2 text-xs text-slate-500">{stage.reached.toLocaleString()} reached this stage{index > 0 ? ` · ${stage.conversionFromPrevious}% from previous` : ''}</p>
+                </li>
+              );
+            })}
+          </ol>
+          <p className="mt-3 text-xs leading-5 text-slate-500">The large number is applications currently at each stage. “Reached” also counts applications that moved further; conversion compares consecutive stages and excludes rejected applications.{pipeline.sharedDriveCount != null && pipeline.assignedDriveCount != null && pipeline.sharedDriveCount < pipeline.assignedDriveCount ? ` Covers ${pipeline.sharedDriveCount} of ${pipeline.assignedDriveCount} drives that share application status.` : ''}</p>
+        </>
+      )}
+    </section>
+  );
+}
+
+function UpcomingInterviews({ items, isLoading, isError, retry }: { items: RecruiterInterview[]; isLoading: boolean; isError: boolean; retry: () => void }) {
+  return <section className={panelClassName}>
+    <SectionHeader icon={CalendarCheck} title="Upcoming interviews" href="/recruiter/interviews" />
+    {isLoading ? <div className="mt-4 grid gap-3 sm:grid-cols-2" aria-busy="true">{[0, 1].map((item) => <div key={item} className="h-16 animate-pulse rounded-xl bg-slate-100" />)}</div> : isError ? <div className="mt-4 rounded-xl bg-slate-50 p-4 text-center"><p className="text-sm text-slate-500">Interview schedule could not be loaded.</p><button type="button" onClick={retry} className="mt-2 text-sm font-semibold text-orange-700 hover:underline">Retry</button></div> : items.length === 0 ? <p className="mt-4 rounded-xl bg-slate-50 px-4 py-5 text-sm text-slate-500">No upcoming interviews on your assigned drives.</p> : <div className="mt-3 grid gap-2 sm:grid-cols-2">{items.map((interview) => <article key={interview.id} className="flex items-center gap-3 rounded-xl border border-slate-100 p-3"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-orange-50 text-orange-700"><CalendarDays className="h-4 w-4" /></span><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold text-[#142b4d]">{interview.candidateName}</p><p className="truncate text-xs text-slate-500">{interview.drive?.companyName || 'Assigned drive'} · {interview.round}</p></div><time className="shrink-0 text-right text-xs text-slate-500">{dateLabel(interview.startsAt)}</time></article>)}</div>}
+  </section>;
+}
+
 const quickActions: { label: string; href: string; icon: LucideIcon; tone: string }[] = [
   { label: 'Review Applications', href: '/recruiter/candidates', icon: Send, tone: 'bg-orange-50 text-[#ff6b1a]' },
   { label: 'Manage Drives', href: '/recruiter/drives', icon: CalendarCheck, tone: 'bg-rose-50 text-rose-500' },
   { label: 'Shortlist Talent', href: '/recruiter/shortlists', icon: UsersRound, tone: 'bg-violet-50 text-violet-600' },
 ];
 
-function RecruiterHero() {
+function RecruiterHero({ name }: { name: string }) {
   return (
     <section className={cn(lightHeroClassName, 'rounded-3xl px-5 py-5 sm:px-7 sm:py-5 lg:px-8')}>
       <HeroWaves />
@@ -244,10 +330,10 @@ function RecruiterHero() {
             Recruiter Workspace
           </span>
           <h1 className="mt-2 text-2xl font-extrabold leading-tight tracking-tight text-[#142b4d] sm:text-3xl lg:text-[34px]">
-            Recruiter <span className="text-[#ff6b1a]">Portal</span>
+            Welcome back, <span className="text-[#ff6b1a]">{name}</span>
           </h1>
           <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-600">
-            Access candidates, review applications, and manage your placement drives efficiently.
+            Manage your placement drives, review candidates, and track recruitment progress.
           </p>
           <nav aria-label="Quick actions" className="mt-4 flex flex-wrap gap-2 sm:gap-2.5">
             {quickActions.map((action) => (
@@ -362,7 +448,7 @@ function DriveOverview({ counts, total }: { counts: Record<string, number>; tota
 }
 
 function RecentActivity({ items, isLoading, isError, retry }: {
-  items: NotificationItem[]; isLoading: boolean; isError: boolean; retry: () => void;
+  items: RecruiterActivity[]; isLoading: boolean; isError: boolean; retry: () => void;
 }) {
   return (
     <section className={panelClassName}>
@@ -388,16 +474,16 @@ function RecentActivity({ items, isLoading, isError, retry }: {
   );
 }
 
-function ActivityItem({ item }: { item: NotificationItem }) {
+function ActivityItem({ item }: { item: RecruiterActivity }) {
   return (
-    <li className="flex items-start gap-3 py-3 first:pt-2">
+    <li className="py-2 first:pt-1"><Link href={item.href} className="-mx-2 flex items-start gap-3 rounded-lg px-2 py-1.5 transition-colors hover:bg-slate-50">
       <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-orange-50 text-[#e9570c]"><Activity className="h-4 w-4" aria-hidden="true" /></span>
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-semibold text-[#142b4d]">{item.title}</p>
         <p className="mt-0.5 line-clamp-2 text-xs leading-5 text-slate-500">{item.message}</p>
       </div>
-      <time dateTime={item.createdAt} className="shrink-0 pt-0.5 text-[11px] text-slate-400">{relativeTime(item.createdAt)}</time>
-    </li>
+      <time dateTime={item.at} className="shrink-0 pt-0.5 text-[11px] text-slate-400">{relativeTime(item.at)}</time>
+    </Link></li>
   );
 }
 

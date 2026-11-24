@@ -142,14 +142,21 @@ pnpm run docker:up      # stop them with: pnpm run docker:down
 ### 4. Seed the data
 
 ```bash
-# Demo accounts, one per role
+# Demo accounts, one per role (isolated demo database only)
 pnpm --filter @placecampus/api run seed:demo
+
+# Seed the recruiter portal dataset (200 students, 8 drives, ~284 applications, ~294 interviews)
+# Sign in at /recruiter/login as recruiter.demo@placecampus.local with DEMO_ACCOUNT_PASSWORD
+pnpm --filter @placecampus/api run seed:recruiter-demo
+
+# Remove only records tagged recruiter-portal-demo-v1
+pnpm --filter @placecampus/api run reset:recruiter-demo
 
 # Skill taxonomy (run after the API has been built by the command above)
 pnpm --filter @placecampus/api exec node dist/database/seed/skills.seed.js
 ```
 
-The demo seed refuses to run in production unless `ENABLE_DEMO_SEED=true` is set.
+All demo seed scripts require `DEMO_MODE=true`, a non-production `NODE_ENV`, and a MongoDB database name containing `demo` (for example `placecampus_demo`). They do not run automatically. The recruiter seed also requires `DEMO_ACCOUNT_PASSWORD`. Reset deletes only records tagged `recruiter-portal-demo-v1` and never deletes unrelated records. Do not point the seed at a live university database.
 
 ### 5. Run the app
 

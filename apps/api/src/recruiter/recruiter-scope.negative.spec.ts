@@ -34,8 +34,12 @@ function setup() {
       driveId: id === 'app-other' ? OTHER : APPROVED,
     })),
     countForDrive: vi.fn().mockResolvedValue(1),
+    getCountsByDrive: vi.fn().mockResolvedValue({ [APPROVED]: { total: 1 } }),
   };
-  const students = { getProfileByUserId: vi.fn().mockResolvedValue({ userId: { fullName: 'Asha' } }) };
+  const students = {
+    getProfileByUserId: vi.fn().mockResolvedValue({ userId: 'stu-1' }),
+    getFullNameByUserId: vi.fn().mockResolvedValue('Asha'),
+  };
   const service = new RecruiterService(access as any, {} as any, applications as any, students as any, audit as any);
   const logged = () => audit.logAction.mock.calls.map(([entry]) => entry);
   return { service, audit, access, applications, students, logged };
@@ -78,7 +82,7 @@ describe('Recruiter scope — denied paths', () => {
 
   it('only treats ACTIVE, unexpired grants as access (revoked and expired grants fail)', async () => {
     const findOne = vi.fn().mockResolvedValue(null);
-    const service = new RecruiterAccessService({ findOne } as any, {} as any, {} as any, {} as any);
+    const service = new RecruiterAccessService({ findOne } as any, {} as any, {} as any, { findById: vi.fn().mockResolvedValue({ isDemoData: false }) } as any);
     const before = Date.now();
     await service.getActiveGrant(APPROVED, 'rec-1');
     const filter = findOne.mock.calls[0][0];

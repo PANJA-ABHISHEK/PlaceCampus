@@ -6,6 +6,14 @@ import { DrivesModule } from '../drives/drives.module.js';
 import { ApplicationsModule } from '../applications/applications.module.js';
 import { StudentsModule } from '../students/students.module.js';
 import { AuditModule } from '../audit/audit.module.js';
+import { MongooseModule } from '@nestjs/mongoose';
+import { RecruiterInterview, RecruiterInterviewSchema } from './schemas/recruiter-interview.schema.js';
+import { RecruiterInterviewsController } from './recruiter-interviews.controller.js';
+import { RecruiterInterviewsService } from './recruiter-interviews.service.js';
+import { RecruiterInsightsService } from './recruiter-insights.service.js';
+import { RecruiterDriveInsightsController, RecruiterInsightsController } from './recruiter-insights.controller.js';
+import { NotificationsModule } from '../notifications/notifications.module.js';
+import { UsersModule } from '../users/users.module.js';
 
 @Module({
   imports: [
@@ -14,8 +22,11 @@ import { AuditModule } from '../audit/audit.module.js';
     ApplicationsModule,
     StudentsModule,
     AuditModule,
+    NotificationsModule,
+    UsersModule,
+    MongooseModule.forFeature([{ name: RecruiterInterview.name, schema: RecruiterInterviewSchema }]),
   ],
-  controllers: [RecruiterController, RecruiterDashboardController],
-  providers: [RecruiterService]
+  controllers: [RecruiterController, RecruiterDashboardController, RecruiterDriveInsightsController, RecruiterInsightsController, RecruiterInterviewsController],
+  providers: [RecruiterService, RecruiterInterviewsService, RecruiterInsightsService]
 })
 export class RecruiterModule {}

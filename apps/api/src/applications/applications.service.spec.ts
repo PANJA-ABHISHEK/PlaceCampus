@@ -287,7 +287,7 @@ describe('ApplicationsService', () => {
       expect(mockAppModel.find).toHaveBeenCalledWith({
         driveId: 'drive-1',
         status: 'APPLIED',
-        studentId: { $in: [applicantId] },
+        $and: [{ studentId: { $in: [applicantId] } }],
       });
       expect(result).toEqual({
         applications: [{ studentId: applicantId }],

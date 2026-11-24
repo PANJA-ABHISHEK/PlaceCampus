@@ -6,6 +6,12 @@ export type RecruiterAccessGrantDocument = RecruiterAccessGrant & Document;
 
 @Schema({ timestamps: true, collection: 'recruiter_access_grants' })
 export class RecruiterAccessGrant {
+  @Prop({ default: false, index: true })
+  isDemoData: boolean;
+
+  @Prop({ type: String, index: true })
+  demoDatasetId?: string;
+
   @Prop({ required: true, type: MongooseSchema.Types.ObjectId, ref: 'User' })
   recruiterId: string;
 
@@ -31,6 +37,10 @@ export class RecruiterAccessGrant {
 
   @Prop({ type: [String], default: [] })
   releasedFields: string[];
+
+  /** Recruiter workflow mutation permission; false unless explicitly granted. */
+  @Prop({ type: Boolean, default: false })
+  canManageApplications: boolean;
 }
 
 export const RecruiterAccessGrantSchema = SchemaFactory.createForClass(RecruiterAccessGrant);
