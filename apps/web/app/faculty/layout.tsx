@@ -3,9 +3,8 @@
 import * as React from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { redirect, usePathname } from "next/navigation";
+import { redirect, usePathname, useRouter } from "next/navigation";
 import {
-  Bell,
   FileCheck2,
   LayoutDashboard,
   LogOut,
@@ -17,11 +16,8 @@ import {
 } from "lucide-react";
 import { UserRole } from "@placecampus/shared-types";
 import { useAuth } from "@/features/auth/components/auth-provider";
-import { SwitchRoleLink } from "@/features/auth/components/switch-role-link";
 import { NotificationBell } from "@/features/notifications/components/notification-bell";
-import { useUnreadNotificationCount } from "@/features/notifications/hooks/use-notifications";
 import { UserMenu } from "@/components/layout/user-menu";
-import { initials } from "@/features/faculty/lib/faculty-meta";
 import { cn } from "@/lib/utils";
 
 const navigation = [
@@ -29,7 +25,6 @@ const navigation = [
   { name: "Evidence Review", href: "/faculty/reviews", icon: FileCheck2 },
   { name: "Interviews", href: "/faculty/interviews", icon: Video },
   { name: "My Students", href: "/faculty/students", icon: Users },
-  { name: "Notifications", href: "/faculty/notifications", icon: Bell, badge: "unread" as const },
   { name: "Settings", href: "/faculty/settings", icon: Settings },
 ];
 
@@ -46,7 +41,7 @@ export default function FacultyLayout({ children }: { children: React.ReactNode 
   const { user, authenticated, loading, clearAuth } = useAuth();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
   const pathname = usePathname();
-  const unread = useUnreadNotificationCount().data?.count ?? 0;
+  const router = useRouter();
 
   // Route protection
   React.useEffect(() => {
@@ -70,7 +65,6 @@ export default function FacultyLayout({ children }: { children: React.ReactNode 
   }
 
   const name = user?.fullName || "Faculty";
-  const subtitle = [user?.designation, user?.department && `${user.department} Department`].filter(Boolean);
   const title = pathname === "/faculty/dashboard"
     ? null
     : PAGE_TITLES.find(([prefix]) => pathname === prefix || pathname.startsWith(`${prefix}/`))?.[1] ?? "Faculty Portal";
@@ -110,41 +104,18 @@ export default function FacultyLayout({ children }: { children: React.ReactNode 
               >
                 <item.icon className="h-5 w-5 shrink-0" aria-hidden="true" />
                 {item.name}
-                {item.badge === "unread" && unread > 0 && (
-                  <span className={cn("ml-auto flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[11px] font-bold", active ? "bg-white text-[#FF6B1A]" : "bg-[#FF6B1A] text-white")}>
-                    {unread > 99 ? "99+" : unread}
-                  </span>
-                )}
               </Link>
             );
           })}
         </nav>
 
         <div className="border-t border-[#E5E7EB] p-3">
-          <SwitchRoleLink />
-          <div aria-hidden="true" className="my-3 border-t border-[#E5E7EB]" />
-          <div className="flex items-center gap-3 px-1 py-2">
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#FF6B1A]/12 text-base font-bold text-[#FF6B1A]">
-              {initials(name)}
-            </span>
-            <div className="min-w-0">
-              <p className="truncate text-sm font-bold text-[#0B1F44]">{name}</p>
-              {subtitle.length ? (
-                subtitle.map((line) => (
-                  <p key={line} className="truncate text-xs leading-snug text-[#64748B]">{line}</p>
-                ))
-              ) : (
-                <p className="text-xs text-[#64748B]">Faculty</p>
-              )}
-            </div>
-          </div>
           <button
             type="button"
-            onClick={() => clearAuth()}
-            className="flex w-full items-center gap-3 rounded-xl px-3.5 py-2.5 text-[15px] font-medium text-[#0B1F44]/80 transition-colors hover:bg-red-50 hover:text-red-600"
+            onClick={() => { clearAuth(); router.replace("/login"); }}
+            className="flex min-h-10 w-full items-center gap-3 rounded-xl px-3 text-[13px] font-semibold text-[#B54735] transition hover:bg-[#FFF3F1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300"
           >
-            <LogOut className="h-5 w-5" aria-hidden="true" />
-            Logout
+            <LogOut className="h-[17px] w-[17px]" aria-hidden="true" />Logout
           </button>
         </div>
       </aside>
