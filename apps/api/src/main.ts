@@ -14,6 +14,7 @@ import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import { AppModule } from './app.module.js';
 import { GlobalExceptionFilter } from './common/filters/global-exception.filter.js';
+import { registerRootRoutes } from './common/root-routes.js';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -62,6 +63,9 @@ async function bootstrap() {
     allowedHeaders: ['Content-Type', 'Authorization'],
   });
 
+  // ── Root + health routes (outside the api/v1 prefix) ──
+  registerRootRoutes(app);
+
   // ── Global Prefix ──
   app.setGlobalPrefix('api/v1');
 
@@ -107,7 +111,7 @@ async function bootstrap() {
 
   // ── Start ──
   const port = configService.get<number>('PORT', 4000);
-  await app.listen(port);
+  await app.listen(port, '0.0.0.0');
 
   console.log(`🚀 PlaceCampus API running on http://localhost:${port}`);
   console.log(`📖 Swagger docs at http://localhost:${port}/api/docs`);
