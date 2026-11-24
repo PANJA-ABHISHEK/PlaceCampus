@@ -223,6 +223,13 @@ export function QuestionComposer({
   );
 }
 
+/** 15 minutes from now, rounded up to the next 5 minutes (date and time for the form). */
+function nextStartSlot() {
+  const at = new Date(Date.now() + 15 * 60_000);
+  at.setMinutes(Math.ceil(at.getMinutes() / 5) * 5, 0, 0);
+  return { date: format(at, "yyyy-MM-dd"), time: format(at, "HH:mm") };
+}
+
 export function ScheduleInterviewDialog({
   open,
   onOpenChange,
@@ -232,7 +239,8 @@ export function ScheduleInterviewDialog({
 }) {
   const schedule = useScheduleInterview();
   const [today] = React.useState(() => format(new Date(), "yyyy-MM-dd"));
-  const [tomorrow] = React.useState(() => format(new Date(Date.now() + 24 * 3600_000), "yyyy-MM-dd"));
+  // Default to today, a little ahead of now, so a typed time isn't silently put on tomorrow.
+  const [soonest] = React.useState(nextStartSlot);
   const [questions, setQuestions] = React.useState<InterviewQuestionInput[]>([]);
   const {
     register,
@@ -247,13 +255,16 @@ export function ScheduleInterviewDialog({
       studentId: "",
       title: "",
       type: "Technical",
-      date: tomorrow,
-      time: "10:00",
+      date: soonest.date,
+      time: soonest.time,
       durationMinutes: 30,
       instructions: "",
     },
   });
   const studentId = useWatch({ control, name: "studentId" });
+  const [dateValue, timeValue] = useWatch({ control, name: ["date", "time"] });
+  const parsedStart = dateValue && timeValue ? new Date(`${dateValue}T${timeValue}`) : null;
+  const startsAt = parsedStart && !Number.isNaN(parsedStart.getTime()) ? parsedStart : null;
 
   const onSubmit = (values: Output) => {
     schedule.mutate(
@@ -269,7 +280,7 @@ export function ScheduleInterviewDialog({
       {
         onSuccess: () => {
           toast.success("Interview scheduled", { description: "The student has been notified." });
-          reset();
+          reset({ ...nextStartSlot(), studentId: "", title: "", type: values.type, durationMinutes: values.durationMinutes, instructions: "" });
           setQuestions([]);
           onOpenChange(false);
         },
@@ -333,6 +344,12 @@ export function ScheduleInterviewDialog({
             <input id="sched-time" type="time" className={field(!!errors.time)} {...register("time")} />
             <FieldError id="sched-time-error" message={errors.time?.message} />
           </div>
+          {startsAt && (
+            <p className="-mt-1 rounded-lg bg-[hsl(var(--primary)/0.06)] px-3 py-2 text-xs font-medium text-[hsl(var(--foreground)/0.8)] sm:col-span-2">
+              Starts {format(startsAt, "EEE, d MMM yyyy")} at {format(startsAt, "h:mm a")}. The student can join the room from{" "}
+              {format(new Date(startsAt.getTime() - 15 * 60_000), "h:mm a")}.
+            </p>
+          )}
           <div className="space-y-1.5 sm:col-span-2">
             <label htmlFor="sched-instructions" className="text-sm font-semibold">Instructions for the student (optional)</label>
             <textarea
