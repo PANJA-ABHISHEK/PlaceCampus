@@ -61,10 +61,15 @@ export class VerificationProcessor {
       const absolutePath = await this.storageService.getFilePath(documentKey);
 
       // 4. Extract Text (PDF text layer, OCR for scanned pages and images)
-      const extraction = await this.extractorService.extractText(
-        absolutePath,
-        evidence.document?.mimeType || 'application/octet-stream',
-      );
+      let extraction: Awaited<ReturnType<DocumentExtractorService['extractText']>>;
+      try {
+        extraction = await this.extractorService.extractText(
+          absolutePath,
+          evidence.document?.mimeType || 'application/octet-stream',
+        );
+      } finally {
+        await this.storageService.releaseFilePath?.(absolutePath);
+      }
       const extractionDoc = await this.extractionStore.save({
         evidenceId,
         studentId,
