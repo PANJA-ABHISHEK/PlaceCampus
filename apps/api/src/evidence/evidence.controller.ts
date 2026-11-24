@@ -22,7 +22,6 @@ import {
   ApiBody,
 } from '@nestjs/swagger';
 import type { Response } from 'express';
-import { createReadStream } from 'fs';
 import { EvidenceService } from './evidence.service.js';
 import { StorageService } from '../storage/storage.service.js';
 import { CreateEvidenceDto, UpdateEvidenceDto } from './dto/evidence.dto.js';
@@ -164,17 +163,13 @@ export class EvidenceController {
       );
     }
 
-    const absolutePath = await this.storageService.getFilePath(
-      documentMeta.key,
-    );
-
-    const fileStream = createReadStream(absolutePath);
+    const documentBuffer = await this.storageService.getFileBuffer(documentMeta.key);
 
     res.set({
       'Content-Type': documentMeta.mimeType,
       'Content-Disposition': `inline; filename="${documentMeta.originalName}"`,
     });
 
-    return new StreamableFile(fileStream);
+    return new StreamableFile(documentBuffer);
   }
 }
