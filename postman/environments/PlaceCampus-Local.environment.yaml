@@ -1,0 +1,13 @@
+name: PlaceCampus Local
+values:
+  - key: email
+    value: ''
+    description: Student email address
+  - key: password
+    value: ''
+    description: Student password
+  - key: access_token
+    value: ''
+    description: JWT access token (auto-filled by pre-request script)
+  - key: placementToken
+    value: ''

@@ -1,0 +1,44 @@
+$kind: http-request
+name: Create Evidence
+method: POST
+url: 'http://localhost:4000/api/v1/evidence'
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{access_token}}'
+body:
+  type: json
+  content: ''
+scripts:
+  - type: beforeRequest
+    language: text/javascript
+    code: |-
+      const email = pm.environment.get("email");
+      const password = pm.environment.get("password");
+
+      if (!email || !password) {
+          console.warn("⚠️ Set 'email' and 'password' in your environment to auto-fetch a token.");
+      } else {
+          pm.sendRequest({
+              url: "http://localhost:4000/api/v1/auth/login",
+              method: "POST",
+              header: { "Content-Type": "application/json" },
+              body: {
+                  mode: "raw",
+                  raw: JSON.stringify({ email, password })
+              }
+          }, function (err, res) {
+              if (err) {
+                  console.error("Login failed:", err);
+              } else {
+                  const token = res.json().accessToken;
+                  if (token) {
+                      pm.environment.set("access_token", token);
+                      console.log("✅ access_token set successfully");
+                  } else {
+                      console.error("No accessToken in login response:", res.json());
+                  }
+              }
+          });
+      }

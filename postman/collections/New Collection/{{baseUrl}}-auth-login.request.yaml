@@ -1,0 +1,19 @@
+$kind: http-request
+name: "{{baseUrl}}/auth/login"
+description: ""
+url: "{{baseUrl}}/auth/login"
+method: POST
+body:
+  type: json
+  content: "{\r
+
+    \  \"email\": \"student.demo@placecampus.local\",\r
+
+    \  \"password\": \"PlaceCampus@Demo123\"\r
+
+    }"
+scripts:
+  - type: afterResponse
+    code: pm.environment.set("token", pm.response.json().accessToken);
+    language: text/javascript
+order: 1000
